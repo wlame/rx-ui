@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- A row picked in the analysis dialog selects the anomaly's lines: a
+  blue background across the line, a bar in the margin, bold line
+  numbers and marks on the minimap and the scrollbar, in place of the
+  red mark. The selection belongs to the tab and stays when an anomaly
+  category is chosen, which used to clear the mark.
+
 ## [0.7.1] - 2026-10-10
 
 ### Added

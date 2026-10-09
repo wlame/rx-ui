@@ -281,6 +281,7 @@ function newChainTab(
     anomalies: null,
     anomalySummary: null,
     selectedAnomalyCategory: null,
+    selectedLines: [],
     anchorLine: 1,
     indexBuild: null,
     pendingIndex: null,

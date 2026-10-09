@@ -14,17 +14,6 @@
   margin-left: 3px;
 }
 
-/* Monaco decorations for single anomaly highlighting (from popup click) */
-.monaco-anomaly-line {
-  background-color: rgba(239, 68, 68, 0.15) !important;
-}
-
-.monaco-anomaly-glyph {
-  background-color: #ef4444;
-  width: 4px !important;
-  margin-left: 3px;
-}
-
 /* Monaco decorations for category-based anomaly highlighting; each
    category's color class (monaco-anomaly-palette-N) is built from the
    palette in src/lib/utils/categoryStyle.ts. */
@@ -118,4 +107,36 @@
 
 .monaco-editor.vs-dark .chain-zone-missing {
   color: #f85149;
+}
+
+/* The selected lines (src/lib/utils/lineSelection.ts): a blue background
+   across the whole line, a bar in the margin and bold line numbers; not
+   the amber of search matches, not the red of anomalies. Monaco puts its
+   theme's base (vs, vs-dark) on .monaco-editor. Last in this file, so a
+   selected line's number keeps its colour in a log chain's gutter. */
+.monaco-selected-line {
+  background-color: rgba(9, 105, 218, 0.12) !important;
+}
+
+.monaco-editor.vs-dark .monaco-selected-line {
+  background-color: rgba(56, 139, 253, 0.2) !important;
+}
+
+.monaco-selected-bar {
+  background-color: #0969da;
+  width: 3px !important;
+  margin-left: 2px;
+}
+
+.monaco-editor.vs-dark .monaco-selected-bar {
+  background-color: #58a6ff;
+}
+
+.monaco-editor .line-numbers.monaco-selected-line-number {
+  font-weight: 700;
+  color: #0969da !important;
+}
+
+.monaco-editor.vs-dark .line-numbers.monaco-selected-line-number {
+  color: #58a6ff !important;
 }

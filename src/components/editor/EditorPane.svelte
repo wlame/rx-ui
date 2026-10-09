@@ -131,7 +131,7 @@
   $: paneView = {
     editorWindow: { startLine: file.startLine, lineCount: file.lines.length },
     matchedFileLines: matchedLinesOf(file.lines, file.chain !== undefined, fileMatches),
-    highlightedRange: file.highlightedLines,
+    selection: file.selectedLines,
     anomalies: file.anomalies,
     selectedCategory:
       file.selectedAnomalyCategory && selectedCategoryStyle

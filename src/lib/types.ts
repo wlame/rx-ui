@@ -1,4 +1,5 @@
 import type { components, operations } from './types.generated';
+import type { LineRange } from './utils/lineSelection';
 import type { TabKey } from './utils/tabKey';
 
 /**
@@ -360,7 +361,12 @@ export interface OpenFile {
   regexFilter: RegexFilter | null; // Regex-based content filter
   showInvisibleChars: boolean; // Show invisible characters (spaces, tabs, CR, etc.)
   wordWrap: boolean; // Wrap long lines instead of horizontal scrolling
-  highlightedLines?: { start: number; end: number } | null; // Highlighted line range (e.g., from anomaly click)
+  /**
+   * The lines the user selected (`utils/lineSelection.ts`), in the tab's
+   * line numbers: sorted, merged, at most `MAX_SEL_RANGES` ranges, and
+   * never past the last line once the store knows it.
+   */
+  selectedLines: LineRange[];
   // Anomaly data from index
   isIndexed: boolean; // Whether the file has an index
   anomalies: AnomalyRangeResult[] | null; // Anomalies detected in the file

@@ -65,8 +65,8 @@ function openFile(overrides: Partial<OpenFile> = {}): OpenFile {
     regexFilter: null,
     showInvisibleChars: false,
     wordWrap: false,
-    // A marked range, so the pane has decorations to draw.
-    highlightedLines: { start: 2, end: 2 },
+    // A selected line, so the pane has decorations to draw.
+    selectedLines: [{ start: 2, end: 2 }],
     isIndexed: false,
     anomalies: null,
     anomalySummary: null,
@@ -179,12 +179,12 @@ describe('EditorPane updates', () => {
     expect(editor.decorationSets).toHaveLength(drawn + 1);
   });
 
-  it('redraws the decorations for a new marked range', async () => {
+  it('redraws the decorations for a new selection', async () => {
     const file = openFile();
     const { pane, editor } = await mountPane(file);
     const drawn = editor.decorationSets.length;
 
-    pane.$set({ file: { ...file, highlightedLines: { start: 3, end: 3 } } });
+    pane.$set({ file: { ...file, selectedLines: [{ start: 3, end: 3 }] } });
     await tick();
 
     expect(editor.decorationSets).toHaveLength(drawn + 1);

@@ -14,6 +14,7 @@ import type * as Monaco from 'monaco-editor';
 import type { AnomalyRangeResult, RegexFilter } from '../types';
 import type { CategoryStyle } from './categoryStyle';
 import type { GutterRun } from './chainZones';
+import type { LineRange } from './lineSelection';
 import { HIDDEN_MARKER } from './processContent';
 import { matchedSpans } from './regexMatches';
 
@@ -22,6 +23,9 @@ type DecorationOptions = Monaco.editor.IModelDecorationOptions;
 
 /** Monaco's MinimapPosition.Inline, spelled out so this module needs no Monaco runtime. */
 const MINIMAP_INLINE = 1;
+
+/** Monaco's OverviewRulerLane.Full: a mark across the whole width of the scrollbar. */
+const OVERVIEW_RULER_FULL = 7;
 
 /** The part of the file the editor holds. */
 export interface EditorWindow {
@@ -92,17 +96,36 @@ export function matchLineDecorations(
   );
 }
 
-/** Marks a highlighted range of file lines, such as one anomaly picked from a list. */
-export function highlightedRangeDecorations(
-  range: { start: number; end: number } | null | undefined,
+/** The color of the selection's marks on the minimap and the scrollbar, in both themes. */
+const SELECTION_MARK_COLOR = '#388bfd';
+
+/**
+ * Marks the selected lines the window holds: one whole-line decoration
+ * per range (clipped to the window) with a background, a bar in the
+ * margin, bold line numbers, and marks on the minimap and the scrollbar.
+ */
+export function selectionDecorations(
+  ranges: readonly LineRange[],
   editorWindow: EditorWindow,
 ): Decoration[] {
-  if (!range) return [];
-  return fileLineRange(range.start, range.end, editorWindow, {
-    isWholeLine: true,
-    className: 'monaco-anomaly-line',
-    glyphMarginClassName: 'monaco-anomaly-glyph',
-    minimap: { color: { id: 'minimap.findMatchHighlight' }, position: MINIMAP_INLINE },
+  const windowEnd = editorWindow.startLine + editorWindow.lineCount - 1;
+  return ranges.flatMap((range) => {
+    const first = toMonacoLine(Math.max(range.start, editorWindow.startLine), editorWindow);
+    const last = toMonacoLine(Math.min(range.end, windowEnd), editorWindow);
+    if (first === null || last === null || first > last) return [];
+    return [
+      {
+        range: { startLineNumber: first, startColumn: 1, endLineNumber: last, endColumn: 1 },
+        options: {
+          isWholeLine: true,
+          className: 'monaco-selected-line',
+          linesDecorationsClassName: 'monaco-selected-bar',
+          lineNumberClassName: 'monaco-selected-line-number',
+          minimap: { color: SELECTION_MARK_COLOR, position: MINIMAP_INLINE },
+          overviewRuler: { color: SELECTION_MARK_COLOR, position: OVERVIEW_RULER_FULL },
+        },
+      },
+    ];
   });
 }
 
@@ -202,8 +225,8 @@ export interface PaneView {
   editorWindow: EditorWindow;
   /** File lines a trace search matched. */
   matchedFileLines: readonly number[];
-  /** A highlighted range of file lines, such as one anomaly picked from a list. */
-  highlightedRange: { start: number; end: number } | null | undefined;
+  /** The selected file lines (`utils/lineSelection.ts`). */
+  selection: readonly LineRange[];
   anomalies: readonly AnomalyRangeResult[] | null;
   /** The anomaly category whose lines are marked, with its look. */
   selectedCategory: { name: string; style: CategoryStyle } | null;
@@ -229,7 +252,7 @@ const isSameObject = <T>(a: T, b: T): boolean => a === b;
 const SAME_PANE_FIELDS: { [K in keyof Required<PaneView>]: SameField<PaneView[K]> } = {
   editorWindow: (a, b) => a.startLine === b.startLine && a.lineCount === b.lineCount,
   matchedFileLines: isSameObject,
-  highlightedRange: isSameObject,
+  selection: isSameObject,
   anomalies: isSameObject,
   selectedCategory: (a, b) =>
     a === b ||
@@ -279,8 +302,8 @@ const FILTER_DECORATIONS: Record<
 };
 
 /**
- * Every decoration of the pane: matched lines, the highlighted range,
- * the selected category's anomalies, what an active filter does, and a
+ * Every decoration of the pane: matched lines, the selected lines, the
+ * selected category's anomalies, what an active filter does, and a
  * log chain's gutter classes. A filter is active when it is enabled and
  * its pattern compiled.
  */
@@ -289,7 +312,7 @@ export function paneDecorations(view: PaneView): Decoration[] {
   const isFilterActive = Boolean(filter?.enabled && filter.compiledRegex);
   return [
     ...matchLineDecorations(view.matchedFileLines, editorWindow),
-    ...highlightedRangeDecorations(view.highlightedRange, editorWindow),
+    ...selectionDecorations(view.selection, editorWindow),
     ...(selectedCategory && view.anomalies
       ? anomalyCategoryDecorations(
           view.anomalies,

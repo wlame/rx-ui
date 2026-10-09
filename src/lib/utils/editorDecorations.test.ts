@@ -3,11 +3,11 @@ import { HIDDEN_MARKER } from './processContent';
 import {
   anomalyCategoryDecorations,
   hiddenMarkerDecorations,
-  highlightedRangeDecorations,
   isSamePaneView,
   matchLineDecorations,
   paneDecorations,
   regexHighlightDecorations,
+  selectionDecorations,
   toMonacoLine,
   type LineSource,
 } from './editorDecorations';
@@ -47,16 +47,40 @@ describe('matchLineDecorations', () => {
   });
 });
 
-describe('highlightedRangeDecorations', () => {
-  it('marks every line of the range that the window holds', () => {
-    const decorations = highlightedRangeDecorations({ start: 108, end: 112 }, editorWindow);
+describe('selectionDecorations', () => {
+  it('marks each selected range once, cut to the lines the window holds', () => {
+    const decorations = selectionDecorations(
+      [
+        { start: 95, end: 102 },
+        { start: 105, end: 105 },
+        { start: 108, end: 140 },
+      ],
+      editorWindow,
+    );
 
-    expect(decorations.map((d) => d.range.startLineNumber)).toEqual([8, 9, 10]);
+    expect(decorations.map((d) => [d.range.startLineNumber, d.range.endLineNumber])).toEqual([
+      [1, 2],
+      [5, 5],
+      [8, 10],
+    ]);
   });
 
-  it('returns nothing when no range is highlighted', () => {
-    expect(highlightedRangeDecorations(null, editorWindow)).toEqual([]);
-    expect(highlightedRangeDecorations(undefined, editorWindow)).toEqual([]);
+  it('marks nothing for a range outside the window', () => {
+    expect(selectionDecorations([{ start: 1, end: 100 }], editorWindow)).toEqual([]);
+    expect(selectionDecorations([{ start: 111, end: 200 }], editorWindow)).toEqual([]);
+  });
+
+  it('gives the lines a background, a margin bar, bold numbers and minimap and scrollbar marks', () => {
+    const [decoration] = selectionDecorations([{ start: 103, end: 104 }], editorWindow);
+
+    expect(decoration.options).toMatchObject({
+      isWholeLine: true,
+      className: 'monaco-selected-line',
+      linesDecorationsClassName: 'monaco-selected-bar',
+      lineNumberClassName: 'monaco-selected-line-number',
+      minimap: { position: 1 },
+      overviewRuler: { position: 7 },
+    });
   });
 });
 
@@ -173,7 +197,7 @@ describe('paneDecorations', () => {
   const nothingShown = {
     editorWindow,
     matchedFileLines: [],
-    highlightedRange: null,
+    selection: [],
     anomalies: null,
     selectedCategory: null,
     filter: null,
@@ -181,11 +205,11 @@ describe('paneDecorations', () => {
     hiddenContent: new Map([['2:0', 'b']]),
   };
 
-  it('marks the matched lines, the highlighted range and the selected category together', () => {
+  it('marks the matched lines, the selected lines and the selected category together', () => {
     const decorations = paneDecorations({
       ...nothingShown,
       matchedFileLines: [102],
-      highlightedRange: { start: 103, end: 103 },
+      selection: [{ start: 103, end: 103 }],
       anomalies: [anomaly, { ...anomaly, category: 'format', start_line: 106, end_line: 106 }],
       selectedCategory: {
         name: 'secrets',
@@ -243,7 +267,7 @@ describe('isSamePaneView', () => {
   const view = {
     editorWindow,
     matchedFileLines: [102],
-    highlightedRange: null,
+    selection: [],
     anomalies: null,
     selectedCategory: { name: 'secrets', style },
     filter: null,
@@ -268,7 +292,7 @@ describe('isSamePaneView', () => {
     ['a window that starts elsewhere', { editorWindow: { ...editorWindow, startLine: 102 } }],
     ['a window of other length', { editorWindow: { ...editorWindow, lineCount: 11 } }],
     ['other matched lines, the same numbers in a new list', { matchedFileLines: [102] }],
-    ['a highlighted range', { highlightedRange: { start: 101, end: 101 } }],
+    ['another selection, the same lines in a new list', { selection: [] }],
     ['anomalies', { anomalies: [] }],
     ['another category', { selectedCategory: { name: 'format', style } }],
     ['no category', { selectedCategory: null }],

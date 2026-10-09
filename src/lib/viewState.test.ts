@@ -54,6 +54,7 @@ function openFile(overrides: Partial<OpenFile>): OpenFile {
     anomalies: null,
     anomalySummary: null,
     selectedAnomalyCategory: null,
+    selectedLines: [],
     anchorLine: 1,
     indexBuild: null,
     fileType: null,
@@ -277,7 +278,7 @@ describe('the URL follows the view', () => {
 
   it('names the line a jump went to', async () => {
     await files.openFile('/logs/small.log', { fileSize: 1000, isIndexed: false });
-    files.setHighlightedLines('/logs/small.log', { start: 169, end: 175 });
+    files.setSelection('/logs/small.log', [{ start: 169, end: 175 }]);
     await files.jumpToLine('/logs/small.log', 169);
     expect(urlParams().get('line')).toBe('169');
   });

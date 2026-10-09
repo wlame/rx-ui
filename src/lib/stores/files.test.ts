@@ -416,6 +416,96 @@ describe('the filter of a file', () => {
   });
 });
 
+describe('the selected lines of a tab', () => {
+  beforeEach(() => setLocation(''));
+
+  afterEach(() => {
+    for (const file of get(files).openFiles) files.closeFile(file.path);
+    vi.unstubAllGlobals();
+  });
+
+  it('opens a file with nothing selected', async () => {
+    serveFileOf(100);
+    await files.openFile('/logs/a.log', { isIndexed: false });
+    expect(openedFile('/logs/a.log').selectedLines).toEqual([]);
+  });
+
+  it("keeps each tab's own selection", async () => {
+    serveFileOf(100);
+    await files.openFile('/logs/a.log', { isIndexed: false });
+    await files.openFile('/logs/b.log', { isIndexed: false });
+
+    files.setSelection('/logs/a.log', [{ start: 10, end: 12 }]);
+    files.setSelection('/logs/b.log', [{ start: 5, end: 5 }]);
+
+    expect(openedFile('/logs/a.log').selectedLines).toEqual([{ start: 10, end: 12 }]);
+    expect(openedFile('/logs/b.log').selectedLines).toEqual([{ start: 5, end: 5 }]);
+  });
+
+  it('merges and sorts the ranges it is given, and keeps the first 100', async () => {
+    serveFileOf(10_000);
+    await files.openFile('/logs/a.log', { isIndexed: false });
+
+    files.setSelection('/logs/a.log', [
+      { start: 5, end: 9 },
+      { start: 1, end: 3 },
+      { start: 4, end: 4 },
+    ]);
+    expect(openedFile('/logs/a.log').selectedLines).toEqual([{ start: 1, end: 9 }]);
+
+    const many = Array.from({ length: 150 }, (_, i) => ({ start: i * 3 + 1, end: i * 3 + 1 }));
+    files.setSelection('/logs/a.log', many);
+    expect(openedFile('/logs/a.log').selectedLines).toHaveLength(100);
+  });
+
+  it('keeps the selection over a page load', async () => {
+    serveFileOf(10_000);
+    await files.openFile('/logs/a.log', { isIndexed: false });
+    files.setSelection('/logs/a.log', [{ start: 500, end: 600 }]);
+    const selected = openedFile('/logs/a.log').selectedLines;
+
+    await files.loadMore('/logs/a.log', 'after');
+
+    expect(openedFile('/logs/a.log').startLine).toBe(1);
+    expect(openedFile('/logs/a.log').endLine).toBeGreaterThan(1000);
+    expect(openedFile('/logs/a.log').selectedLines).toBe(selected);
+  });
+
+  it('cuts the selection at the last line once the line count is known', async () => {
+    serveFileOf(10_000);
+    await files.openFile('/logs/a.log', { isIndexed: false });
+    files.setSelection('/logs/a.log', [
+      { start: 9_000, end: 12_000 },
+      { start: 15_000, end: 15_000 },
+    ]);
+    expect(openedFile('/logs/a.log').selectedLines).toHaveLength(2);
+
+    await files.jumpToEnd('/logs/a.log');
+
+    expect(openedFile('/logs/a.log').selectedLines).toEqual([{ start: 9_000, end: 10_000 }]);
+  });
+
+  it('cuts a selection at once at the line count the tree gave', async () => {
+    serveFileOf(10_000);
+    await files.openFile('/logs/a.log', { isIndexed: false, lineCount: 10_000 });
+
+    files.setSelection('/logs/a.log', [{ start: 9_990, end: 10_500 }]);
+
+    expect(openedFile('/logs/a.log').selectedLines).toEqual([{ start: 9_990, end: 10_000 }]);
+  });
+
+  it('keeps the selection when an anomaly category is chosen', async () => {
+    serveFileOf(100);
+    await files.openFile('/logs/a.log', { isIndexed: false });
+    files.setSelection('/logs/a.log', [{ start: 10, end: 12 }]);
+
+    files.toggleAnomalyCategory('/logs/a.log', 'error');
+
+    expect(openedFile('/logs/a.log').selectedAnomalyCategory).toBe('error');
+    expect(openedFile('/logs/a.log').selectedLines).toEqual([{ start: 10, end: 12 }]);
+  });
+});
+
 /**
  * A file's anchor is the line the URL names for it. It is the line the
  * user went to, and a line the file does not have is moved to the last

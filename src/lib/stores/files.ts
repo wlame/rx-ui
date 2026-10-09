@@ -6,6 +6,7 @@ import { loadSamples, loadSamplesByTime } from '../samplesWait';
 import { countAnomaliesByCategory } from '../utils/anomalyCategories';
 import { LatestRequestMap, SUPERSEDED, isAbortError } from '../utils/latestRequest';
 import { clampAnchor } from '../utils/anchorLine';
+import { MAX_SEL_RANGES, clampSelection, normalize, type LineRange } from '../utils/lineSelection';
 import type { FilterState } from '../utils/urlState';
 import { readSamplesAnswer, readTimeAnswer, type SampleWindow } from '../utils/sampleWindow';
 import { defaultSyntaxHighlighting } from '../utils/highlighting';
@@ -185,6 +186,34 @@ function withTabOrder(state: FilesState): FilesState {
 }
 
 /**
+ * The last line of a tab's file as far as the store knows it: the last
+ * line held once the end was reached, or else the line count the index
+ * or the tree gave (never below the lines held: a file may have grown
+ * since it was counted); null while neither is known.
+ */
+function knownLastLine(file: OpenFile): number | null {
+  if (file.reachedEnd) return file.endLine;
+  return file.totalLines === null ? null : Math.max(file.totalLines, file.endLine);
+}
+
+/**
+ * The state with every tab's selection cut at its file's last line, once
+ * that line is known. A state with nothing past the end is kept as it is.
+ */
+function withSelectionsInFiles(state: FilesState): FilesState {
+  let isChanged = false;
+  const openFiles = state.openFiles.map((file) => {
+    const lastLine = knownLastLine(file);
+    if (lastLine === null) return file;
+    const selectedLines = clampSelection(file.selectedLines, lastLine);
+    if (selectedLines === file.selectedLines) return file;
+    isChanged = true;
+    return { ...file, selectedLines };
+  });
+  return isChanged ? { ...state, openFiles } : state;
+}
+
+/**
  * The tab the editor shows: the one `activeFilePath` names, which the
  * store keeps on an open tab while any is open, or else the last open tab.
  */
@@ -222,7 +251,7 @@ function createFilesStore() {
    * steps) can leave the recent order or the active tab behind.
    */
   function update(change: (s: FilesState) => FilesState) {
-    tabs.update((s) => withTabOrder(change(s)));
+    tabs.update((s) => withTabOrder(withSelectionsInFiles(change(s))));
   }
 
   /** The tabs of log chains, built on this store's tabs and request slots. */
@@ -477,6 +506,7 @@ function createFilesStore() {
       anomalies: null,
       anomalySummary: null,
       selectedAnomalyCategory: null,
+      selectedLines: [],
       anchorLine: scrollToLine ?? 1,
       indexBuild: null,
       pendingIndex: null,
@@ -1275,13 +1305,11 @@ function createFilesStore() {
   }
 
   /**
-   * Set highlighted line range for a file (e.g., from anomaly click)
+   * Select `ranges` in the tab `key`, in its line numbers: sorted and
+   * merged, the first `MAX_SEL_RANGES` kept. An empty list clears it.
    */
-  function setHighlightedLines(key: TabKey, lines: { start: number; end: number } | null) {
-    update((s) => ({
-      ...s,
-      openFiles: s.openFiles.map((f) => (f.path === key ? { ...f, highlightedLines: lines } : f)),
-    }));
+  function setSelection(key: TabKey, ranges: readonly LineRange[]) {
+    setFileFields(key, { selectedLines: normalize(ranges).slice(0, MAX_SEL_RANGES) });
   }
 
   /**
@@ -1293,7 +1321,7 @@ function createFilesStore() {
     update((s) => ({
       ...s,
       openFiles: s.openFiles.map((f) =>
-        f.path === key ? { ...f, selectedAnomalyCategory: category, highlightedLines: null } : f,
+        f.path === key ? { ...f, selectedAnomalyCategory: category } : f,
       ),
     }));
   }
@@ -1343,7 +1371,7 @@ function createFilesStore() {
     toggleWordWrap,
     setActiveFile,
     setRecentOrder,
-    setHighlightedLines,
+    setSelection,
     setSelectedAnomalyCategory,
     toggleAnomalyCategory,
   };

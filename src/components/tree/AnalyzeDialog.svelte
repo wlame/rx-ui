@@ -89,9 +89,9 @@
   function handleAnomalySelect(event: CustomEvent<AnomalyRangeResult>) {
     const anomaly = event.detail;
     close();
-    // Set highlighted lines for the anomaly range
+    // Select the anomaly's lines
     const endLine = anomaly.end_line || anomaly.start_line;
-    files.setHighlightedLines(path, { start: anomaly.start_line, end: endLine });
+    files.setSelection(path, [{ start: anomaly.start_line, end: endLine }]);
     // Jump to the line - this properly loads content around the target line
     files.jumpToLine(path, anomaly.start_line);
   }
