@@ -15,6 +15,7 @@ import { addPage, linesPerPage, maxHeldLines } from '../utils/slidingWindow';
 import { taskPolls } from '../utils/taskPolling';
 import { chainKey, isChainKey, type TabKey } from '../utils/tabKey';
 import { followTabs } from '../utils/tabOrder';
+import { keepChainSelection } from '../utils/chainSelection';
 import { anchorAt } from '../utils/chainWindow';
 import type { KnownLine } from '../utils/knownLine';
 import type {
@@ -259,10 +260,13 @@ function createFilesStore() {
     getTab: (key) => get({ subscribe }).openFiles.find((f) => f.path === key),
     addTab: (tab) =>
       update((s) => ({ ...s, openFiles: [...s.openFiles, tab], activeFilePath: tab.path })),
+    // A chain's selection stays on its lines when the tab numbers them anew.
     patchTab: (key, fields) =>
       update((s) => ({
         ...s,
-        openFiles: s.openFiles.map((f) => (f.path === key ? { ...f, ...fields(f) } : f)),
+        openFiles: s.openFiles.map((f) =>
+          f.path === key ? keepChainSelection(f, { ...f, ...fields(f) }) : f,
+        ),
       })),
     closeTab: (key) => closeFile(key),
     setActive: (key) => setActiveFile(key),

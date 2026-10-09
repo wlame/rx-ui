@@ -20,9 +20,10 @@ import {
   type ViewState,
 } from './utils/urlState';
 import { nameOf } from './utils/chainSwitch';
+import { chainSelEntries, chainSelRanges } from './utils/chainSelection';
 import { fileZoneOf } from './utils/fileZones';
-import type { LineRange } from './utils/lineSelection';
-import { chainHandleOf, chainKey } from './utils/tabKey';
+import type { LineRange, SelEntry } from './utils/lineSelection';
+import { chainHandleOf, chainKey, type TabKey } from './utils/tabKey';
 import type { ChainPosition } from './stores/chainTabs';
 import type { ChainTab, OpenFile, TreeNode } from './types';
 
@@ -106,37 +107,48 @@ function anchorFingerprintOf(chain: ChainTab | undefined): string | null {
  * it, its line in that part (left out at line 1), its timestamp, which
  * finds the line again when the part is gone, and the fingerprint of the
  * files it read the line in, which tells a link opened after a rotation
- * that the part's name may hold another file.
+ * that the part's name may hold another file. Its selected lines name
+ * their parts (`utils/chainSelection.ts`), and the fingerprint of the
+ * files the tab holds goes with them when no anchor names one.
  */
 export function tabViewOf(tab: OpenFile | undefined): TabView {
   const view = fileViewOf(tab);
   const handle = tab ? chainHandleOf(tab.path) : null;
   if (handle === null) return { ...view, chain: null, part: null, fingerprint: null };
-  const anchor = tab?.chain?.anchor ?? null;
+  const chain = tab?.chain;
+  const anchor = chain?.anchor ?? null;
+  const sel = chain && tab ? chainSelEntries(tab.selectedLines, chain) : [];
+  const filesFingerprint = sel.length > 0 ? (chain?.description?.fingerprint ?? null) : null;
   return {
     ...view,
     file: null,
     chain: handle,
-    sel: [],
+    sel,
     part: anchor?.part ?? null,
     line: anchor !== null && anchor.line > 1 ? anchor.line : null,
     time: anchor?.timeMs ?? null,
-    fingerprint: anchorFingerprintOf(tab?.chain),
+    fingerprint: anchorFingerprintOf(chain) ?? filesFingerprint,
   };
 }
 
 /**
  * Where a link puts a chain's tab: at a part's line (line 1 without a
  * line), found again by the time when the part is gone; at a time; at a
- * global line; or at its start. A part's line and a global line carry
- * the fingerprint of the files the link named them in.
+ * global line; at the first selected range; or at its start. A part's
+ * line, a global line and a selected range carry the fingerprint of the
+ * files the link named them in.
  */
 export function chainPositionOf(
-  view: Pick<ViewState, 'part' | 'line' | 'time' | 'fingerprint'>,
+  view: Pick<ViewState, 'part' | 'line' | 'time' | 'fingerprint' | 'sel'>,
 ): ChainPosition {
   const { fingerprint } = view;
   if (view.part !== null) {
     return { kind: 'local', part: view.part, line: view.line ?? 1, timeMs: view.time, fingerprint };
+  }
+  const firstSelected = view.line === null && view.time === null ? view.sel[0] : undefined;
+  if (firstSelected?.part) {
+    const { part, start } = firstSelected;
+    return { kind: 'local', part, line: start, timeMs: null, fingerprint };
   }
   if (view.time !== null) return { kind: 'time', ms: view.time };
   if (view.line !== null) return { kind: 'global', line: view.line, fingerprint };
@@ -345,6 +357,7 @@ async function showChain(
   handle: string,
   view: ViewState,
   named: ChainPosition = chainPositionOf(view),
+  sel: readonly SelEntry[] = view.sel,
 ): Promise<void> {
   const key = chainKey(handle);
   const position = isReadInViewZone(view, key) ? named : withoutLineTime(named);
@@ -362,7 +375,21 @@ async function showChain(
     files.setRegexFilter(key, view.filter);
     await loaded;
   }
+  selectInChain(key, sel, view.fingerprint);
   if (position.kind === 'local') await files.checkChainLinkLine(key, position);
+}
+
+/**
+ * Select a view's ranges in the open chain tab `key`, each in its part.
+ * Ranges named in other files than the chain's now (a fingerprint that
+ * is not the chain's) are dropped, as a line is: after a rotation a
+ * part's name may hold another file.
+ */
+function selectInChain(key: TabKey, sel: readonly SelEntry[], fingerprint: string | null): void {
+  const chain = get(files).openFiles.find((f) => f.path === key)?.chain;
+  if (!chain) return;
+  const isOtherFiles = fingerprint !== null && fingerprint !== chain.description?.fingerprint;
+  files.setSelection(key, isOtherFiles ? [] : chainSelRanges(sel, chain));
 }
 
 /**
@@ -384,15 +411,22 @@ function isReadInViewZone(view: Pick<ViewState, 'fileZones'>, key: string): bool
  */
 function partPosition(path: string, view: ViewState): ChainPosition {
   if (view.line === null && view.time !== null) return { kind: 'time', ms: view.time };
-  return { kind: 'local', part: nameOf(path), line: view.line ?? 1, timeMs: view.time };
+  const line = view.line ?? fileRanges(view)[0]?.start ?? 1;
+  return { kind: 'local', part: nameOf(path), line, timeMs: view.time };
+}
+
+/** A file view's selected ranges as ranges of the part the file is in a chain. */
+function partSelection(path: string, view: ViewState): SelEntry[] {
+  return fileRanges(view).map((range) => ({ ...range, part: nameOf(path) }));
 }
 
 /**
  * Bring the open files to the view: its file active, with its filter,
- * category and selected lines. A time in the view (and no line) jumps that file there and
- * sets the time cursor; no other file moves. A view that names a chain
- * opens that chain's tab at its part and line; so does a view in chain
- * mode that names a part of a valid chain as a file.
+ * category and selected lines. A time in the view (and no line) jumps
+ * that file there and sets the time cursor; no other file moves. A view
+ * that names a chain opens that chain's tab at its part and line, with
+ * its selected lines in their parts; so does a view in chain mode that
+ * names a part of a valid chain as a file.
  */
 async function restoreFile(view: ViewState, isCurrent: () => boolean): Promise<void> {
   if (view.chain !== null) {
@@ -409,7 +443,7 @@ async function restoreFile(view: ViewState, isCurrent: () => boolean): Promise<v
     if (!isCurrent()) return;
     if (handle !== null) {
       carryZone(path, chainKey(handle));
-      await showChain(handle, view, partPosition(path, view));
+      await showChain(handle, view, partPosition(path, view), partSelection(path, view));
       return;
     }
   }

@@ -317,7 +317,7 @@ An unknown or invalid value is read as absent.
 | `line`                                        | The line the view is anchored on; with `part`, the line in that part                                                 |
 | `time`                                        | The time the file jumped to, or a chain's line time, `2026-10-03T14:00:00.123Z`                                      |
 | `fp`                                          | With `chain`: the fingerprint of the chain's files the line was read in, 16 hex digits                               |
-| `sel`                                         | The selected lines, as `rx samples --lines=` writes them: `120-134,200,305-310`; at most 100 ranges                  |
+| `sel`                                         | The selected lines as `rx samples --lines=` writes them, `120-134,200`; in a chain, `syslog.3.gz:120-134`            |
 | `highlight`                                   | `1` or `0`: syntax highlighting on or off; absent, the file's size decides                                           |
 | `filter`, `filter_mode`                       | The editor's regex filter and what it does: `highlight` (default), `hide` or `show`                                  |
 | `category`                                    | The anomaly category marked in the file                                                                              |
@@ -339,6 +339,15 @@ rewritten without the others: `sel=a-3,5-2,0,7` becomes `sel=7`. A
 range past the end of the file is cut at its last line once the viewer
 knows it. A link with `sel` and no `line` (nor `time`) opens at the
 first range; with a `line`, the line decides where the view is.
+
+In a chain's tab each range names the part it is in, by its file name
+and in that part's own line numbers: `sel=syslog.3.gz:120-134`. The name
+is read up to the last `:`, so a name may hold one. A range that runs
+from one part into the next is written as two, one per part. `fp` goes
+with the ranges, and a link whose `fp` is not the chain's now drops them,
+as it drops its `line`: after a rotation a part's name may hold another
+file. A chain whose index is still being built keeps the ranges of the
+parts it can place next to the part it shows.
 
 A `sort` on the value the link does not show is read as a sort on the
 value it shows, in the same direction: `?sort=date-desc` without

@@ -1144,6 +1144,57 @@ describe('a chain tab in the URL', () => {
     );
   });
 
+  it("writes a chain tab's selected lines by part, split at a part edge, with the fingerprint", async () => {
+    const calls = stubWindow('?chains=1');
+    await health.check();
+    await loadView(readViewState());
+    stopSync = startViewSync();
+    await files.openChain('/l/app.log');
+    const pushes = calls.filter((call) => call.mode === 'push').length;
+
+    files.setSelection(chainKey('/l/app.log'), [{ start: 2_999, end: 3_002 }]);
+
+    expect(urlParams().get('sel')).toBe('app.log.2.gz:2999-3000,app.log.1:1-2');
+    expect(urlParams().get('fp')).toBe(chain.fingerprint);
+    expect(calls.filter((call) => call.mode === 'push')).toHaveLength(pushes);
+  });
+
+  it("selects a link's ranges in the chain's parts, and opens at the first one", async () => {
+    stubWindow(
+      `?chain=%2Fl%2Fapp.log&sel=${encodeURIComponent('app.log.1:20-25,app.log:3')}&fp=${chain.fingerprint}`,
+    );
+    await health.check();
+
+    await loadView(readViewState());
+
+    expect(chainTab().selectedLines).toEqual([
+      { start: 3_020, end: 3_025 },
+      { start: 4_503, end: 4_503 },
+    ]);
+    expect(chainTab().anchorLine).toBe(3_020);
+  });
+
+  it("drops a link's ranges when its fingerprint is not the chain's, as its line is", async () => {
+    stubWindow(
+      `?chain=%2Fl%2Fapp.log&part=app.log.1&line=20&sel=${encodeURIComponent('app.log.1:20-25')}&fp=00000000000000ff`,
+    );
+    await health.check();
+
+    await loadView(readViewState());
+
+    expect(chainTab().selectedLines).toEqual([]);
+  });
+
+  it("selects the ranges of a file link in chain mode in that file's part", async () => {
+    stubWindow('?chains=1&file=%2Fl%2Fapp.log.1&sel=20-25');
+    await health.check();
+
+    await loadView(readViewState());
+
+    expect(chainTab().selectedLines).toEqual([{ start: 3_020, end: 3_025 }]);
+    expect(chainTab().anchorLine).toBe(3_020);
+  });
+
   it('rewrites the entry as the anchor moves through the parts, and adds none', async () => {
     const calls = stubWindow('?chains=1');
     await health.check();

@@ -33,7 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `rx samples --lines=` writes them, at most 100 ranges. A reload or a
   shared link selects them again; with `sel` and no `line` the view
   opens at the first range. A range past the end of the file is cut at
-  its last line. Selecting lines rewrites the current history entry.
+  its last line. Selecting lines rewrites the current history entry. In
+  a log chain's tab each range names its part in that part's own line
+  numbers, `sel=syslog.3.gz:120-134`, a range across a part edge is
+  written as two, and the ranges of a link whose `fp` is not the
+  chain's are dropped, as its line is.
 
 ### Changed
 
