@@ -233,6 +233,26 @@ describe('serializeViewState and parseViewState', () => {
       }),
     ],
     [
+      'selected lines',
+      view({
+        file: '/a.log',
+        sel: [
+          { start: 120, end: 134, part: null },
+          { start: 200, end: 200, part: null },
+        ],
+      }),
+    ],
+    [
+      'selected lines of a log chain',
+      view({
+        chain: '/l/app:1.log',
+        sel: [
+          { start: 120, end: 134, part: 'app:1.log.3.gz' },
+          { start: 1, end: 2, part: 'app:1.log.2.gz' },
+        ],
+      }),
+    ],
+    [
       'a stash',
       view({
         stash: [Date.UTC(2025, 11, 10, 7, 30, 0, 1), Date.UTC(2025, 11, 11, 23, 59, 59, 999)],
@@ -460,6 +480,12 @@ describe('historyModeFor', () => {
         mode: 'replace',
       },
       {
+        name: 'selecting lines',
+        previous: fileA,
+        next: view({ file: '/a.log', sel: [{ start: 3, end: 4, part: null }] }),
+        mode: 'replace',
+      },
+      {
         name: 'adding to the stash',
         previous: fileA,
         next: view({ file: '/a.log', stash: [Date.UTC(2025, 11, 10, 7, 30)] }),
@@ -548,6 +574,43 @@ describe('historyModeFor', () => {
 
   it.each(steps)('$name is a $mode', ({ previous, next, mode }) => {
     expect(historyModeFor(previous, next)).toBe(mode);
+  });
+});
+
+describe('the selected lines in the URL', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('reads sel=120-134,200,305-310 and writes it back the same', () => {
+    const read = parseViewState('?file=%2Fa.log&sel=120-134,200,305-310');
+
+    expect(read.sel).toEqual([
+      { start: 120, end: 134, part: null },
+      { start: 200, end: 200, part: null },
+      { start: 305, end: 310, part: null },
+    ]);
+    expect(new URLSearchParams(serializeViewState(read, '')).get('sel')).toBe(
+      '120-134,200,305-310',
+    );
+  });
+
+  it('drops the invalid parts of a link and rewrites its entry without them', () => {
+    const calls = setLocation('?file=%2Fa.log&sel=a-3,5-2,0,7');
+
+    writeViewState(readViewState(), 'push');
+
+    expect(calls).toEqual([{ mode: 'replace', url: '/?file=%2Fa.log&sel=7' }]);
+  });
+
+  it('keeps the first 100 of 150 ranges', () => {
+    const value = Array.from({ length: 150 }, (_, i) => String(i * 2 + 1)).join(',');
+    const read = parseViewState(`?file=%2Fa.log&sel=${value}`);
+    expect(read.sel).toHaveLength(100);
+    expect(read.sel.at(-1)).toEqual({ start: 199, end: 199, part: null });
+  });
+
+  it('leaves no sel in a link without selected lines', () => {
+    expect(serializeViewState(view({ file: '/a.log', sel: [] }), '')).toBe('?file=%2Fa.log');
+    expect(parseViewState('?file=%2Fa.log&sel=').sel).toEqual([]);
   });
 });
 

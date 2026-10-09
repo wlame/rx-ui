@@ -4,7 +4,8 @@
  * The URL names what a user would bookmark, share or come back to: the
  * active file or log chain, the line its view is anchored on or the
  * time it jumped to (in a chain, with the fingerprint of the files that
- * line was read in), its highlighting, filter and anomaly category, the
+ * line was read in), the lines selected in it, its highlighting, filter
+ * and anomaly category, the
  * panel the side panel shows, whether rotated logs are grouped into
  * chains, whether the files panel shows its labels, which value it shows
  * and how it sorts its rows, the last search, whether its results show
@@ -26,6 +27,7 @@ import {
   type FileZone,
 } from './fileZones';
 import { SEARCH_TOGGLES } from './searchToggles';
+import { parseSel, serializeSel, type SelEntry } from './lineSelection';
 import { isChainKey } from './tabKey';
 import { normalizeStash } from './timeStash';
 import { DEFAULT_SORT, SORT_DIRS, SORT_KEYS, sortForShown, type TreeSort } from './treeSort';
@@ -98,6 +100,13 @@ export interface ViewState {
    * another file and `line` another line.
    */
   fingerprint: string | null;
+  /**
+   * The lines selected in the active tab (`lineSelection.ts`), as
+   * `rx samples --lines=` writes them: `sel=120-134,200`. In a chain each
+   * range names its part, `sel=syslog.3.gz:120-134`, checked by `fp` as
+   * `line` is.
+   */
+  sel: SelEntry[];
   /** Syntax highlighting on or off; null means the file's size-based default. */
   highlight: boolean | null;
   /** The active file's regex filter, or null for none. */
@@ -138,6 +147,7 @@ export const DEFAULT_VIEW: ViewState = {
   line: null,
   time: null,
   fingerprint: null,
+  sel: [],
   highlight: null,
   filter: null,
   category: null,
@@ -420,6 +430,15 @@ const CODECS: { [K in keyof ViewState]: ParamCodec<ViewState[K]> } = {
     serialize: (fingerprint, view) =>
       fingerprint === null || view.chain === null ? [] : [['fp', fingerprint]],
   },
+  // Selecting lines rewrites the current entry.
+  sel: {
+    names: ['sel'],
+    parse: (params) => parseSel(params.get('sel')),
+    serialize: (sel) => {
+      const value = serializeSel(sel);
+      return value === null ? [] : [['sel', value]];
+    },
+  },
   highlight: {
     names: ['highlight'],
     parse: (params) => optionalBoolean(params.get('highlight')),
@@ -570,8 +589,8 @@ function isStepKey<K extends keyof ViewState>(
  * How the change from `previous` to `next` reaches history: a push when
  * any key changed in a way that is a step (opening a file or a chain,
  * running a search, showing another panel, a jump by time),
- * otherwise a replace (the line and its part, the highlighting, the
- * filter, the category, chain mode, the files panel's labels, value and
+ * otherwise a replace (the line and its part, the selected lines, the
+ * highlighting, the filter, the category, chain mode, the files panel's labels, value and
  * sort, the offsets switch, the stash, the file zones).
  */
 export function historyModeFor(previous: ViewState, next: ViewState): HistoryMode {

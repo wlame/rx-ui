@@ -21,6 +21,7 @@ import {
 } from './utils/urlState';
 import { nameOf } from './utils/chainSwitch';
 import { fileZoneOf } from './utils/fileZones';
+import type { LineRange } from './utils/lineSelection';
 import { chainHandleOf, chainKey } from './utils/tabKey';
 import type { ChainPosition } from './stores/chainTabs';
 import type { ChainTab, OpenFile, TreeNode } from './types';
@@ -43,17 +44,29 @@ import type { ChainTab, OpenFile, TreeNode } from './types';
  */
 
 /** The part of the view that belongs to the active file. */
-type FileView = Pick<ViewState, 'file' | 'line' | 'time' | 'highlight' | 'filter' | 'category'>;
+type FileView = Pick<
+  ViewState,
+  'file' | 'line' | 'time' | 'highlight' | 'filter' | 'category' | 'sel'
+>;
 
 /**
  * What the URL says about a file: its path, its anchor line (left out at
- * line 1) or, while a jump by time put it there, that time instead, its
- * highlighting when it differs from the size-based default, its filter
- * when one is applied, and its anomaly category.
+ * line 1) or, while a jump by time put it there, that time instead, the
+ * lines selected in it, its highlighting when it differs from the
+ * size-based default, its filter when one is applied, and its anomaly
+ * category.
  */
 export function fileViewOf(file: OpenFile | undefined): FileView {
   if (!file) {
-    return { file: null, line: null, time: null, highlight: null, filter: null, category: null };
+    return {
+      file: null,
+      line: null,
+      time: null,
+      highlight: null,
+      filter: null,
+      category: null,
+      sel: [],
+    };
   }
 
   const filter = file.regexFilter;
@@ -67,6 +80,7 @@ export function fileViewOf(file: OpenFile | undefined): FileView {
     highlight: isDefaultHighlighting ? null : file.syntaxHighlighting,
     filter: filter && isFilterApplied ? { pattern: filter.pattern, mode: filter.mode } : null,
     category: file.selectedAnomalyCategory,
+    sel: file.selectedLines.map((range) => ({ ...range, part: null })),
   };
 }
 
@@ -103,6 +117,7 @@ export function tabViewOf(tab: OpenFile | undefined): TabView {
     ...view,
     file: null,
     chain: handle,
+    sel: [],
     part: anchor?.part ?? null,
     line: anchor !== null && anchor.line > 1 ? anchor.line : null,
     time: anchor?.timeMs ?? null,
@@ -227,10 +242,16 @@ async function jumpToViewTime(path: string, time: number): Promise<void> {
   notifications.error(`Cannot go to the time in ${name}: ${outcome.message}`, 5000);
 }
 
+/** The ranges a view selects in a file: those that name no part. */
+function fileRanges(view: Pick<ViewState, 'sel'>): LineRange[] {
+  return view.sel.filter((entry) => entry.part === null).map(({ start, end }) => ({ start, end }));
+}
+
 /**
  * Open the file a view names, or bring it forward when it is open, at
- * the view's line, or at its time when it names a time and no line, and
- * with its highlighting. The file is in the store when this resolves;
+ * the view's line, or at its time when it names a time and no line, or
+ * at its first selected range when it names neither, and with its
+ * highlighting. The file is in the store when this resolves;
  * the returned load resolves when its lines arrive.
  */
 async function showFile(
@@ -239,8 +260,10 @@ async function showFile(
   isCurrent: () => boolean,
 ): Promise<{ loaded: Promise<void> } | null> {
   const open = get(files).openFiles.find((f) => f.path === path);
-  const line = view.line ?? 1;
   const time = view.line === null ? view.time : null;
+  // Without a line or a time, the view shows the first selected range.
+  const shownLine = view.line ?? (time === null ? (fileRanges(view)[0]?.start ?? null) : null);
+  const line = shownLine ?? 1;
 
   if (open) {
     // A file brought forward shows the top of its loaded lines, so its
@@ -261,7 +284,7 @@ async function showFile(
   if (!isCurrent()) return null;
   // openFile puts the file in the store before its first await.
   const loaded = files.openFile(path, {
-    scrollToLine: view.line ?? undefined,
+    scrollToLine: shownLine ?? undefined,
     fileSize: node?.size ?? null,
     syntaxHighlighting: view.highlight ?? undefined,
     isIndexed: node?.is_indexed ?? undefined,
@@ -365,8 +388,8 @@ function partPosition(path: string, view: ViewState): ChainPosition {
 }
 
 /**
- * Bring the open files to the view: its file active, with its filter and
- * category. A time in the view (and no line) jumps that file there and
+ * Bring the open files to the view: its file active, with its filter,
+ * category and selected lines. A time in the view (and no line) jumps that file there and
  * sets the time cursor; no other file moves. A view that names a chain
  * opens that chain's tab at its part and line; so does a view in chain
  * mode that names a part of a valid chain as a file.
@@ -395,6 +418,7 @@ async function restoreFile(view: ViewState, isCurrent: () => boolean): Promise<v
   if (!shown) return;
   files.setRegexFilter(path, view.filter);
   files.setSelectedAnomalyCategory(path, view.category);
+  files.setSelection(path, fileRanges(view));
   await shown.loaded;
 }
 

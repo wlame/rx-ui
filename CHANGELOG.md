@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and its last line then says how many ranges it holds. The request's
   `rx samples` command goes to the recent commands. A chain whose index
   is still being built cannot be copied from yet.
+- The selected lines in the link: `sel=120-134,200,305-310`, as
+  `rx samples --lines=` writes them, at most 100 ranges. A reload or a
+  shared link selects them again; with `sel` and no `line` the view
+  opens at the first range. A range past the end of the file is cut at
+  its last line. Selecting lines rewrites the current history entry.
 
 ### Changed
 

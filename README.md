@@ -317,6 +317,7 @@ An unknown or invalid value is read as absent.
 | `line`                                        | The line the view is anchored on; with `part`, the line in that part                                                 |
 | `time`                                        | The time the file jumped to, or a chain's line time, `2026-10-03T14:00:00.123Z`                                      |
 | `fp`                                          | With `chain`: the fingerprint of the chain's files the line was read in, 16 hex digits                               |
+| `sel`                                         | The selected lines, as `rx samples --lines=` writes them: `120-134,200,305-310`; at most 100 ranges                  |
 | `highlight`                                   | `1` or `0`: syntax highlighting on or off; absent, the file's size decides                                           |
 | `filter`, `filter_mode`                       | The editor's regex filter and what it does: `highlight` (default), `hide` or `show`                                  |
 | `category`                                    | The anomaly category marked in the file                                                                              |
@@ -331,6 +332,13 @@ An unknown or invalid value is read as absent.
 | `offsets`                                     | `1`: the search results show byte offsets                                                                            |
 | `stash`                                       | The timestamps stash: up to 7 instants, comma-separated                                                              |
 | `ftz`                                         | A zone chosen for a file, `ftz=UTC@/var/log/app.log`, or for a chain, `ftz=UTC@chain:/var/log/syslog`; once per file |
+
+`sel` keeps the ranges that are a line `N` or a range `A-B` with whole
+numbers 1 ≤ A ≤ B, the first 100 of them, and the address bar is
+rewritten without the others: `sel=a-3,5-2,0,7` becomes `sel=7`. A
+range past the end of the file is cut at its last line once the viewer
+knows it. A link with `sel` and no `line` (nor `time`) opens at the
+first range; with a `line`, the line decides where the view is.
 
 A `sort` on the value the link does not show is read as a sort on the
 value it shows, in the same direction: `?sort=date-desc` without

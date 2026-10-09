@@ -76,6 +76,7 @@ describe('fileViewOf', () => {
       filter: null,
       category: null,
       time: null,
+      sel: [],
     });
   });
 
@@ -127,6 +128,17 @@ describe('fileViewOf', () => {
 
   it('writes the selected anomaly category', () => {
     expect(fileViewOf(openFile({ selectedAnomalyCategory: 'error' })).category).toBe('error');
+  });
+
+  it("writes the selected lines as the file's ranges", () => {
+    const selectedLines = [
+      { start: 120, end: 134 },
+      { start: 200, end: 200 },
+    ];
+    expect(fileViewOf(openFile({ selectedLines })).sel).toEqual([
+      { start: 120, end: 134, part: null },
+      { start: 200, end: 200, part: null },
+    ]);
   });
 });
 
@@ -313,6 +325,21 @@ describe('the URL follows the view', () => {
     expect(window.location.search).toBe('?tab=files&offsets=1&regexp=ERROR');
   });
 
+  it('names the selected lines of the active file, and adds no entry for them', async () => {
+    await files.openFile('/logs/small.log', { fileSize: 1000, isIndexed: false });
+    const calls = stubWindow(window.location.search);
+    stopSync();
+    stopSync = startViewSync();
+
+    files.setSelection('/logs/small.log', [
+      { start: 169, end: 175 },
+      { start: 200, end: 200 },
+    ]);
+
+    expect(urlParams().get('sel')).toBe('169-175,200');
+    expect(calls.filter((call) => call.mode === 'push')).toEqual([]);
+  });
+
   it('names the filter and the anomaly category of the active file', async () => {
     await files.openFile('/logs/small.log', { fileSize: 1000, isIndexed: false });
     files.setRegexFilter('/logs/small.log', { pattern: 'LINE 1\\d', mode: 'show' });
@@ -362,6 +389,7 @@ describe('restoreView', () => {
       line: 4_200,
       time: null,
       fingerprint: null,
+      sel: [],
       highlight: null,
       filter: { pattern: 'LINE 42', mode: 'hide' },
       category: 'error',
@@ -389,6 +417,65 @@ describe('restoreView', () => {
     expect(get(filesView)).toEqual({ labels: false, show: 'date', sort: DATE_ASC });
     expect(get(searchShowsOffsets)).toBe(true);
     expect(get(searchRequest)).toEqual(view.search);
+  });
+
+  it('opens a link with selected lines and no line at the first range, and selects them', async () => {
+    await restoreView({
+      ...DEFAULT_VIEW,
+      file: '/logs/small.log',
+      sel: [
+        { start: 4_200, end: 4_210, part: null },
+        { start: 5_000, end: 5_000, part: null },
+      ],
+    });
+
+    const file = activeFile();
+    expect(file.anchorLine).toBe(4_200);
+    expect(file.lines[0].lineNumber).toBeLessThanOrEqual(4_200);
+    expect(file.selectedLines).toEqual([
+      { start: 4_200, end: 4_210 },
+      { start: 5_000, end: 5_000 },
+    ]);
+  });
+
+  it('opens a link with selected lines and a line at the line', async () => {
+    await restoreView({
+      ...DEFAULT_VIEW,
+      file: '/logs/small.log',
+      line: 300,
+      sel: [{ start: 4_200, end: 4_210, part: null }],
+    });
+
+    expect(activeFile().anchorLine).toBe(300);
+    expect(activeFile().selectedLines).toEqual([{ start: 4_200, end: 4_210 }]);
+  });
+
+  it('brings an open file to the first selected range of a view with no line', async () => {
+    await restoreView({ ...DEFAULT_VIEW, file: '/logs/small.log', line: 50 });
+
+    await restoreView({
+      ...DEFAULT_VIEW,
+      file: '/logs/small.log',
+      sel: [{ start: 700, end: 705, part: null }],
+    });
+
+    expect(activeFile().anchorLine).toBe(700);
+  });
+
+  it("drops a file view's ranges that name a part, and clears what the view does not select", async () => {
+    await restoreView({
+      ...DEFAULT_VIEW,
+      file: '/logs/small.log',
+      sel: [{ start: 10, end: 12, part: null }],
+    });
+
+    await restoreView({
+      ...DEFAULT_VIEW,
+      file: '/logs/small.log',
+      sel: [{ start: 20, end: 22, part: 'small.log.1' }],
+    });
+
+    expect(activeFile().selectedLines).toEqual([]);
   });
 
   it("fills the search panel's form from the link's search", async () => {
