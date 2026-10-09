@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   also when the editor loads other pages of the file. Cmd/Ctrl+click
   now adds a cursor in the editor; a link in the text opens with
   Alt+click.
+- A chip in the editor header for the selected lines, "3 ranges · 21
+  lines", with Copy and × (clear). Copy asks the backend for every range
+  in one samples request without context lines and copies each range
+  under a header that names the file and its lines, `==> app.log:120-134
+<==`, with an empty line between ranges; in a log chain each part's
+  lines get their own header. The copy stops at 8 MiB, in whole ranges,
+  and its last line then says how many ranges it holds. The request's
+  `rx samples` command goes to the recent commands. A chain whose index
+  is still being built cannot be copied from yet.
 
 ### Changed
 

@@ -1,7 +1,8 @@
 <script lang="ts">
   /**
    * The editor pane's header: the file's name and badges, the line
-   * readout with its go-to box, the anomaly chips and the toolbar; for a
+   * readout with its go-to box, the chip of the selected lines, the
+   * anomaly chips and the toolbar; for a
    * log chain, the chain's summary and its parts, and a go-to box that
    * takes a global line or `part:line`.
    *
@@ -13,6 +14,7 @@
   import { createEventDispatcher } from 'svelte';
   import type { MonacoTheme, OpenFile } from '$lib/types';
   import { files } from '$lib/stores';
+  import { canCopySelection, copySelection } from '$lib/selectionCopy';
   import FileBadges from '../common/FileBadges.svelte';
   import { parseChainLineTarget } from '$lib/utils/chainParts';
   import { chainRangeLabels } from '$lib/utils/chainPane';
@@ -20,6 +22,7 @@
   import AnomalyCategoryNav from './AnomalyCategoryNav.svelte';
   import EditorToolbar from './EditorToolbar.svelte';
   import LineRangeNav from './LineRangeNav.svelte';
+  import SelectionChip from './SelectionChip.svelte';
 
   export let file: OpenFile;
   export let monacoTheme: MonacoTheme;
@@ -73,6 +76,11 @@
     </div>
 
     <div class="flex items-center gap-2">
+      <SelectionChip
+        ranges={file.selectedLines}
+        copy={canCopySelection(file) ? () => copySelection(file) : null}
+        clear={() => files.setSelection(file.path, [])}
+      />
       <AnomalyCategoryNav
         summary={file.anomalySummary}
         selectedCategory={file.selectedAnomalyCategory}

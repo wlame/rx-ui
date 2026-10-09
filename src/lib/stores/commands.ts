@@ -7,7 +7,8 @@ import { derived, writable } from 'svelte/store';
  * Every command comes from the backend's `cli_command`; the viewer never
  * writes one itself, and an answer without one adds nothing. Only
  * answers to a user's action are recorded (a search, a file opened, a
- * jump, an index, an analysis), not the pages loaded while scrolling.
+ * jump, a copy of selected lines, an index, an analysis), not the pages
+ * loaded while scrolling.
  */
 
 /** What the user did that the command answers. */
