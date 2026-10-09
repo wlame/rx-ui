@@ -273,6 +273,9 @@
       lineNumbersMinChars: 10,
       // Smooth scrolling
       smoothScrolling: true,
+      // Cmd/Ctrl+click and drag add to the selection of lines
+      // (selectionController.ts); a link opens with Alt+click.
+      multiCursorModifier: 'ctrlCmd',
       // Cursor settings for readonly
       cursorStyle: 'line',
       cursorBlinking: 'solid',

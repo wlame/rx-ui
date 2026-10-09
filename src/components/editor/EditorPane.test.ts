@@ -3,9 +3,11 @@ import '$lib/testing/matchMediaStub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
 import { get } from 'svelte/store';
+import type * as Monaco from 'monaco-editor';
+import { files } from '$lib/stores/files';
 import { editorFocusRequested } from '$lib/stores/layout';
 import { CHAIN_T0, chainDescription, chainPart, chainTabOf } from '$lib/testing/chainDescription';
-import { fakeMonacoEditors } from '$lib/testing/fakeMonacoEditor';
+import { MOUSE_TARGET, fakeMonacoEditors } from '$lib/testing/fakeMonacoEditor';
 import type { FileLine, OpenFile } from '$lib/types';
 import { chainLineLabels } from '$lib/utils/chainPane';
 import { chainGutterRuns } from '$lib/utils/chainZones';
@@ -127,6 +129,15 @@ async function mountPane(file: OpenFile) {
   return { pane, editor };
 }
 
+/** The editor lines of each selection decoration in `decorations`. */
+function selectionRanges(
+  decorations: { range: Monaco.IRange; options: { className?: string | null } }[] = [],
+) {
+  return decorations
+    .filter((d) => d.options.className === 'monaco-selected-line')
+    .map((d) => [d.range.startLineNumber, d.range.endLineNumber]);
+}
+
 /** The tab's update for an index task's progress: a new tab object, nothing it shows changed. */
 function progressTick(file: OpenFile, progress: number): OpenFile {
   return { ...file, indexBuild: { taskId: 'task-1', progress } };
@@ -189,6 +200,42 @@ describe('EditorPane updates', () => {
 
     expect(editor.decorationSets).toHaveLength(drawn + 1);
     expect(editor.decorationSets.at(-1)?.[0].range.startLineNumber).toBe(3);
+  });
+});
+
+describe('EditorPane selection', () => {
+  it('draws the selection again over the next page, at its new editor lines', async () => {
+    const file = openFile({ lines: fileLines(4), selectedLines: [{ start: 3, end: 4 }] });
+    const { pane, editor } = await mountPane(file);
+    expect(selectionRanges(editor.decorationSets.at(-1))).toEqual([[3, 4]]);
+
+    // The window moves on: Monaco's line 1 is now file line 3.
+    const next = fileLines(6).slice(2);
+    pane.$set({ file: { ...file, lines: next, startLine: 3, endLine: 6 } });
+    await tick();
+    await vi.runAllTimersAsync();
+
+    expect(selectionRanges(editor.decorationSets.at(-1))).toEqual([[1, 2]]);
+  });
+
+  it('hands what the user selects in its editor to the tab in the store', async () => {
+    const select = vi.spyOn(files, 'setSelection').mockImplementation(() => {});
+    const { editor } = await mountPane(openFile({ lines: fileLines(5), startLine: 1 }));
+
+    editor.mouseDown({ type: MOUSE_TARGET.lineNumbers, line: 4 });
+    editor.mouseUp({ type: MOUSE_TARGET.lineNumbers, line: 4 });
+
+    expect(select).toHaveBeenCalledWith('/logs/a.log', [{ start: 4, end: 4 }]);
+    select.mockRestore();
+  });
+
+  it('stops hearing its editor when it is destroyed', async () => {
+    const { pane, editor } = await mountPane(openFile());
+    expect(editor.listenerCount()).toBeGreaterThan(0);
+
+    pane.$destroy();
+
+    expect(editor.listenerCount()).toBe(0);
   });
 });
 

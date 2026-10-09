@@ -95,6 +95,20 @@ export type FileTabsShortcutId = 'nextTab' | 'previousTab' | 'closeTab';
  */
 export type RecentTabsShortcutId = 'recentTab' | 'recentTabBack' | 'closeRecentTabs';
 
+/**
+ * The ways to select lines in the open file: mouse gestures and the
+ * editor's own selection keys, which the selection controller hears
+ * (`components/editor/selectionController.ts`), and Esc, which clears.
+ */
+export type SelectionShortcutId =
+  | 'selectLine'
+  | 'selectDragged'
+  | 'extendSelection'
+  | 'toggleSelectedLine'
+  | 'addDragged'
+  | 'extendByKeys'
+  | 'clearSelection';
+
 /** The keys of the tab strip, which act on the focused tab. */
 export type TabStripShortcutId = 'tabStripMove' | 'tabStripEnds' | 'tabStripClose';
 
@@ -112,6 +126,7 @@ export type ShortcutId =
   | 'gotoJump'
   | 'gotoClose'
   | 'findInEditor'
+  | SelectionShortcutId
   | 'nextAnomaly'
   | 'applyFilter'
   | 'closeFilter'
@@ -484,6 +499,49 @@ export const SHORTCUTS: readonly Shortcut[] = [
     scope: 'filePane',
     description: 'Find in the lines loaded in the editor',
     gesture: `${MOD_LABEL}+F`,
+  },
+  {
+    id: 'selectLine',
+    scope: 'filePane',
+    description: 'Select that line',
+    gesture: 'Click a line number',
+  },
+  {
+    id: 'selectDragged',
+    scope: 'filePane',
+    description: 'Select the lines the drag touches, in the text or over the line numbers',
+    gesture: 'Drag',
+  },
+  {
+    id: 'extendSelection',
+    scope: 'filePane',
+    description: 'Extend the last selected range to that line',
+    gesture: 'Shift+click a line number',
+  },
+  {
+    id: 'toggleSelectedLine',
+    scope: 'filePane',
+    description: 'Add that line to the selection, or take it out when it is selected',
+    gesture: `${MOD_LABEL}+click a line number`,
+  },
+  {
+    id: 'addDragged',
+    scope: 'filePane',
+    description: 'Add the lines the drag touches to the selection',
+    gesture: `${MOD_LABEL}+drag`,
+  },
+  // The editor's own keys: the selection follows them as whole lines.
+  {
+    id: 'extendByKeys',
+    scope: 'filePane',
+    description: 'Select lines from the cursor, as whole lines',
+    gesture: 'Shift+↑ or Shift+↓',
+  },
+  {
+    id: 'clearSelection',
+    scope: 'filePane',
+    description: 'Clear the selected lines',
+    chord: { key: 'Escape' },
   },
   {
     id: 'nextAnomaly',

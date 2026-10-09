@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Select lines in the open file. A click on a line number selects that
+  line, a drag in the text or over the line numbers selects the lines it
+  touches, Shift+click on a line number extends the last range to it,
+  and Cmd/Ctrl+click on a line number adds that line (or takes it out
+  when it is selected), as Cmd/Ctrl+drag adds the lines touched. Part of
+  a line selects the whole line; a click that only places the cursor
+  changes nothing. Shift+↑ and Shift+↓ select from the cursor, and Esc
+  in the editor clears the selection. Each tab keeps its own selection,
+  also when the editor loads other pages of the file. Cmd/Ctrl+click
+  now adds a cursor in the editor; a link in the text opens with
+  Alt+click.
+
 ### Changed
 
 - A row picked in the analysis dialog selects the anomaly's lines: a
