@@ -85,6 +85,7 @@ interchangeable backends, no vendoring.
 | `src/lib/utils/processContent.ts`, `editorDecorations.ts` | The editor's regex filter: hide and show rewrite the text, highlight draws decorations                                                             |
 | `src/lib/stores/chainTabs.ts`, `src/lib/utils/chain*.ts`  | Log chains: a chain's tab, its pages, zones, gutter, timeline and search marks, the files panel's chain rows and the mode switch                   |
 | `src/lib/utils/urlState.ts`, `src/lib/viewState.ts`       | The view in the URL (no router): one parse/serialize table per key; URL written from stores                                                        |
+| `src/lib/utils/lineSelection.ts`, `copyFormat.ts`         | The selected lines as ranges, the URL's `sel`, and the text a copy of lines puts on the clipboard                                                  |
 | `src/lib/utils/monacoLanguage.ts`, `monacoLogLanguage.ts` | Monaco language registration and the log grammar                                                                                                   |
 | `src/components/editor/`                                  | `MonacoEditor.svelte`, `EditorPane.svelte` (paged large-file viewing), `EditorHeader.svelte` (name, line readout, chips, toolbar)                  |
 | `src/components/tree/`, `search/`, `layout/`, `common/`   | Tree, search form and results, chrome (the activity bar, `Sidebar.svelte`), shared widgets                                                         |
@@ -241,6 +242,23 @@ role="tab">` that also carries the drag handlers; its close button is a
   `utils/memoizeLast.ts` (or a memo such as `chainZonesMemo`), and a
   component that hands an object to Monaco checks it is another object
   first (`applyViewZones`, `redrawGutter`, `isSamePaneView`).
+- A tab's selected lines are `OpenFile.selectedLines`: ranges of file
+  lines, 1-based and inclusive, sorted and merged, at most 100
+  (`utils/lineSelection.ts`, pure). Only `files.setSelection` sets them,
+  and the store cuts them at the file's last line once it knows it, so
+  they live apart from the loaded window and survive paging, tab
+  switches and a reload. `components/editor/selectionController.ts`
+  hears the Monaco editor (mouse down for the modifiers and the gutter,
+  `onDidChangeCursorSelection`, mouse up or key up to commit, Esc in a
+  capture `keydown`) and only reads Monaco's selection; the pane wires
+  it to the store. `selectionDecorations` (`utils/editorDecorations.ts`)
+  draws them, `SelectionChip.svelte` in the header counts them and
+  copies them (`selectionCopy.ts`: one samples request, the text from
+  `utils/copyFormat.ts`, within 8 MiB). The URL holds them as `sel`; a
+  chain's tab holds them in its own numbers and the URL names each range
+  in its part (`utils/chainSelection.ts`), split at part edges, moved
+  when the tab numbers its lines anew and dropped when the chain's files
+  change or a link's `fp` is not the chain's.
 - The status bar's equivalent command comes from `stores/commands.ts`,
   which records the backend's `cli_command` of each answer to a user
   action (search, file window, index, analysis). Record a new action's
