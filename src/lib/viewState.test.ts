@@ -18,6 +18,7 @@ import { switchChainMode } from './stores/chainModeSwitch';
 import {
   DEFAULT_MAX_RESULTS,
   DEFAULT_VIEW,
+  parseViewState,
   readViewState,
   serializeViewState,
   type SearchState,
@@ -1175,14 +1176,20 @@ describe('a chain tab in the URL', () => {
   });
 
   it("drops a link's ranges when its fingerprint is not the chain's, as its line is", async () => {
-    stubWindow(
-      `?chain=%2Fl%2Fapp.log&part=app.log.1&line=20&sel=${encodeURIComponent('app.log.1:20-25')}&fp=00000000000000ff`,
-    );
+    const sel = encodeURIComponent('app.log.1:20-25');
+    stubWindow(`?chain=%2Fl%2Fapp.log&sel=${sel}&fp=${chain.fingerprint}`);
     await health.check();
-
     await loadView(readViewState());
+    expect(chainTab().selectedLines).toEqual([{ start: 3_020, end: 3_025 }]);
+
+    await restoreView(
+      parseViewState(`?chain=%2Fl%2Fapp.log&part=app.log.1&line=30&sel=${sel}&fp=00000000000000ff`),
+    );
 
     expect(chainTab().selectedLines).toEqual([]);
+    expect(get(notifications).map((n) => n.message)).toContainEqual(
+      expect.stringContaining('changed since this link was made'),
+    );
   });
 
   it("selects the ranges of a file link in chain mode in that file's part", async () => {
