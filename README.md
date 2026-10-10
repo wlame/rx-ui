@@ -10,8 +10,8 @@ The viewer is a static single-page app that an `rx` backend serves:
 - [rx-go](https://github.com/wlame/rx-go), the Go backend. The viewer is
   built and tested against it.
 - [rx-python](https://github.com/wlame/rx-python), the original Python
-  backend, on PyPI as `rx-tool`. Its development is paused; the viewer
-  works with it as far as it speaks the same contract.
+  backend, on PyPI as `rx-tool`. Its development is paused. It speaks
+  contract 1, which this viewer refuses; it installs only older viewers.
 
 The viewer targets the HTTP contract, not a backend. Its wire types are
 generated from rx-go's OpenAPI document, and it checks the backend's
@@ -465,7 +465,8 @@ header shows and the backends read to name the bundle they cache:
 
 Each backend accepts a range of viewer versions and does not install a
 release outside it. Today rx-go (`internal/frontend/compat.go`) accepts
-`0.2.0 <= v < 0.9.0`, and rx-python, which is paused, `0.2.0 <= v < 0.4.0`.
+`0.8.0 <= v < 0.9.0`, the viewers that speak contract 2, and rx-python,
+which is paused, `0.2.0 <= v < 0.4.0`.
 A minor version past that range needs a backend release that widens it
 first; see the parity rules in `AGENTS.md`.
 

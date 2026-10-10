@@ -12,15 +12,17 @@ Svelte 4 + TypeScript + Monaco SPA for browsing, searching and inspecting very
 large log files through an `rx` backend's HTTP API.
 
 It is a standalone artifact. It builds to a static `dist/`, is published as
-`dist.tar.gz` on GitHub Releases, and every backend downloads it at runtime,
-caches it under `~/.cache/rx/frontend/` and serves it. One frontend, two
-interchangeable backends, no vendoring.
+`dist.tar.gz` on GitHub Releases, and the backend downloads it at runtime,
+caches it under `~/.cache/rx/frontend/` and serves it. One frontend, no
+vendoring. From contract 2 (viewer 0.8.0) it works against rx-go only:
+rx-python speaks contract 1, which this viewer refuses, and installs only
+older viewers.
 
-| Repo                    | Role                                                                              |
-| ----------------------- | --------------------------------------------------------------------------------- |
-| `rx-go`                 | The focus. Reference for the HTTP wire contract. Default port 7777.               |
-| `rx-python`             | The original backend. **Paused** since 2026-10-02. Default port 7777.             |
-| `rx-viewer` (this repo) | Works against rx-go; against rx-python on a best-effort basis while it is paused. |
+| Repo                    | Role                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| `rx-go`                 | The focus. Reference for the HTTP wire contract. Default port 7777.                   |
+| `rx-python`             | The original backend. **Paused** since 2026-10-02. Default port 7777.                 |
+| `rx-viewer` (this repo) | Works against rx-go (contract 2). Refuses rx-python (contract 1) until it catches up. |
 
 `rx-rust` also exists beside them. It is frozen. Do not target it.
 
@@ -54,8 +56,8 @@ interchangeable backends, no vendoring.
 5. **Test against rx-go before a release.** Start it with `--port=8080`, run
    the app, and exercise tree, open file, search, jump to result and index.
    A viewer release changes behaviour for every installed backend on its
-   next cache refresh. rx-python is paused: test against it only when
-   the owner asks, and record a difference you find in
+   next cache refresh. rx-python is paused and speaks contract 1, which
+   this viewer refuses; record a difference between the backends in
    `../tickets/PARITY-DEBT.md`.
 6. **Release order:** a viewer change that needs a new backend field ships
    after rx-go has released that field.
