@@ -113,3 +113,14 @@ export async function copySelection(file: OpenFile): Promise<void> {
     notifications.warning(`Copied ${copied} of ${total} ranges: the copy stops at ${limit}`, 5000);
   }
 }
+
+/**
+ * Start copying the selected lines of `file`, as the header's Copy does,
+ * for Cmd/Ctrl+C in the editor. False, and nothing started, when the tab
+ * has no selection or one that cannot be copied.
+ */
+export function startSelectionCopy(file: OpenFile): boolean {
+  if (file.selectedLines.length === 0 || !canCopySelection(file)) return false;
+  void copySelection(file);
+  return true;
+}

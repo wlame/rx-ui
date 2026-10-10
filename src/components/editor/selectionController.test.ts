@@ -6,7 +6,7 @@ import {
   type FakeMonacoEditor,
 } from '$lib/testing/fakeMonacoEditor';
 import type { LineRange, MonacoSelectionLike } from '$lib/utils/lineSelection';
-import { attachSelectionController } from './selectionController';
+import { attachSelectionController, type SelectionController } from './selectionController';
 
 /** The window holds file lines from 101: Monaco's line 1 is file line 101. */
 const WINDOW_START = 101;
@@ -14,7 +14,9 @@ const WINDOW_START = 101;
 let fake: FakeMonacoEditor;
 let selected: LineRange[];
 let commits: LineRange[][];
-let controller: { dispose(): void };
+let copies: number;
+let isCopyPossible: boolean;
+let controller: SelectionController;
 
 function attach(initial: LineRange[] = []) {
   selected = initial;
@@ -24,6 +26,11 @@ function attach(initial: LineRange[] = []) {
     select: (ranges) => {
       selected = ranges;
       commits.push(ranges);
+    },
+    copy: () => {
+      if (!isCopyPossible) return false;
+      copies += 1;
+      return true;
     },
   });
 }
@@ -42,11 +49,14 @@ function sel(
   };
 }
 
-/** A click on the number of editor line `line`, with Monaco selecting that whole line as it does. */
+/**
+ * A click on the number of editor line `line`. Monaco leaves a press on
+ * a line number to the controller (`selectOnLineNumbers` is off), so its
+ * selection does not change.
+ */
 function clickLineNumber(line: number, modifiers: { shiftKey?: boolean; metaKey?: boolean } = {}) {
   const mouse = { type: MOUSE_TARGET.lineNumbers, line, ...modifiers };
   fake.mouseDown(mouse);
-  fake.changeSelections([sel(line, 1, line + 1, 1)], 'mouse');
   fake.mouseUp(mouse);
 }
 
@@ -67,12 +77,22 @@ function shiftDown() {
   fake.keyUp('ArrowDown');
 }
 
-/** A Cmd+click on the number of editor line `line`, where Monaco adds that line to its selections. */
+/** A Cmd+click on the number of editor line `line`. */
 function cmdClickLineNumber(line: number) {
-  const mouse = { type: MOUSE_TARGET.lineNumbers, line, metaKey: true };
-  fake.mouseDown(mouse);
-  fake.changeSelections([...fake.selections, sel(line, 1, line + 1, 1)], 'mouse');
-  fake.mouseUp(mouse);
+  clickLineNumber(line, { metaKey: true });
+}
+
+/** Cmd+C (or Ctrl+C) pressed on `target`, by default the editor's own node. */
+function pressCopy(target: Element | null = fake.editor.getDomNode()): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', {
+    key: 'c',
+    code: 'KeyC',
+    metaKey: true,
+    bubbles: true,
+    cancelable: true,
+  });
+  target?.dispatchEvent(event);
+  return event;
 }
 
 /** Esc pressed on `target`, by default the editor's own node. */
@@ -90,6 +110,8 @@ function pressEscape(target: Element | null = fake.editor.getDomNode()): Keyboar
 beforeEach(() => {
   fake = createFakeMonacoEditor();
   commits = [];
+  copies = 0;
+  isCopyPossible = true;
 });
 
 afterEach(() => {
@@ -141,9 +163,34 @@ describe('selectionController with the mouse', () => {
   it('selects the lines a drag over the line numbers touches', () => {
     attach();
     fake.mouseDown({ type: MOUSE_TARGET.lineNumbers, line: 6 });
-    fake.changeSelections([sel(4, 1, 7, 1)], 'mouse');
+    fake.mouseMove({ type: MOUSE_TARGET.lineNumbers, line: 5 });
     fake.mouseUp({ type: MOUSE_TARGET.lineNumbers, line: 4 });
     expect(selected).toEqual([{ start: 104, end: 106 }]);
+  });
+
+  it('selects to the last line a drag over the line numbers reached when released outside the editor', () => {
+    attach();
+    fake.mouseDown({ type: MOUSE_TARGET.lineNumbers, line: 6 });
+    fake.mouseMove({ type: MOUSE_TARGET.lineNumbers, line: 8 });
+    fake.mouseMove({ type: MOUSE_TARGET.text, line: 9, column: 4 });
+
+    window.dispatchEvent(new MouseEvent('mouseup'));
+
+    expect(selected).toEqual([{ start: 106, end: 109 }]);
+  });
+
+  it('puts the focus in the editor on a press on a line number, so its keys work after it', () => {
+    attach();
+    clickLineNumber(3);
+    expect(fake.focusCount).toBe(1);
+  });
+
+  it('takes a click as a click when the view scrolls under the pointer before the release', () => {
+    attach([{ start: 113, end: 113 }]);
+    fake.mouseDown({ type: MOUSE_TARGET.lineNumbers, line: 13, metaKey: true, y: 250 });
+    // The view moved up a few pixels: the still pointer is over line 14 now.
+    fake.mouseUp({ type: MOUSE_TARGET.lineNumbers, line: 14, metaKey: true, y: 250 });
+    expect(selected).toEqual([]);
   });
 
   it('commits a drag in the text once, on mouse up, with the whole lines it touches', () => {
@@ -209,6 +256,27 @@ describe('selectionController with the mouse', () => {
 });
 
 describe('selectionController and the selection Monaco keeps', () => {
+  it('takes out the selected line 113 after Cmd+click 120 and Shift+click 125, while the view scrolls', () => {
+    attach([{ start: 113, end: 113 }]);
+    cmdClickLineNumber(20);
+    expect(selected).toEqual([
+      { start: 113, end: 113 },
+      { start: 120, end: 120 },
+    ]);
+    clickLineNumber(25, { shiftKey: true });
+    expect(selected).toEqual([
+      { start: 113, end: 113 },
+      { start: 120, end: 125 },
+    ]);
+
+    // Showing the line after the Shift+click scrolled the view up a few
+    // pixels: the pointer pressed on 113 is over 114 when it is released.
+    fake.mouseDown({ type: MOUSE_TARGET.lineNumbers, line: 13, metaKey: true, y: 259 });
+    fake.mouseUp({ type: MOUSE_TARGET.lineNumbers, line: 14, metaKey: true, y: 259 });
+
+    expect(selected).toEqual([{ start: 120, end: 125 }]);
+  });
+
   it('leaves only a cursor in Monaco after each gesture, and commits nothing for that', () => {
     attach([{ start: 113, end: 113 }]);
     fake.selections = [sel(13, 1, 14, 1)];
@@ -241,12 +309,61 @@ describe('selectionController and the selection Monaco keeps', () => {
     expect(fake.selections.every(isEmpty)).toBe(true);
   });
 
-  it('leaves the cursor at the start of the line after the gesture', () => {
+  it('leaves the cursor at the start of the line after a gesture on the line numbers', () => {
+    attach();
+    fake.selections = [sel(2, 3, 4, 5)];
+    fake.mouseDown({ type: MOUSE_TARGET.lineNumbers, line: 6 });
+    fake.mouseUp({ type: MOUSE_TARGET.lineNumbers, line: 8 });
+    expect(fake.selections).toEqual([sel(9, 1, 9, 1)]);
+  });
+
+  it("keeps Monaco's selection after a drag in the text, so Cmd+C copies the text dragged over", () => {
     attach();
     fake.mouseDown({ type: MOUSE_TARGET.text, line: 2, column: 3 });
     fake.changeSelections([sel(2, 3, 4, 5)], 'mouse');
     fake.mouseUp({ type: MOUSE_TARGET.text, line: 4, column: 5 });
-    expect(fake.selections).toEqual([sel(5, 1, 5, 1)]);
+
+    expect(selected).toEqual([{ start: 102, end: 104 }]);
+    expect(fake.selections).toEqual([sel(2, 3, 4, 5)]);
+  });
+
+  it("keeps Monaco's selections after a Cmd+drag in the text", () => {
+    attach([{ start: 101, end: 101 }]);
+    fake.selections = [sel(1, 1, 1, 9)];
+    fake.mouseDown({ type: MOUSE_TARGET.text, line: 5, column: 2, metaKey: true });
+    fake.changeSelections([sel(1, 1, 1, 9), sel(5, 2, 7, 3)], 'mouse');
+    fake.mouseUp({ type: MOUSE_TARGET.text, line: 7, column: 3, metaKey: true });
+    expect(fake.selections).toEqual([sel(1, 1, 1, 9), sel(5, 2, 7, 3)]);
+  });
+
+  it("collapses Monaco's selection on Esc, before Monaco's own Esc", () => {
+    attach([{ start: 103, end: 104 }]);
+    fake.selections = [sel(3, 2, 5, 4)];
+    pressEscape();
+    expect(fake.selections).toEqual([sel(5, 4, 5, 4)]);
+  });
+
+  it("collapses Monaco's selection when the tab's selection changes elsewhere, as by ×", () => {
+    attach([{ start: 103, end: 104 }]);
+    fake.selections = [sel(3, 2, 5, 4)];
+    controller.followSelection(selected);
+
+    selected = [];
+    controller.followSelection(selected);
+
+    expect(fake.selections.every(isEmpty)).toBe(true);
+    expect(commits).toEqual([]);
+  });
+
+  it("keeps Monaco's selection when the tab's selection is the one the controller just set", () => {
+    attach([{ start: 103, end: 103 }]);
+    fake.changeSelections([sel(3, 1, 5, 1)], 'keyboard');
+    fake.keyUp('ArrowDown');
+
+    // The store hands back its own copy of what the controller set.
+    controller.followSelection([{ start: 103, end: 104 }]);
+
+    expect(fake.selections).toEqual([sel(3, 1, 5, 1)]);
   });
 
   it('does not bring back a line taken out with Cmd+click when Shift+↓ follows', () => {
@@ -378,6 +495,38 @@ describe('selectionController with the keys', () => {
     const event = pressEscape();
     expect(commits).toEqual([]);
     expect(event.defaultPrevented).toBe(false);
+  });
+});
+
+describe('selectionController and Cmd+C', () => {
+  it('copies the selected lines when Monaco selects no text, and cancels the key', () => {
+    attach([{ start: 103, end: 104 }]);
+    fake.selections = [sel(9, 1, 9, 1)];
+    const event = pressCopy();
+    expect(copies).toBe(1);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('leaves Cmd+C to Monaco when it selects text, which it copies', () => {
+    attach([{ start: 102, end: 104 }]);
+    fake.selections = [sel(2, 3, 4, 5)];
+    const event = pressCopy();
+    expect(copies).toBe(0);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('leaves Cmd+C alone with no lines selected, in the find widget, or when the tab cannot copy', () => {
+    attach();
+    expect(pressCopy().defaultPrevented).toBe(false);
+
+    selected = [{ start: 103, end: 104 }];
+    const findBox = document.createElement('input');
+    fake.editor.getDomNode()?.appendChild(findBox);
+    expect(pressCopy(findBox).defaultPrevented).toBe(false);
+
+    isCopyPossible = false;
+    expect(pressCopy().defaultPrevented).toBe(false);
+    expect(copies).toBe(0);
   });
 });
 

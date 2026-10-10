@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
 import { get } from 'svelte/store';
 import type * as Monaco from 'monaco-editor';
+import { startSelectionCopy } from '$lib/selectionCopy';
 import { files } from '$lib/stores/files';
 import { editorFocusRequested } from '$lib/stores/layout';
 import { CHAIN_T0, chainDescription, chainPart, chainTabOf } from '$lib/testing/chainDescription';
@@ -21,6 +22,8 @@ vi.mock('./MonacoEditor.svelte', async () => ({
   default: (await import('$lib/testing/MonacoEditorStub.svelte')).default,
 }));
 vi.mock('$lib/utils/monacoLogLanguage', () => ({ LOG_LANGUAGE_ID: 'logfile' }));
+// The copy asks the backend; the pane's part is to call it.
+vi.mock('$lib/selectionCopy', () => ({ startSelectionCopy: vi.fn(() => true) }));
 
 // The work an update of the tab may do, counted.
 vi.mock('$lib/utils/processContent', async (importOriginal) => {
@@ -227,6 +230,38 @@ describe('EditorPane selection', () => {
 
     expect(select).toHaveBeenCalledWith('/logs/a.log', [{ start: 4, end: 4 }]);
     select.mockRestore();
+  });
+
+  it("collapses the editor's own selection when the tab's selection is cleared, as by ×", async () => {
+    const file = openFile({ lines: fileLines(5), selectedLines: [{ start: 2, end: 3 }] });
+    const { pane, editor } = await mountPane(file);
+    editor.selections = [{ startLineNumber: 2, startColumn: 2, endLineNumber: 3, endColumn: 4 }];
+
+    pane.$set({ file: { ...file, selectedLines: [] } });
+    await tick();
+
+    expect(
+      editor.selections.every(
+        (s) => s.startLineNumber === s.endLineNumber && s.startColumn === s.endColumn,
+      ),
+    ).toBe(true);
+  });
+
+  it('copies the selected lines on Cmd+C in its editor when no text is selected there', async () => {
+    const file = openFile({ selectedLines: [{ start: 2, end: 2 }] });
+    const { editor } = await mountPane(file);
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'c',
+      code: 'KeyC',
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    editor.editor.getDomNode()?.dispatchEvent(event);
+
+    expect(startSelectionCopy).toHaveBeenCalledWith(file);
+    expect(event.defaultPrevented).toBe(true);
   });
 
   it('stops hearing its editor when it is destroyed', async () => {

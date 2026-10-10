@@ -10,6 +10,9 @@ import type { MonacoSelectionLike } from '$lib/utils/lineSelection';
 /** Monaco's MouseTargetType values a test points at. */
 export const MOUSE_TARGET = { lineNumbers: 3, text: 6, scrollbar: 11 } as const;
 
+/** The height of an editor line the fake places the pointer by, in CSS pixels. */
+export const FAKE_LINE_HEIGHT_PX = 20;
+
 /** What a test gives for a mouse event: where, which modifiers, which button. */
 export interface FakeMouse {
   /** Monaco's target type (`MOUSE_TARGET`). */
@@ -17,6 +20,13 @@ export interface FakeMouse {
   /** The editor line under the pointer, or null where Monaco gives no position. */
   line: number | null;
   column?: number;
+  /**
+   * The pointer's place on the page (Monaco's `posx`, `posy`). By default
+   * the middle of `line`, so the same line is the same place; a view
+   * that scrolls under a still pointer gives another line at the same place.
+   */
+  x?: number;
+  y?: number;
   shiftKey?: boolean;
   metaKey?: boolean;
   ctrlKey?: boolean;
@@ -43,6 +53,8 @@ export interface FakeMonacoEditor {
   mouseDown(mouse: FakeMouse): void;
   /** Fire a mouse release over the editor at the listeners. */
   mouseUp(mouse: FakeMouse): void;
+  /** Fire a pointer move over the editor at the listeners. */
+  mouseMove(mouse: FakeMouse): void;
   /** Set Monaco's selections and fire the change, from `source` (`mouse`, `keyboard`, `api`). */
   changeSelections(selections: MonacoSelectionLike[], source: string): void;
   /** Fire a key release at the listeners. */
@@ -57,6 +69,7 @@ export function createFakeMonacoEditor(lines: readonly string[] = []): FakeMonac
   const listeners = {
     mouseDown: new Set<(e: unknown) => void>(),
     mouseUp: new Set<(e: unknown) => void>(),
+    mouseMove: new Set<(e: unknown) => void>(),
     selection: new Set<(e: unknown) => void>(),
     keyUp: new Set<(e: unknown) => void>(),
   };
@@ -72,6 +85,8 @@ export function createFakeMonacoEditor(lines: readonly string[] = []): FakeMonac
       position: mouse.line === null ? null : { lineNumber: mouse.line, column: mouse.column ?? 1 },
     },
     event: {
+      posx: mouse.x ?? 0,
+      posy: mouse.y ?? ((mouse.line ?? 0) - 0.5) * FAKE_LINE_HEIGHT_PX,
       leftButton: mouse.leftButton ?? true,
       shiftKey: mouse.shiftKey ?? false,
       metaKey: mouse.metaKey ?? false,
@@ -88,6 +103,7 @@ export function createFakeMonacoEditor(lines: readonly string[] = []): FakeMonac
     selections: [],
     mouseDown: (mouse) => listeners.mouseDown.forEach((l) => l(mouseEvent(mouse))),
     mouseUp: (mouse) => listeners.mouseUp.forEach((l) => l(mouseEvent(mouse))),
+    mouseMove: (mouse) => listeners.mouseMove.forEach((l) => l(mouseEvent(mouse))),
     changeSelections: (selections, source) => {
       fake.selections = selections;
       listeners.selection.forEach((l) => l({ selection: selections[0], source }));
@@ -125,6 +141,7 @@ export function createFakeMonacoEditor(lines: readonly string[] = []): FakeMonac
     },
     onMouseDown: event(listeners.mouseDown),
     onMouseUp: event(listeners.mouseUp),
+    onMouseMove: event(listeners.mouseMove),
     onDidChangeCursorSelection: event(listeners.selection),
     onKeyUp: event(listeners.keyUp),
   };

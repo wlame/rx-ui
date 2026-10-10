@@ -7,7 +7,8 @@
   import { recallPane, rememberPane, scrollOnShow } from '$lib/stores/paneMemory';
   import Spinner from '../common/Spinner.svelte';
   import MonacoEditor from './MonacoEditor.svelte';
-  import { attachSelectionController } from './selectionController';
+  import { attachSelectionController, type SelectionController } from './selectionController';
+  import { startSelectionCopy } from '$lib/selectionCopy';
   import RegexFilterPanel from './RegexFilterPanel.svelte';
   import EditorHeader from './EditorHeader.svelte';
   import LineRangeNav from './LineRangeNav.svelte';
@@ -44,7 +45,8 @@
   let monacoComponent: MonacoEditor;
   let monacoEditor: Monaco.editor.IStandaloneCodeEditor | null = null;
   let decorationsCollection: Monaco.editor.IEditorDecorationsCollection | null = null;
-  let selectionController: { dispose(): void } | null = null;
+  let selectionController: SelectionController | null = null;
+  $: selectionController?.followSelection(file.selectedLines);
 
   // Hidden-content map for hover tooltips, keyed "lineNum:markerIndex".
   // Assigned with `content` from what processContent made below.
@@ -377,6 +379,7 @@
       windowStart: () => file.startLine,
       selection: () => file.selectedLines,
       select: (ranges) => files.setSelection(file.path, ranges),
+      copy: () => startSelectionCopy(file),
     });
     restoreTabView();
     if (isHoldingFocusForEditor && document.activeElement === paneEl) monacoEditor.focus();

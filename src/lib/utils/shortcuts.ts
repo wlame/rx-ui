@@ -107,7 +107,8 @@ export type SelectionShortcutId =
   | 'toggleSelectedLine'
   | 'addDragged'
   | 'extendByKeys'
-  | 'clearSelection';
+  | 'clearSelection'
+  | 'copySelection';
 
 /** The keys of the tab strip, which act on the focused tab. */
 export type TabStripShortcutId = 'tabStripMove' | 'tabStripEnds' | 'tabStripClose';
@@ -542,6 +543,13 @@ export const SHORTCUTS: readonly Shortcut[] = [
     scope: 'filePane',
     description: 'Clear the selected lines',
     chord: { key: 'Escape' },
+  },
+  // With text selected in the editor, the editor copies that text.
+  {
+    id: 'copySelection',
+    scope: 'filePane',
+    description: 'Copy the selected lines, when no text is selected in the editor',
+    chord: { key: 'c', mod: true },
   },
   {
     id: 'nextAnomaly',

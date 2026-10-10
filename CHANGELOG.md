@@ -15,11 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and Cmd/Ctrl+click on a line number adds that line (or takes it out
   when it is selected), as Cmd/Ctrl+drag adds the lines touched. Part of
   a line selects the whole line; a click that only places the cursor
-  changes nothing. Once a gesture is done the editor's own text
-  highlight goes, so only the selection's colour shows what is
-  selected, and the cursor sits at the start of the line after the
-  gesture. Shift+↑ and Shift+↓ extend the selection from the cursor, and
-  Esc in the editor clears it. Each tab keeps its own selection,
+  changes nothing. A click or a drag on the line numbers leaves no text
+  highlight of the editor's own and puts the cursor at the start of the
+  line after it; a drag in the text keeps the editor's highlight, so
+  Cmd/Ctrl+C copies the text dragged over. With no text highlighted,
+  Cmd/Ctrl+C in the editor copies the selected lines as Copy does, and
+  never the line the cursor is on. Shift+↑ and Shift+↓ extend the
+  selection from the cursor, and Esc in the editor clears it, as × does,
+  with the editor's highlight. Each tab keeps its own selection,
   also when the editor loads other pages of the file. Cmd/Ctrl+click
   now adds a cursor in the editor; a link in the text opens with
   Alt+click.

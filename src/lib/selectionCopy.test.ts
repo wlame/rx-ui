@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import { commandLog } from './stores/commands';
 import { notifications } from './stores/notifications';
-import { COPY_BUDGET_BYTES, canCopySelection, copySelection } from './selectionCopy';
+import {
+  COPY_BUDGET_BYTES,
+  canCopySelection,
+  copySelection,
+  startSelectionCopy,
+} from './selectionCopy';
 import { CHAIN_T0, chainDescription, chainPart, chainTabOf } from './testing/chainDescription';
 import type { OpenFile } from './types';
 import { copyText } from './utils/clipboard';
@@ -207,6 +212,17 @@ describe('copySelection of a file tab', () => {
     });
   });
 
+  it('starts the same copy for Cmd+C in the editor, and says whether it started one', async () => {
+    const requests = serveSamples();
+
+    expect(startSelectionCopy(fileTab())).toBe(false);
+    expect(startSelectionCopy(selected)).toBe(true);
+    await vi.waitFor(() => expect(copyText).toHaveBeenCalledTimes(1));
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].get('lines')).toBe('120-122,200');
+  });
+
   it('asks nothing when nothing is selected', async () => {
     const requests = serveSamples();
     await copySelection(fileTab());
@@ -281,6 +297,7 @@ describe('copySelection of a log chain tab', () => {
     if (!chain) throw new Error('no chain');
     expect(canCopySelection(pending)).toBe(true);
     expect(canCopySelection({ ...pending, chain: { ...chain, numbering: 'local' } })).toBe(false);
+    expect(startSelectionCopy({ ...pending, chain: { ...chain, numbering: 'local' } })).toBe(false);
   });
 });
 

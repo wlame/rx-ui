@@ -250,11 +250,17 @@ role="tab">` that also carries the drag handlers; its close button is a
   switches and a reload. `components/editor/selectionController.ts`
   hears the Monaco editor (mouse down for the modifiers and the gutter,
   `onDidChangeCursorSelection`, mouse up or key up to commit, Esc in a
-  capture `keydown`). It reads Monaco's selection while a gesture runs
-  and collapses it to a cursor after the commit, so only the decorations
-  show what is selected, and it never commits a selection change Monaco
-  makes itself (a page load, the API, Monaco's own Esc); the pane wires
-  it to the store. `selectionDecorations` (`utils/editorDecorations.ts`)
+  capture `keydown`). The line numbers are the controller's: Monaco does
+  not select there (`selectOnLineNumbers: false`), and a gesture there
+  takes its lines from the pointer. A drag in the text is Monaco's
+  selection, read as whole lines, and it stays, so Cmd/Ctrl+C copies the
+  text. Monaco's selection never shows a line that is not selected: a
+  gesture on the line numbers, Esc and a selection set elsewhere
+  (`followSelection`, as by the header's ×) collapse it to a cursor.
+  With no text selected, Cmd/Ctrl+C copies the selected lines
+  (`emptySelectionClipboard: false`, so a cursor never copies its line).
+  It never commits a selection change Monaco makes itself (a page load,
+  the API, Monaco's own Esc); the pane wires it to the store. `selectionDecorations` (`utils/editorDecorations.ts`)
   draws them, `SelectionChip.svelte` in the header counts them and
   copies them (`selectionCopy.ts`: one samples request, the text from
   `utils/copyFormat.ts`, within 8 MiB). The URL holds them as `sel`; a

@@ -276,6 +276,12 @@
       // Cmd/Ctrl+click and drag add to the selection of lines
       // (selectionController.ts); a link opens with Alt+click.
       multiCursorModifier: 'ctrlCmd',
+      // The line numbers belong to the selection of lines: a press there
+      // neither selects in Monaco nor scrolls it.
+      selectOnLineNumbers: false,
+      // Cmd/Ctrl+C with no text selected copies the selected lines, never
+      // the line the cursor is on.
+      emptySelectionClipboard: false,
       // Cursor settings for readonly
       cursorStyle: 'line',
       cursorBlinking: 'solid',
