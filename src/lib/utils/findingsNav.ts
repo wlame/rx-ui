@@ -10,6 +10,9 @@ import { groupKey, signatureKey, type FindingRow } from './findingRows';
 /** How the panel lists the findings: in line order or under their group and signature. */
 export type FindingsView = 'line' | 'group';
 
+/** Every way of listing the findings, in the order the panel's switch shows them. */
+export const FINDINGS_VIEWS: readonly FindingsView[] = ['line', 'group'];
+
 export type FindingsNavAction =
   | { type: 'focus'; index: number }
   | { type: 'open'; index: number }

@@ -48,6 +48,7 @@ function recordingActions(overrides: Partial<GlobalShortcutActions> = {}) {
     focusSearch: act('focusSearch'),
     showFiles: act('showFiles'),
     showSearch: act('showSearch'),
+    showFindings: act('showFindings'),
     toggleSidebar: act('toggleSidebar'),
     showShortcuts: act('showShortcuts'),
     closeDialog: act('closeDialog'),
@@ -78,6 +79,8 @@ describe('handleGlobalKey', () => {
     ['Alt+2 as a Mac sends it', press('™', { code: 'Digit2', altKey: true }), 'showSearch'],
     ['Cmd+Shift+F', press('F', { code: 'KeyF', metaKey: true, shiftKey: true }), 'showSearch'],
     ['Ctrl+Shift+F', press('F', { code: 'KeyF', ctrlKey: true, shiftKey: true }), 'showSearch'],
+    ['Alt+3 as a Mac sends it', press('£', { code: 'Digit3', altKey: true }), 'showFindings'],
+    ['Alt+3 elsewhere', press('3', { code: 'Digit3', altKey: true }), 'showFindings'],
   ])('runs the panel key for %s and keeps the key from the browser', (_name, event, id) => {
     const { actions, ran } = recordingActions();
 
@@ -93,6 +96,8 @@ describe('handleGlobalKey', () => {
       press('¡', { code: 'Digit1', altKey: true, metaKey: true }),
       press('e', { code: 'KeyE', metaKey: true }),
       press('f', { code: 'KeyF', ctrlKey: true }),
+      press('3', { code: 'Digit3' }),
+      press('£', { code: 'Digit3', altKey: true, ctrlKey: true }),
     ]) {
       expect(handleGlobalKey(event, actions)).toBe(false);
     }
@@ -496,6 +501,22 @@ describe('the README keyboard shortcut table', () => {
   });
 });
 
+describe('the findings list keys', () => {
+  // The list hands each of these keys to its key rules; a key it acts on
+  // without a row would be missing from the help.
+  it.each(['ArrowDown', 'ArrowUp', 'Home', 'End', 'ArrowLeft', 'ArrowRight', 'Enter'])(
+    'has a findings row for %j, without a modifier',
+    (key) => {
+      const rows = SHORTCUTS.filter(
+        (s) => s.scope === 'findingsPanel' && s.id !== 'findingsViewMove',
+      );
+
+      expect(rows.some((s) => isShortcut(s.id, press(key)))).toBe(true);
+      expect(rows.some((s) => isShortcut(s.id, press(key, { altKey: true })))).toBe(false);
+    },
+  );
+});
+
 describe('the shortcut list', () => {
   // The file tree hands each of these keys to its key rules; a key the
   // tree acts on without a row would be missing from the help.
@@ -562,8 +583,8 @@ describe('the shortcut list', () => {
     [
       'panels',
       'Panels, from anywhere',
-      ['showFiles', 'showSearch'],
-      ['Alt+1 or ⌘/Ctrl+Shift+E', 'Alt+2 or ⌘/Ctrl+Shift+F'],
+      ['showFiles', 'showSearch', 'showFindings'],
+      ['Alt+1 or ⌘/Ctrl+Shift+E', 'Alt+2 or ⌘/Ctrl+Shift+F', 'Alt+3'],
     ],
     [
       'fileTabs',
@@ -586,6 +607,19 @@ describe('the shortcut list', () => {
       ['Alt+C', 'Alt+W', 'Alt+R', 'Alt+O'],
     ],
     ['searchField', 'In a search pattern field or the max box', ['runSearch'], ['Enter']],
+    [
+      'findingsPanel',
+      'In the findings panel',
+      [
+        'findingsViewMove',
+        'findingsMove',
+        'findingsEnds',
+        'findingsExpand',
+        'findingsCollapse',
+        'findingsOpen',
+      ],
+      ['← or →', '↓ or ↑', 'Home or End', '→', '←', 'Enter'],
+    ],
     [
       'tabStrip',
       'On the open-file tabs',
@@ -619,8 +653,8 @@ describe('the shortcut list', () => {
     [
       'openPanel',
       'While a panel is open',
-      ['closeHistory', 'closeChainParts', 'closeRecentTabs'],
-      ['Esc', 'Esc', 'Alt+Esc or Esc'],
+      ['closeHistory', 'closeChainParts', 'closeFindingsPopover', 'closeRecentTabs'],
+      ['Esc', 'Esc', 'Esc', 'Alt+Esc or Esc'],
     ],
     [
       'timeline',

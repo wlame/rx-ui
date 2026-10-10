@@ -19,4 +19,5 @@ export interface PanelSpec {
 export const PANELS: readonly PanelSpec[] = [
   { id: 'tree', label: 'Files', icon: 'files', shortcut: 'showFiles' },
   { id: 'search', label: 'Search', icon: 'search', shortcut: 'showSearch' },
+  { id: 'findings', label: 'Findings', icon: 'radar', shortcut: 'showFindings' },
 ];

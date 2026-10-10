@@ -7,7 +7,7 @@ import { timeCursor } from './stores/timeCursor';
 import { timeStash } from './stores/timeStash';
 import { searchRequest, trace } from './stores/trace';
 import { draftFromSearch, searchDraft } from './stores/searchDraft';
-import { searchShowsOffsets, sidebarTab } from './stores/layout';
+import { findingsBy, searchShowsOffsets, sidebarTab } from './stores/layout';
 import { chainMode } from './stores/chainMode';
 import { DEFAULT_FILES_VIEW, filesView } from './stores/filesView';
 import { DEFAULT_SORT, type TreeSort } from './utils/treeSort';
@@ -259,6 +259,7 @@ function resetStores() {
   sidebarTab.set('tree');
   filesView.set(DEFAULT_FILES_VIEW);
   searchShowsOffsets.set(false);
+  findingsBy.set('line');
 }
 
 describe('the URL follows the view', () => {
@@ -304,6 +305,19 @@ describe('the URL follows the view', () => {
     files.closeFile('/logs/big.log');
 
     expect(urlParams().get('file')).toBe('/logs/small.log');
+  });
+
+  it('names the Findings panel and its order by group, rewriting the entry for the order', () => {
+    sidebarTab.set('findings');
+    expect(window.location.search).toBe('?tab=findings');
+    const calls = stubWindow(window.location.search);
+    stopSync();
+    stopSync = startViewSync();
+
+    findingsBy.set('group');
+
+    expect(window.location.search).toBe('?tab=findings&findings_by=group');
+    expect(calls.map((call) => call.mode)).toEqual(['replace']);
   });
 
   it('names the panel shown, the search and the offsets switch', () => {
@@ -396,7 +410,7 @@ describe('restoreView', () => {
     },
   );
 
-  it('rebuilds the file, its line and filter, the tab, the files panel, the search and the switch', async () => {
+  it('rebuilds the file, its line and filter, the tab, the files panel, the search, the switch and the findings order', async () => {
     const view: ViewState = {
       file: '/logs/small.log',
       chain: null,
@@ -416,6 +430,7 @@ describe('restoreView', () => {
       search: { patterns: ['LINE 7'], maxResults: 50, onlyOpenedFiles: true, flags: {} },
       stash: [],
       fileZones: [],
+      findingsBy: 'group',
     };
 
     await restoreView(view);
@@ -430,6 +445,7 @@ describe('restoreView', () => {
     expect(get(filesView)).toEqual({ labels: false, show: 'date', sort: DATE_ASC });
     expect(get(searchShowsOffsets)).toBe(true);
     expect(get(searchRequest)).toEqual(view.search);
+    expect(get(findingsBy)).toBe('group');
   });
 
   it('opens a link with selected lines and no line at the first range, and selects them', async () => {

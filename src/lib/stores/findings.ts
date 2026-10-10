@@ -88,6 +88,12 @@ export const findingsByFile: Readable<Map<string, FindingsTabState>> = {
 /** The filter box's text, sent as `q`; not in the URL. */
 export const findingsFilter = writable('');
 
+/** The most lines before each finding a copy of findings holds. */
+export const MAX_COPY_LINES_BEFORE = 3;
+
+/** How many lines before each finding a copy of findings holds, 0 to 3; for this page only. */
+export const copyLinesBefore = writable(1);
+
 /** The findings state of `path`; empty for a file not shown yet. */
 export function findingsOf(map: ReadonlyMap<string, FindingsTabState>, path: string) {
   return map.get(path) ?? EMPTY;
@@ -215,16 +221,35 @@ function scanResult(task: TaskStatus): FindingsResponse | null {
   return result !== null && 'checked' in result && 'cli_command' in result ? result : null;
 }
 
+/** The summary of every signature for `path`: which have a current cache entry, and their counts. */
+function readEverySignature(path: string): Promise<FindingsResponse> {
+  return api.getFindings(path, { signatures: ['all'], limit: 1 });
+}
+
 /**
  * Show in the tree what the cache now holds for `path`: the state and the
  * findings of every current signature, as `/v1/tree` counts them.
  */
 async function markTree(path: string): Promise<void> {
   try {
-    const all = await api.getFindings(path, { signatures: ['all'], limit: 1 });
+    const all = await readEverySignature(path);
     tree.markFindings(path, all.state, findingsCount(all));
   } catch (error) {
     console.warn('Failed to read the findings of a scanned file for its label:', error);
+  }
+}
+
+/**
+ * The signatures with a current cache entry for `path`, picked or not,
+ * for the picker's marks; none when the backend does not answer.
+ */
+export async function currentSignatures(path: string): Promise<string[]> {
+  if (!backendHas('signatures')) return [];
+  try {
+    return (await readEverySignature(path)).checked;
+  } catch (error) {
+    console.warn('Failed to read which signatures are current for a file:', error);
+    return [];
   }
 }
 
@@ -364,5 +389,6 @@ export function forgetFindings(keep: Iterable<string>): void {
     pageRounds.delete(path);
     summaries.forget(path);
   }
+  if ([...get(state).keys()].every(isKept)) return;
   state.update((map) => new Map([...map].filter(([path]) => isKept(path))));
 }

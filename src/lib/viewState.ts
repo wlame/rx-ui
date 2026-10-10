@@ -5,7 +5,7 @@ import { activeOpenFile, defaultSyntaxHighlighting, files } from './stores/files
 import { filesView } from './stores/filesView';
 import { fileZones } from './stores/fileZones';
 import { notifications } from './stores/notifications';
-import { searchShowsOffsets, sidebarTab } from './stores/layout';
+import { findingsBy, searchShowsOffsets, sidebarTab } from './stores/layout';
 import { timeStash } from './stores/timeStash';
 import { draftFromSearch, searchDraft } from './stores/searchDraft';
 import { searchRequest, trace } from './stores/trace';
@@ -154,6 +154,7 @@ const currentView = derived(
   [
     files,
     sidebarTab,
+    findingsBy,
     chainMode,
     filesView,
     searchShowsOffsets,
@@ -161,9 +162,20 @@ const currentView = derived(
     timeStash,
     fileZones,
   ],
-  ([$files, $tab, $chains, $filesView, $offsets, $search, $stash, $fileZones]): ViewState => ({
+  ([
+    $files,
+    $tab,
+    $findingsBy,
+    $chains,
+    $filesView,
+    $offsets,
+    $search,
+    $stash,
+    $fileZones,
+  ]): ViewState => ({
     ...tabViewOf(activeOpenFile($files)),
     tab: $tab,
+    findingsBy: $findingsBy,
     chains: $chains,
     labels: $filesView.labels,
     show: $filesView.show,
@@ -465,7 +477,7 @@ export async function loadView(view: ViewState): Promise<void> {
  * Bring the app to the view a URL describes: chain mode (the open tabs
  * turned over to it, `stores/chainModeSwitch.ts`), the files panel's
  * labels, value and sort, the results switch, the search, the panel the side
- * panel shows and the file. The stash and the file zones
+ * panel shows, the findings order and the file. The stash and the file zones
  * stay as they are. Resolves when the file's lines are
  * loaded. A later restore supersedes this one: Back pressed twice ends
  * on the second entry even when the first one's file is slower.
@@ -481,6 +493,7 @@ export async function restoreView(view: ViewState): Promise<void> {
   searchShowsOffsets.set(view.offsets);
   restoreSearch(view.search);
   sidebarTab.set(view.tab);
+  findingsBy.set(view.findingsBy);
   await switching;
   if (generation !== restoreGeneration) return;
   await restoreFile(view, () => generation === restoreGeneration);

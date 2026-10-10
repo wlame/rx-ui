@@ -10,6 +10,7 @@ const ICON_NAMES: readonly IconName[] = [
   'square-stack',
   'arrow-up',
   'arrow-down',
+  'radar',
 ];
 
 const SHAPE_TAGS: readonly IconShape['tag'][] = ['path', 'circle', 'rect', 'line', 'polyline'];

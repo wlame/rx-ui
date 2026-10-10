@@ -6,6 +6,7 @@ import { get } from 'svelte/store';
 import { health, trace, tree } from '$lib/stores';
 import {
   clickPanelButton,
+  findingsFocusRequested,
   searchFocusRequested,
   shortcutsHelpOpen,
   sidebarTab,
@@ -69,6 +70,7 @@ afterEach(() => {
   shortcutsHelpOpen.set(false);
   treeFocusRequested.set(false);
   searchFocusRequested.set(false);
+  findingsFocusRequested.set(false);
   searchRequest.set(null);
   searchDraft.set(draftFromSearch(null));
   vi.restoreAllMocks();
@@ -77,7 +79,7 @@ afterEach(() => {
 });
 
 describe('the side panel', () => {
-  it('keeps both panels in the page and hides the one not shown', async () => {
+  it('keeps every panel in the page and hides the ones not shown', async () => {
     const { pattern, tree: fileTree } = await mount();
 
     expect(fileTree()?.closest('[hidden]')).toBeNull();
@@ -174,6 +176,33 @@ describe('the panel keys over the side panel', () => {
     expect(pattern()?.closest('[hidden]')).toBeNull();
     expect(document.activeElement).toBe(pattern());
     expect(get(searchFocusRequested)).toBe(false);
+  });
+
+  // A Mac sends "£" for Option+3.
+  it('Alt+3 shows a hidden side panel on Findings and takes the focus into it', async () => {
+    const { target } = await mount();
+    sidebarVisible.set(false);
+    await tick();
+
+    const event = await pressAnywhere({ key: '£', code: 'Digit3', altKey: true });
+
+    const panel = target.querySelector<HTMLElement>('[data-findings-panel]');
+    expect(event.defaultPrevented).toBe(true);
+    expect(get(sidebarVisible)).toBe(true);
+    expect(get(sidebarTab)).toBe('findings');
+    expect(panel?.closest('[hidden]')).toBeNull();
+    expect(panel?.contains(document.activeElement)).toBe(true);
+    expect(get(findingsFocusRequested)).toBe(false);
+  });
+
+  it('Alt+3 does nothing while a modal dialog is open', async () => {
+    await mount();
+    mounted.push(new ModalDialogHarness({ target: document.body }));
+
+    const event = await pressAnywhere({ key: '£', code: 'Digit3', altKey: true });
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(get(sidebarTab)).toBe('tree');
   });
 
   it('Alt+1 shows Files and focuses the first row of the tree', async () => {

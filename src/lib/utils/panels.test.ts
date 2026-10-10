@@ -4,10 +4,11 @@ import { PANELS } from './panels';
 import { shortcutById } from './shortcuts';
 
 describe('PANELS', () => {
-  it('holds Files and then Search, with their icons and panel keys', () => {
+  it('holds Files, Search and then Findings, with their icons and panel keys', () => {
     expect(PANELS).toEqual([
       { id: 'tree', label: 'Files', icon: 'files', shortcut: 'showFiles' },
       { id: 'search', label: 'Search', icon: 'search', shortcut: 'showSearch' },
+      { id: 'findings', label: 'Findings', icon: 'radar', shortcut: 'showFindings' },
     ]);
   });
 

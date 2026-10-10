@@ -5,7 +5,8 @@
  * active file or log chain, the line its view is anchored on or the
  * time it jumped to (in a chain, with the fingerprint of the files that
  * line was read in), the lines selected in it, its highlighting and
- * filter, the panel the side panel shows, whether rotated logs are grouped into
+ * filter, the panel the side panel shows and whether the findings panel
+ * lists by line or by group, whether rotated logs are grouped into
  * chains, whether the files panel shows its labels, which value it shows
  * and how it sorts its rows, the last search, whether its results show
  * byte offsets, the timestamps stash, and the time zones chosen for files
@@ -28,13 +29,14 @@ import {
   type FileZone,
 } from './fileZones';
 import { SEARCH_TOGGLES } from './searchToggles';
+import { FINDINGS_VIEWS, type FindingsView } from './findingsNav';
 import { parseSel, serializeSel, type SelEntry } from './lineSelection';
 import { isChainKey } from './tabKey';
 import { normalizeStash } from './timeStash';
 import { DEFAULT_SORT, SORT_DIRS, SORT_KEYS, sortForShown, type TreeSort } from './treeSort';
 
-/** The panels of the side panel: Files (`tree`) and Search. The URL's `tab` key names one. */
-export type SidebarTab = 'tree' | 'search';
+/** The panels of the side panel: Files (`tree`), Search and Findings. The URL's `tab` key names one. */
+export type SidebarTab = 'tree' | 'search' | 'findings';
 
 /** The value the files panel shows beside each row's name. */
 export type ValueColumn = 'size' | 'date';
@@ -113,6 +115,8 @@ export interface ViewState {
   /** The active file's regex filter, or null for none. */
   filter: FilterState | null;
   tab: SidebarTab;
+  /** How the findings panel lists the findings (`findings_by=group`; by line when left out). */
+  findingsBy: FindingsView;
   /** Rotated logs are grouped into log chains (`chains=1`). */
   chains: boolean;
   /** The files panel shows the labels of its rows (`labels=0` when off). */
@@ -150,6 +154,7 @@ export const DEFAULT_VIEW: ViewState = {
   highlight: null,
   filter: null,
   tab: 'tree',
+  findingsBy: 'line',
   chains: false,
   labels: true,
   show: 'size',
@@ -346,7 +351,11 @@ function serializeSearch(search: SearchState | null): Param[] {
 }
 
 /** A panel's name in the URL, which is the label the user sees. */
-const TAB_PARAM_VALUES: Record<SidebarTab, string> = { tree: 'files', search: 'search' };
+const TAB_PARAM_VALUES: Record<SidebarTab, string> = {
+  tree: 'files',
+  search: 'search',
+  findings: 'findings',
+};
 
 /** The panel a link opens when it names none: a link with a search opens on its results. */
 function defaultTab(hasSearch: boolean): SidebarTab {
@@ -468,6 +477,12 @@ const CODECS: { [K in keyof ViewState]: ParamCodec<ViewState[K]> } = {
     serialize: (tab, view) =>
       tab === defaultTab(view.search !== null) ? [] : [['tab', TAB_PARAM_VALUES[tab]]],
     isStep: (previous, next) => next !== previous,
+  },
+  // Listing the findings by group or by line rewrites the current entry.
+  findingsBy: {
+    names: ['findings_by'],
+    parse: (params) => FINDINGS_VIEWS.find((by) => by === params.get('findings_by')) ?? 'line',
+    serialize: (by) => (by === DEFAULT_VIEW.findingsBy ? [] : [['findings_by', by]]),
   },
   // Turning chain mode on or off rewrites the current entry. A link
   // without `chains=1` opens with the mode off.
@@ -592,8 +607,9 @@ function isStepKey<K extends keyof ViewState>(
  * any key changed in a way that is a step (opening a file or a chain,
  * running a search, showing another panel, a jump by time),
  * otherwise a replace (the line and its part, the selected lines, the
- * highlighting, the filter, chain mode, the files panel's labels, value and
- * sort, the offsets switch, the stash, the file zones).
+ * highlighting, the filter, the findings order, chain mode, the files
+ * panel's labels, value and sort, the offsets switch, the stash, the file
+ * zones).
  */
 export function historyModeFor(previous: ViewState, next: ViewState): HistoryMode {
   return VIEW_KEYS.some((key) => isStepKey(key, previous, next)) ? 'push' : 'replace';

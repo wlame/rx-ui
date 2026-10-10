@@ -20,6 +20,7 @@ export const SHORTCUT_SCOPES = {
   fileTree: 'In the file tree',
   searchPanel: 'In the search panel',
   searchField: 'In a search pattern field or the max box',
+  findingsPanel: 'In the findings panel',
   tabStrip: 'On the open-file tabs',
   filePane: 'In the open file',
   gotoField: 'In the go-to-line box',
@@ -48,7 +49,13 @@ export interface KeyChord {
 
 /** The shortcuts the window-wide handler acts on. */
 export type GlobalShortcutId =
-  'focusSearch' | 'showFiles' | 'showSearch' | 'toggleSidebar' | 'showShortcuts' | 'closeDialog';
+  | 'focusSearch'
+  | 'showFiles'
+  | 'showSearch'
+  | 'showFindings'
+  | 'toggleSidebar'
+  | 'showShortcuts'
+  | 'closeDialog';
 
 /**
  * The shortcuts of the files panel, which act while it is shown. An id is
@@ -113,6 +120,19 @@ export type SelectionShortcutId =
 /** The keys of the tab strip, which act on the focused tab. */
 export type TabStripShortcutId = 'tabStripMove' | 'tabStripEnds' | 'tabStripClose';
 
+/**
+ * The keys of the findings panel: its By line/By group switch, and its
+ * list, whose key handler hands them to its key rules
+ * (`utils/findingsNav.ts`).
+ */
+export type FindingsPanelShortcutId =
+  | 'findingsViewMove'
+  | 'findingsMove'
+  | 'findingsEnds'
+  | 'findingsExpand'
+  | 'findingsCollapse'
+  | 'findingsOpen';
+
 export type ShortcutId =
   | GlobalShortcutId
   | FilesPanelShortcutId
@@ -122,6 +142,7 @@ export type ShortcutId =
   | 'valueSwitchMove'
   | SearchPanelShortcutId
   | 'runSearch'
+  | FindingsPanelShortcutId
   | TabStripShortcutId
   | 'gotoLine'
   | 'gotoJump'
@@ -141,7 +162,8 @@ export type ShortcutId =
   | 'zoneChoose'
   | 'zoneClose'
   | 'closeHistory'
-  | 'closeChainParts';
+  | 'closeChainParts'
+  | 'closeFindingsPopover';
 
 export interface Shortcut {
   id: ShortcutId;
@@ -309,6 +331,14 @@ export const SHORTCUTS: readonly Shortcut[] = [
     chord: { code: 'Digit2', alt: true },
     otherChords: [{ key: 'f', mod: true, shift: true }],
   },
+  // No second key: none was found free in every browser on macOS and
+  // Linux (Cmd/Ctrl+Shift with a letter is mostly the browsers' own).
+  {
+    id: 'showFindings',
+    scope: 'panels',
+    description: 'Show the findings panel and go to its list',
+    chord: { code: 'Digit3', alt: true },
+  },
   // Alt+] and Alt+[ are matched by the key's code: on a Mac Option+]
   // types "‘". The browsers keep Ctrl+Tab, Ctrl+PageUp/PageDown, ⌘/Ctrl
   // with a digit and ⌘/Ctrl+W for their own tabs; Alt+W is the search
@@ -410,6 +440,45 @@ export const SHORTCUTS: readonly Shortcut[] = [
     scope: 'searchField',
     description: 'Run the search',
     chord: { key: 'Enter', shift: false },
+  },
+  {
+    id: 'findingsViewMove',
+    scope: 'findingsPanel',
+    description: 'On the By line/By group switch: choose the other order',
+    chord: { key: 'ArrowLeft' },
+    otherChords: [{ key: 'ArrowRight' }],
+  },
+  {
+    id: 'findingsMove',
+    scope: 'findingsPanel',
+    description: 'In the list: go to the next or the previous row',
+    chord: { key: 'ArrowDown' },
+    otherChords: [{ key: 'ArrowUp' }],
+  },
+  {
+    id: 'findingsEnds',
+    scope: 'findingsPanel',
+    description: 'In the list: go to the first or the last row',
+    chord: { key: 'Home' },
+    otherChords: [{ key: 'End' }],
+  },
+  {
+    id: 'findingsExpand',
+    scope: 'findingsPanel',
+    description: 'By group: open the group or signature, or go to its first row',
+    chord: { key: 'ArrowRight' },
+  },
+  {
+    id: 'findingsCollapse',
+    scope: 'findingsPanel',
+    description: 'By group: close the group or signature, or go to the one that holds the row',
+    chord: { key: 'ArrowLeft' },
+  },
+  {
+    id: 'findingsOpen',
+    scope: 'findingsPanel',
+    description: 'In the list: open the finding, or open or close the group or signature',
+    chord: { key: 'Enter' },
   },
   {
     id: 'tabStripMove',
@@ -643,6 +712,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
     description: "Close the list of a log chain's parts",
     chord: { key: 'Escape' },
   },
+  {
+    id: 'closeFindingsPopover',
+    scope: 'openPanel',
+    description: "Close the findings panel's signature picker or its more menu",
+    chord: { key: 'Escape' },
+  },
   // Alt is still held while the list of recent tabs is open.
   {
     id: 'closeRecentTabs',
@@ -701,6 +776,7 @@ const GLOBAL_IDS: readonly GlobalShortcutId[] = [
   'focusSearch',
   'showFiles',
   'showSearch',
+  'showFindings',
   'toggleSidebar',
   'showShortcuts',
   'closeDialog',

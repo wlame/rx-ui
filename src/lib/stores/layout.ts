@@ -1,10 +1,14 @@
 import { derived, get, writable, type Readable, type Writable } from 'svelte/store';
+import type { FindingsView } from '../utils/findingsNav';
 import type { SidebarTab } from '../utils/urlState';
 
 export type { SidebarTab };
 
-/** Which panel the side panel shows: Files (`tree`) or Search. */
+/** Which panel the side panel shows: Files (`tree`), Search or Findings. */
 export const sidebarTab = writable<SidebarTab>('tree');
+
+/** How the findings panel lists the findings: by line, or under their group and signature. */
+export const findingsBy = writable<FindingsView>('line');
 
 /** Whether the search results show byte offsets instead of line numbers. */
 export const searchShowsOffsets = writable(false);
@@ -69,10 +73,18 @@ export const editorFocusRequested = writable(false);
  */
 export const tabStripFocusRequested = writable(false);
 
+/**
+ * Set when something asks for the findings panel to take the focus: its
+ * list's current row, or its first control while it lists nothing. The
+ * panel resets it once its content has arrived.
+ */
+export const findingsFocusRequested = writable(false);
+
 /** The request each panel answers by taking the focus. */
 const FOCUS_REQUESTS: Readonly<Record<SidebarTab, Writable<boolean>>> = {
   tree: treeFocusRequested,
   search: searchFocusRequested,
+  findings: findingsFocusRequested,
 };
 
 /**

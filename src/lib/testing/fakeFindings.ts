@@ -111,8 +111,10 @@ export const FINDINGS_DIR = '/logs';
 
 /** A file the fake backend holds findings for. */
 interface FakeFile {
-  /** Every finding of every signature, in line order. */
+  /** Every finding of every signature, in line order: the stored ones. */
   findings: Finding[];
+  /** The count of a signature whose findings were capped: more than it stores. */
+  counts: Map<string, number>;
   /** The signatures with a current cache entry. */
   current: Set<string>;
   /** Not text: every findings request is refused with a 400. */
@@ -170,6 +172,8 @@ export interface FindingsBackendOptions {
  * (a task, or the running task of the file), `GET /v1/tasks/{id}` and
  * `DELETE /v1/tasks/{id}`. A test drives each task with `progress`,
  * `complete` and `fail`. `/v1/tree` lists the files under `FINDINGS_DIR`.
+ * A log chain request (`/v1/logs/*`) is never answered, so a chain's tab
+ * stays open while it waits for its description.
  */
 export class FindingsBackend {
   readonly requests: FakeRequest[] = [];
@@ -183,7 +187,12 @@ export class FindingsBackend {
 
   /** Hold `findings` for a file; `current` signatures have a cache entry. */
   addFile(path: string, findings: Finding[] = [], current: string[] = [], isBinary = false): void {
-    this.files.set(path, { findings, current: new Set(current), isBinary });
+    this.files.set(path, { findings, current: new Set(current), isBinary, counts: new Map() });
+  }
+
+  /** Count `count` findings of `signature` in a file, of which only those it holds are stored. */
+  setCount(path: string, signature: string, count: number): void {
+    this.files.get(path)?.counts.set(signature, count);
   }
 
   /** The requests made with `method` to `pathname`. */
@@ -194,6 +203,11 @@ export class FindingsBackend {
   /** The task started or joined last. */
   lastTask(): FakeTask | undefined {
     return [...this.tasks.values()].pop();
+  }
+
+  /** The tasks still queued or running. */
+  unfinishedTasks(): FakeTask[] {
+    return [...this.tasks.values()].filter((t) => t.status === 'queued' || t.status === 'running');
   }
 
   /** The scan `id` has read `read` of `total` bytes. */
@@ -234,7 +248,12 @@ export class FindingsBackend {
   }
 
   private findingsAnswer(path: string, query: URLSearchParams): FindingsResponse {
-    const file = this.files.get(path) ?? { findings: [], current: new Set(), isBinary: false };
+    const file = this.files.get(path) ?? {
+      findings: [],
+      current: new Set<string>(),
+      isBinary: false,
+      counts: new Map<string, number>(),
+    };
     const selection = this.resolve(query.get('signatures') ?? '');
     const checked = selection.filter((id) => file.current.has(id));
     const missing = selection.filter((id) => !file.current.has(id));
@@ -242,8 +261,8 @@ export class FindingsBackend {
     const state = isFull ? 'full' : file.current.size > 0 ? 'partial' : 'none';
     const counts = Object.fromEntries(
       checked.map((id) => {
-        const count = file.findings.filter((f) => f.signature === id).length;
-        return [id, { count, stored: count }];
+        const stored = file.findings.filter((f) => f.signature === id).length;
+        return [id, { count: file.counts.get(id) ?? stored, stored }];
       }),
     );
     const only = query.getAll('signature');
@@ -400,6 +419,7 @@ export class FindingsBackend {
       body: init?.body ? JSON.parse(String(init.body)) : undefined,
     };
     this.requests.push(request);
+    if (request.pathname.startsWith('/v1/logs/')) return new Promise<Answer>(() => {});
     return this.answerFor(request);
   }
 }

@@ -178,6 +178,25 @@ describe('parseViewState', () => {
     expect(parseViewState('?tab=settings').tab).toBe('tree');
   });
 
+  it('opens the Findings panel a link names', () => {
+    expect(parseViewState('?tab=findings').tab).toBe('findings');
+    expect(serializeViewState(view({ tab: 'findings' }), '')).toBe('?tab=findings');
+  });
+
+  it.each([
+    ['group', 'group'],
+    ['line', 'line'],
+    ['', 'line'],
+    ['signature', 'line'],
+    ['constructor', 'line'],
+  ] as const)('reads findings_by=%s as by %s', (value, expected) => {
+    expect(parseViewState(`?findings_by=${value}`).findingsBy).toBe(expected);
+  });
+
+  it('lists the findings by line when a link names no order', () => {
+    expect(parseViewState('?tab=findings').findingsBy).toBe('line');
+  });
+
   it('reads a filter mode it does not know as highlight', () => {
     expect(parseViewState('?file=/a.log&filter=x&filter_mode=sparkle').filter).toEqual({
       pattern: 'x',
@@ -277,6 +296,7 @@ describe('serializeViewState and parseViewState', () => {
     ['sorted by name, Z to A', view({ sort: { key: 'name', dir: 'desc' } })],
     ['the dates shown, oldest first', view({ show: 'date', sort: { key: 'date', dir: 'asc' } })],
     ['byte offsets', view({ offsets: true, search: plainSearch, tab: 'search' })],
+    ['the Findings panel, by group', view({ tab: 'findings', findingsBy: 'group' })],
     [
       'a search with every option',
       view({
@@ -303,6 +323,10 @@ describe('serializeViewState and parseViewState', () => {
       '?regexp=error',
     );
     expect(serializeViewState(DEFAULT_VIEW, '')).toBe('');
+    expect(serializeViewState(view({ tab: 'findings', findingsBy: 'line' }), '')).toBe(
+      '?tab=findings',
+    );
+    expect(serializeViewState(view({ findingsBy: 'group' }), '')).toBe('?findings_by=group');
   });
 
   it('writes a time as RFC 3339 with ms and Z', () => {
@@ -509,6 +533,18 @@ describe('historyModeFor', () => {
         name: 'switching the results to offsets',
         previous: DEFAULT_VIEW,
         next: view({ offsets: true }),
+        mode: 'replace',
+      },
+      {
+        name: 'showing the Findings panel',
+        previous: DEFAULT_VIEW,
+        next: view({ tab: 'findings' }),
+        mode: 'push',
+      },
+      {
+        name: 'listing the findings by group',
+        previous: view({ tab: 'findings' }),
+        next: view({ tab: 'findings', findingsBy: 'group' }),
         mode: 'replace',
       },
       {

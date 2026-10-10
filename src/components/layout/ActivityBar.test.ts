@@ -31,6 +31,7 @@ function mount() {
     buttons: () => [...target.querySelectorAll<HTMLButtonElement>('button')],
     files: () => button('Files'),
     search: () => button('Search'),
+    findings: () => button('Findings'),
     help: () => button('Keyboard shortcuts'),
   };
 }
@@ -80,6 +81,7 @@ describe('the activity bar', () => {
     expect(buttons().map((b) => b.getAttribute('aria-label'))).toEqual([
       'Files',
       'Search',
+      'Findings',
       'Keyboard shortcuts',
     ]);
   });
@@ -160,7 +162,7 @@ describe('the keys of the activity bar', () => {
   });
 
   it('moves the focus down and up through its buttons with the arrow keys', async () => {
-    const { files, search, help } = mount();
+    const { files, search, findings, help } = mount();
     files().focus();
 
     const down = await keyDown(files(), { key: 'ArrowDown', code: 'ArrowDown' });
@@ -168,10 +170,13 @@ describe('the keys of the activity bar', () => {
     expect(down.defaultPrevented).toBe(true);
 
     await keyDown(search(), { key: 'ArrowDown', code: 'ArrowDown' });
+    expect(document.activeElement).toBe(findings());
+
+    await keyDown(findings(), { key: 'ArrowDown', code: 'ArrowDown' });
     expect(document.activeElement).toBe(help());
 
     await keyDown(help(), { key: 'ArrowUp', code: 'ArrowUp' });
-    expect(document.activeElement).toBe(search());
+    expect(document.activeElement).toBe(findings());
   });
 
   it('wraps around at either end', async () => {

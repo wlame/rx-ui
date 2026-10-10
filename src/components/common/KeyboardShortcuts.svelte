@@ -37,6 +37,7 @@
     focusSearch: unlessModalOpen(() => showPanel('search', true)),
     showFiles: unlessModalOpen(() => showPanel('tree', true)),
     showSearch: unlessModalOpen(() => showPanel('search', true)),
+    showFindings: unlessModalOpen(() => showPanel('findings', true)),
     toggleSidebar: unlessModalOpen(toggleSidebar),
     showShortcuts: () => {
       shortcutsHelpOpen.update((open) => !open);
