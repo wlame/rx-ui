@@ -73,12 +73,29 @@ function hashedIndex(group: string, groups: readonly GroupInfo[]): number {
   return choices[hashName(group) % choices.length];
 }
 
-/** The look of one group, given the catalogue's groups (in any order). */
-export function groupStyle(group: string, groups: readonly GroupInfo[]): GroupStyle {
+/** The palette index of a group: at its order, else by its name's hash. */
+function paletteIndex(group: string, groups: readonly GroupInfo[]): number {
   const order = groups.find((candidate) => candidate.name === group)?.order;
   const placed = order === undefined ? null : indexOfOrder(order);
-  const index = placed ?? hashedIndex(group, groups);
+  return placed ?? hashedIndex(group, groups);
+}
+
+/** The look of one group, given the catalogue's groups (in any order). */
+export function groupStyle(group: string, groups: readonly GroupInfo[]): GroupStyle {
+  const index = paletteIndex(group, groups);
   return { className: `group-palette-${index}`, color: GROUP_PALETTE[index].light };
+}
+
+/**
+ * A group's colour on a light and on a dark background, the same as its
+ * palette class sets, for Monaco's minimap and scrollbar marks: they take
+ * a colour and a dark-theme colour, not a class.
+ */
+export function groupColors(
+  group: string,
+  groups: readonly GroupInfo[],
+): (typeof GROUP_PALETTE)[number] {
+  return GROUP_PALETTE[paletteIndex(group, groups)];
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   chordKeys,
   chordLabel,
   detectPlatform,
+  handleFilePaneKey,
   handleFileTabsKey,
   handleFilesPanelKey,
   handleRecentTabsKey,
@@ -298,6 +299,59 @@ describe('handleRecentTabsKey', () => {
     const { actions, ran } = switcherActions();
 
     expect(handleRecentTabsKey(event, actions)).toBe(false);
+    expect(ran).toEqual([]);
+  });
+});
+
+describe('handleFilePaneKey', () => {
+  /** Actions for the open file's keys, each acting unless told not to. */
+  function paneActions(acting = true) {
+    const ran: string[] = [];
+    const act = (id: string) => () => {
+      ran.push(id);
+      return acting;
+    };
+    return {
+      ran,
+      actions: {
+        gotoLine: act('gotoLine'),
+        nextFinding: act('nextFinding'),
+        previousFinding: act('previousFinding'),
+      },
+    };
+  }
+
+  // Monaco binds F8 and Shift+F8 to its own "next problem" and "previous problem".
+  it.each([
+    ['nextFinding', press('F8', { code: 'F8' })],
+    ['previousFinding', press('F8', { code: 'F8', shiftKey: true })],
+    ['gotoLine', press(':', { shiftKey: true })],
+    ['gotoLine', press('g', { metaKey: true })],
+  ])('runs %s and keeps the key from the editor', (id, event) => {
+    const { actions, ran } = paneActions();
+
+    expect(handleFilePaneKey(event, actions)).toBe(true);
+    expect(ran).toEqual([id]);
+    expect(event.preventDefault).toHaveBeenCalled();
+  });
+
+  it('leaves the key to the editor when the step did not act, as in a log chain', () => {
+    const { actions, ran } = paneActions(false);
+    const event = press('F8', { code: 'F8' });
+
+    expect(handleFilePaneKey(event, actions)).toBe(false);
+    expect(ran).toEqual(['nextFinding']);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["Alt+F8, the editor's next problem in the file", press('F8', { altKey: true })],
+    ['Cmd+F8', press('F8', { metaKey: true })],
+    ['F7', press('F7')],
+  ])('leaves %s alone', (_name, event) => {
+    const { actions, ran } = paneActions();
+
+    expect(handleFilePaneKey(event, actions)).toBe(false);
     expect(ran).toEqual([]);
   });
 });

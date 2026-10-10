@@ -5,9 +5,18 @@ import { tick } from 'svelte';
 import { get } from 'svelte/store';
 import type * as Monaco from 'monaco-editor';
 import { startSelectionCopy } from '$lib/selectionCopy';
+import { forgetWindowFindings } from '$lib/stores/editorFindings';
 import { files } from '$lib/stores/files';
+import { health } from '$lib/stores/health';
 import { editorFocusRequested } from '$lib/stores/layout';
+import { loadSignatures } from '$lib/stores/signatures';
 import { CHAIN_T0, chainDescription, chainPart, chainTabOf } from '$lib/testing/chainDescription';
+import {
+  FindingsBackend,
+  TEST_DEFAULT_IDS,
+  finding,
+  serveFindings,
+} from '$lib/testing/fakeFindings';
 import { MOUSE_TARGET, fakeMonacoEditors } from '$lib/testing/fakeMonacoEditor';
 import type { FileLine, OpenFile } from '$lib/types';
 import { chainLineLabels } from '$lib/utils/chainPane';
@@ -411,5 +420,50 @@ describe('EditorPane focus request', () => {
 
     expect(document.activeElement).toBe(target.firstElementChild);
     expect(get(editorFocusRequested)).toBe(false);
+  });
+});
+
+describe('EditorPane marks of findings', () => {
+  /** A backend that serves signatures and holds a finding on line 2 of `path`. */
+  async function serveFindingOnLine2(path: string) {
+    const backend = new FindingsBackend();
+    backend.addFile(path, [finding('python-traceback', 2)], TEST_DEFAULT_IDS);
+    serveFindings(backend);
+    await health.check();
+    await loadSignatures();
+    return backend;
+  }
+
+  /** The finding bars in the decorations drawn last: their editor lines. */
+  function findingBars(editor: { decorationSets: Monaco.editor.IModelDeltaDecoration[][] }) {
+    return (editor.decorationSets.at(-1) ?? [])
+      .filter((d) => d.options.glyphMarginClassName?.startsWith('monaco-finding-bar'))
+      .map((d) => d.range.startLineNumber);
+  }
+
+  afterEach(async () => {
+    forgetWindowFindings([]);
+    serveFindings(new FindingsBackend({ features: [] }));
+    await health.check();
+    vi.unstubAllGlobals();
+  });
+
+  it('asks for the findings of the lines it holds and marks them', async () => {
+    const backend = await serveFindingOnLine2('/logs/a.log');
+
+    const { editor } = await mountPane(openFile());
+
+    const asked = backend.requestsTo('GET', '/v1/findings').map((r) => r.query.get('lines'));
+    expect(asked).toEqual(['1-3']);
+    expect(findingBars(editor)).toEqual([2]);
+  });
+
+  it("asks for no findings and marks none in a log chain's tab", async () => {
+    const backend = await serveFindingOnLine2('chain:/l/agent.log');
+
+    const { editor } = await mountPane(chainFile());
+
+    expect(backend.requestsTo('GET', '/v1/findings')).toEqual([]);
+    expect(findingBars(editor)).toEqual([]);
   });
 });

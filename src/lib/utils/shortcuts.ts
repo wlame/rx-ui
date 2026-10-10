@@ -121,6 +121,13 @@ export type SelectionShortcutId =
 export type TabStripShortcutId = 'tabStripMove' | 'tabStripEnds' | 'tabStripClose';
 
 /**
+ * The keys the editor pane hears before its Monaco editor: the go-to box,
+ * and the steps to the next and the previous finding, which Monaco would
+ * take as its own "next problem" and "previous problem".
+ */
+export type FilePaneShortcutId = 'gotoLine' | 'nextFinding' | 'previousFinding';
+
+/**
  * The keys of the findings panel: its By line/By group switch, and its
  * list, whose key handler hands them to its key rules
  * (`utils/findingsNav.ts`).
@@ -144,7 +151,7 @@ export type ShortcutId =
   | 'runSearch'
   | FindingsPanelShortcutId
   | TabStripShortcutId
-  | 'gotoLine'
+  | FilePaneShortcutId
   | 'gotoJump'
   | 'gotoClose'
   | 'findInEditor'
@@ -562,6 +569,19 @@ export const SHORTCUTS: readonly Shortcut[] = [
     // Monaco's own Cmd/Ctrl+G counts the loaded editor lines, not the file's.
     otherChords: [{ key: 'g', mod: true }],
   },
+  // Monaco's own F8 and Shift+F8 go to the next and the previous problem.
+  {
+    id: 'nextFinding',
+    scope: 'filePane',
+    description: 'Go to the next finding below the line, among those the findings panel lists',
+    chord: { key: 'F8', shift: false },
+  },
+  {
+    id: 'previousFinding',
+    scope: 'filePane',
+    description: 'Go to the previous finding above the line, among those the findings panel lists',
+    chord: { key: 'F8', shift: true },
+  },
   {
     id: 'findInEditor',
     scope: 'filePane',
@@ -863,6 +883,23 @@ export type RecentTabsShortcutActions = ShortcutActions<RecentTabsShortcutId>;
 export function handleRecentTabsKey(
   event: KeyPress & { preventDefault(): void },
   actions: RecentTabsShortcutActions,
+): boolean {
+  return runShortcutAmong(event, actions);
+}
+
+/** What each key of the editor pane does; an action returns whether it acted. */
+export type FilePaneShortcutActions = ShortcutActions<FilePaneShortcutId>;
+
+/**
+ * Run the editor pane's shortcut `event` is, among those `actions` holds.
+ * The pane hears the keys in the capture phase, before its Monaco editor,
+ * and decides whether they apply at all (not in a text field).
+ * `preventDefault` is called only when the action acted: a step in a log
+ * chain's tab does not, and leaves the key to the editor.
+ */
+export function handleFilePaneKey(
+  event: KeyPress & { preventDefault(): void },
+  actions: FilePaneShortcutActions,
 ): boolean {
   return runShortcutAmong(event, actions);
 }

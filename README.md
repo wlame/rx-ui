@@ -160,6 +160,8 @@ Cmd/Ctrl+/ lists every shortcut in the app. They are:
 | On the open-file tabs                    | Home or End                  | Show the first or the last tab                                                                                    |
 | On the open-file tabs                    | Delete or Backspace          | Close the tab and show the tab used before it                                                                     |
 | In the open file                         | `:` or Cmd/Ctrl+G            | Go to a line of the file; in a log chain's tab, see below                                                         |
+| In the open file                         | F8                           | Go to the next finding below the line, among those the findings panel lists                                       |
+| In the open file                         | Shift+F8                     | Go to the previous finding above the line, among those the findings panel lists                                   |
 | In the open file                         | Cmd/Ctrl+F                   | Find in the lines loaded in the editor                                                                            |
 | In the open file                         | Click a line number          | Select that line                                                                                                  |
 | In the open file                         | Drag                         | Select the lines the drag touches, in the text or over the line numbers                                           |

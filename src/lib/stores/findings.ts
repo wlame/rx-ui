@@ -17,7 +17,7 @@ import { files } from './files';
 import { backendHas } from './health';
 import { notifications } from './notifications';
 import { settings } from './settings';
-import { defaultSetIds, loadSignatures, signatures } from './signatures';
+import { defaultSetIds, loadSignatures, signatures, type SignaturesState } from './signatures';
 import { tree } from './tree';
 
 /**
@@ -142,12 +142,30 @@ const pageRounds = new Map<string, PageRound>();
 const scans = new Map<string, AbortController>();
 
 /**
- * The query of every list request: the picker's selection (the default
- * set when it picks nothing, so the state still reads) and the filter.
+ * The findings the panel lists, as a request asks for them: the picker's
+ * selection and the filter text. Null when nothing is picked, so the
+ * panel lists nothing.
+ */
+export function panelFilters(): FindingsQuery | null {
+  return filtersOf(get(settings).findingsPicker, get(signatures), get(findingsFilter));
+}
+
+/** The panel's filters for the stored choice `picker`, read against `catalogue`, and the filter text. */
+export function filtersOf(
+  picker: readonly string[] | null,
+  catalogue: Pick<SignaturesState, 'list'>,
+  filter: string,
+): FindingsQuery | null {
+  const selection = selectionOf(picker, catalogue);
+  return selection === null ? null : { signatures: selection, q: filter };
+}
+
+/**
+ * The query of every list request: the panel's filters, with the default
+ * set when nothing is picked, so the state still reads.
  */
 function listQuery(): FindingsQuery {
-  const selection = selectionOf(get(settings).findingsPicker, get(signatures));
-  return { signatures: selection ?? [], q: get(findingsFilter) };
+  return panelFilters() ?? { signatures: [], q: get(findingsFilter) };
 }
 
 function pageKey(list: string, page: number): string {

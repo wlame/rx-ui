@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import type { GroupInfo } from '../types';
-import { GROUP_PALETTE, groupStyle, installPaletteStyles, paletteStyleSheet } from './groupStyle';
+import {
+  GROUP_PALETTE,
+  groupColors,
+  groupStyle,
+  installPaletteStyles,
+  paletteStyleSheet,
+} from './groupStyle';
 
 /** A catalogue's groups with these names, in this order, numbered from 1. */
 function groupList(...names: string[]): GroupInfo[] {
@@ -112,6 +118,20 @@ describe('paletteStyleSheet', () => {
       expect(css).toContain(`.monaco-editor.vs .${name} { --rx-group-color: ${light}; }`);
       expect(css).toContain(`.monaco-editor.vs-dark .${name} { --rx-group-color: ${dark}; }`);
     });
+  });
+});
+
+describe('groupColors', () => {
+  // Monaco's minimap and scrollbar take colours, not classes.
+  it("gives the light and the dark colour of the group's palette class", () => {
+    for (const name of ['sql', 'traceback', 'team-x']) {
+      const index = Number(
+        groupStyle(name, BUILTIN_GROUPS).className.replace('group-palette-', ''),
+      );
+
+      expect(groupColors(name, BUILTIN_GROUPS)).toEqual(GROUP_PALETTE[index]);
+      expect(groupColors(name, BUILTIN_GROUPS).light).toBe(groupStyle(name, BUILTIN_GROUPS).color);
+    }
   });
 });
 

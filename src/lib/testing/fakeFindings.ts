@@ -6,7 +6,7 @@
  */
 import { vi } from 'vitest';
 import type { SignaturesState } from '../stores/signatures';
-import type { Finding, FindingsResponse, GroupInfo, SignatureInfo } from '../types';
+import type { Finding, FindingsResponse, GroupInfo, SignatureInfo, TreeFindings } from '../types';
 
 /** A catalogue signature with every field set; `fields` overrides any. */
 export function signatureInfo(id: string, fields: Partial<SignatureInfo> = {}): SignatureInfo {
@@ -171,7 +171,8 @@ export interface FindingsBackendOptions {
  * `GET /v1/findings` (selection, filters, paging), `POST /v1/findings`
  * (a task, or the running task of the file), `GET /v1/tasks/{id}` and
  * `DELETE /v1/tasks/{id}`. A test drives each task with `progress`,
- * `complete` and `fail`. `/v1/tree` lists the files under `FINDINGS_DIR`.
+ * `complete` and `fail`. `/v1/tree` lists the files under `FINDINGS_DIR`,
+ * each with the label `listFindings` gave it, or none.
  * A log chain request (`/v1/logs/*`) is never answered, so a chain's tab
  * stays open while it waits for its description.
  */
@@ -179,6 +180,8 @@ export class FindingsBackend {
   readonly requests: FakeRequest[] = [];
   private readonly files = new Map<string, FakeFile>();
   private readonly tasks = new Map<string, FakeTask>();
+  /** The findings label `/v1/tree` gives a file; none when it is not here. */
+  private readonly treeLabels = new Map<string, TreeFindings>();
   private taskCount = 0;
   /** Answer the next DELETE with a 409, as for a task that ended meanwhile. */
   cancelConflict = false;
@@ -191,6 +194,11 @@ export class FindingsBackend {
   /** Hold `findings` for a file; `current` signatures have a cache entry. */
   addFile(path: string, findings: Finding[] = [], current: string[] = [], isBinary = false): void {
     this.files.set(path, { findings, current: new Set(current), isBinary, counts: new Map() });
+  }
+
+  /** List `path` in `/v1/tree` with the findings label `label`. */
+  listFindings(path: string, label: TreeFindings): void {
+    this.treeLabels.set(path, label);
   }
 
   /** Count `count` findings of `signature` in a file, of which only those it holds are stored. */
@@ -281,12 +289,21 @@ export class FindingsBackend {
     );
     const only = query.getAll('signature');
     const text = (query.get('q') ?? '').toLowerCase();
+    const [first, last] = (query.get('lines') ?? '1-Infinity').split('-').map(Number);
+    const after = Number(query.get('after_line') ?? 0);
+    const before = Number(query.get('before_line') ?? 0);
     const filtered = file.findings.filter(
       (f) =>
         checked.includes(f.signature) &&
         (only.length === 0 || only.includes(f.signature)) &&
-        (text === '' || f.excerpt.toLowerCase().includes(text)),
+        (text === '' || f.excerpt.toLowerCase().includes(text)) &&
+        f.end_line >= first &&
+        f.start_line <= last &&
+        (after === 0 || f.start_line > after) &&
+        (before === 0 || f.start_line < before),
     );
+    // before_line lists the nearest finding first.
+    if (before > 0) filtered.reverse();
     const offset = Number(query.get('offset') ?? 0);
     const limit = Number(query.get('limit') ?? 1000);
     return findingsAnswer({
@@ -399,6 +416,7 @@ export class FindingsBackend {
               name: file.slice(file.lastIndexOf('/') + 1),
               type: 'file',
               is_text: !this.files.get(file)?.isBinary,
+              findings: this.treeLabels.get(file) ?? null,
             }))
           : [];
     return {

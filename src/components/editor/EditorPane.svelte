@@ -3,7 +3,16 @@
   import { get } from 'svelte/store';
   import type { FileLine, FileMatch, OpenFile, RegexFilter } from '$lib/types';
   import { files, settings, resolvedTheme } from '$lib/stores';
+  import {
+    NO_FINDINGS,
+    markInputs,
+    requestWindowFindings,
+    stepFinding,
+    windowFindings,
+    windowFindingsOf,
+  } from '$lib/stores/editorFindings';
   import { editorFocusRequested } from '$lib/stores/layout';
+  import { signatures } from '$lib/stores/signatures';
   import { recallPane, rememberPane, scrollOnShow } from '$lib/stores/paneMemory';
   import Spinner from '../common/Spinner.svelte';
   import MonacoEditor from './MonacoEditor.svelte';
@@ -19,7 +28,7 @@
   import { processContent } from '$lib/utils/processContent';
   import { isSamePaneView, paneDecorations, type PaneView } from '$lib/utils/editorDecorations';
   import { acceptsTyping } from '$lib/utils/keyTargets';
-  import { isShortcut } from '$lib/utils/shortcuts';
+  import { handleFilePaneKey } from '$lib/utils/shortcuts';
   import { indexBuildLabel } from '$lib/samplesWait';
   import { chainGutterRuns, chainZonesMemo, type GutterRun } from '$lib/utils/chainZones';
   import { chainLineLabels, topLineOf } from '$lib/utils/chainPane';
@@ -118,6 +127,10 @@
     file.chain && (chainDescription?.state === 'invalid' || file.chain.invalidDetail),
   );
 
+  // The findings of the window, which the editor marks; a chain's tab has none.
+  $: windowEnd = file.startLine + file.lines.length - 1;
+  $: if (!file.chain) requestWindowFindings(file.path, file.startLine, windowEnd, $markInputs);
+
   // Everything the decorations mark; any change to it repaints them.
   $: paneView = {
     editorWindow: { startLine: file.startLine, lineCount: file.lines.length },
@@ -130,6 +143,8 @@
       file.chain && chainDescription
         ? gutterRunsOf(file.lines, chainDescription.parts, file.chain.numbering)
         : NO_GUTTER_RUNS,
+    findings: file.chain ? NO_FINDINGS : windowFindingsOf($windowFindings, file.path),
+    signatures: $signatures,
   } satisfies PaneView;
   $: if (monacoEditor) updateDecorations(paneView);
 
@@ -383,18 +398,28 @@
     isHoldingFocusForEditor = true;
   }
 
-  // `:` or Cmd/Ctrl+G opens the go-to box, also while the read-only
-  // editor text has focus. The pane hears keys in the capture phase and
-  // stops the ones it acts on, so Monaco's own Cmd/Ctrl+G, which would
-  // count the loaded lines instead of the file's, never sees them. The
-  // go-to box closes itself on Escape and when it loses focus.
+  // `:` or Cmd/Ctrl+G opens the go-to box, and F8 and Shift+F8 open the
+  // next and the previous finding, also while the read-only editor text
+  // has focus. The pane hears keys in the capture phase and stops the
+  // ones it acts on, so Monaco's own Cmd/Ctrl+G, which would count the
+  // loaded lines instead of the file's, and its own F8 and Shift+F8 (the
+  // next and the previous problem) never see them. The go-to box closes
+  // itself on Escape and when it loses focus.
   function handleKeyDown(e: KeyboardEvent) {
-    if (!lineRangeNav || !isShortcut('gotoLine', e) || acceptsTyping(e.target as HTMLElement)) {
-      return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
+    if (acceptsTyping(e.target as HTMLElement)) return;
+    const hasActed = handleFilePaneKey(e, {
+      gotoLine: openGoto,
+      nextFinding: () => stepFinding(file.path, file.anchorLine, 'next'),
+      previousFinding: () => stepFinding(file.path, file.anchorLine, 'previous'),
+    });
+    if (hasActed) e.stopPropagation();
+  }
+
+  /** Open the header's go-to box; there is none while the file shows no lines. */
+  function openGoto(): boolean {
+    if (!lineRangeNav) return false;
     lineRangeNav.openGoto();
+    return true;
   }
 
   onMount(() => {

@@ -43,6 +43,33 @@
   max-width: 4px !important;
 }
 
+/* Findings (src/lib/utils/editorDecorations.ts findingDecorations): a bar
+   in the glyph margin in the group's colour, which its palette class sets
+   as --rx-group-color, and a box around a finding's value. Monaco draws
+   every glyph class of one line in one element, so the bar is a
+   pseudo-element beside a search match's glyph, which colours the element
+   itself 3px in from its left. No background: the selection owns those. */
+.monaco-editor .monaco-finding-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 10px;
+  width: 3px;
+  border-radius: 1px;
+  background-color: var(--rx-group-color);
+}
+
+.monaco-editor .monaco-match-glyph.monaco-finding-bar::before {
+  left: 7px;
+}
+
+.monaco-editor .monaco-finding-value {
+  outline: 1px solid var(--rx-group-color);
+  outline-offset: -1px;
+  border-radius: 2px;
+}
+
 /* A log chain's gutter: every second part's line numbers in a second
    colour, and the part-local numbers of a chain that is not ready muted.
    Monaco puts its theme's base (vs, vs-dark) on .monaco-editor. */

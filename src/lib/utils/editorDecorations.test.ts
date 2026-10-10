@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import {
+  TEST_GROUPS,
+  TEST_SIGNATURES,
+  finding,
+  signatureInfo,
+  testCatalogue,
+} from '../testing/fakeFindings';
+import { GROUP_PALETTE } from './groupStyle';
 import { HIDDEN_MARKER } from './processContent';
 import {
+  findingDecorations,
   hiddenMarkerDecorations,
   isSamePaneView,
   matchLineDecorations,
@@ -207,6 +216,199 @@ describe('paneDecorations', () => {
   });
 });
 
+describe('findingDecorations', () => {
+  /** The bars among `decorations`: the editor lines each covers. */
+  function bars(decorations: ReturnType<typeof findingDecorations>) {
+    return decorations
+      .filter((d) => d.options.glyphMarginClassName)
+      .map((d) => [d.range.startLineNumber, d.range.endLineNumber]);
+  }
+
+  function hoverOf(decoration: ReturnType<typeof findingDecorations>[number]): string {
+    const hover = decoration.options.glyphMarginHoverMessage;
+    if (!hover || Array.isArray(hover)) throw new Error('the bar has no single hover');
+    return hover.value;
+  }
+
+  it('draws a bar in the margin for each finding the window holds, cut to the window', () => {
+    const found = [
+      finding('python-traceback', 99, 103),
+      finding('sql-statement', 105),
+      finding('aws-access-key', 111),
+      finding('java-exception', 90, 100),
+    ];
+
+    const decorations = findingDecorations(found, editorWindow, TEST_GROUPS, TEST_SIGNATURES);
+
+    expect(bars(decorations)).toEqual([
+      [1, 3],
+      [5, 5],
+    ]);
+  });
+
+  it("colours a bar by its signature's group, and marks the minimap and the scrollbar", () => {
+    const [traceback, sql] = findingDecorations(
+      [finding('python-traceback', 102), finding('sql-statement', 104)],
+      editorWindow,
+      TEST_GROUPS,
+      TEST_SIGNATURES,
+    );
+
+    expect(traceback.options.glyphMarginClassName).toBe('monaco-finding-bar group-palette-0');
+    expect(sql.options.glyphMarginClassName).toBe('monaco-finding-bar group-palette-2');
+    expect(sql.options.minimap).toEqual({
+      color: GROUP_PALETTE[2].light,
+      darkColor: GROUP_PALETTE[2].dark,
+      position: 2,
+    });
+    expect(sql.options.overviewRuler).toEqual({
+      color: GROUP_PALETTE[2].light,
+      darkColor: GROUP_PALETTE[2].dark,
+      position: 1,
+    });
+  });
+
+  // The selection owns the line backgrounds.
+  it('gives no line a background', () => {
+    const decorations = findingDecorations(
+      [finding('python-traceback', 102, 104)],
+      editorWindow,
+      TEST_GROUPS,
+      TEST_SIGNATURES,
+    );
+
+    expect(decorations.every((d) => !d.options.className)).toBe(true);
+  });
+
+  it("hovers the bar with the signature's name, level, lines and description", () => {
+    const catalogue = [
+      signatureInfo('python-traceback', {
+        name: 'Python traceback',
+        level: 'high',
+        description: 'A stack trace that Python printed',
+      }),
+      signatureInfo('sql-statement', { name: 'SQL statement', group: 'sql', level: 'info' }),
+    ];
+
+    const [block, line] = findingDecorations(
+      [finding('python-traceback', 102, 104), finding('sql-statement', 106)],
+      editorWindow,
+      TEST_GROUPS,
+      catalogue,
+    );
+
+    expect(hoverOf(block)).toBe(
+      '**Python traceback** · **high** · lines 102–104\n\nA stack trace that Python printed',
+    );
+    expect(hoverOf(line)).toBe('**SQL statement** · info · line 106');
+  });
+
+  // A user's signature file writes the name and the description; the
+  // hover renders Markdown, which must not fetch an image or draw a link.
+  it('shows catalogue text as written, with no Markdown of its own', () => {
+    const catalogue = [
+      signatureInfo('odd', {
+        name: 'odd_name*',
+        description: '![x](https://example.com/a.png) <b>',
+      }),
+    ];
+
+    const [bar] = findingDecorations([finding('odd', 102)], editorWindow, TEST_GROUPS, catalogue);
+
+    expect(hoverOf(bar)).toBe(
+      '**odd\\_name\\*** · **high** · line 102\n\n' +
+        '\\!\\[x\\]\\(https://example\\.com/a\\.png\\) \\<b\\>',
+    );
+  });
+
+  it('names a signature the catalogue does not hold by its id', () => {
+    const [bar] = findingDecorations([finding('gone', 102)], editorWindow, TEST_GROUPS, []);
+
+    expect(hoverOf(bar)).toBe('**gone** · line 102');
+    expect(bar.options.glyphMarginClassName).toMatch(/^monaco-finding-bar group-palette-\d+$/);
+  });
+
+  it('boxes the value on the first line, in columns of its text', () => {
+    // "é" is two bytes and one column; "🙂" is four bytes and two columns.
+    const text = lines('', 'é🙂 key=AKIAEXAMPLE', 'x');
+    const valued = finding('aws-access-key', 102, 103, { value_start: 11, value_end: 22 });
+
+    const decorations = findingDecorations(
+      [valued],
+      editorWindow,
+      TEST_GROUPS,
+      TEST_SIGNATURES,
+      text,
+    );
+
+    const box = decorations.find((d) => d.options.inlineClassName);
+    expect(box?.range).toEqual({
+      startLineNumber: 2,
+      startColumn: 9,
+      endLineNumber: 2,
+      endColumn: 20,
+    });
+    expect(box?.options.inlineClassName).toBe('monaco-finding-value group-palette-1');
+  });
+
+  it('boxes no value without the text, or when the window does not hold the first line', () => {
+    const valued = { value_start: 0, value_end: 3 };
+    const inWindow = finding('aws-access-key', 102, 102, valued);
+    const startsBefore = finding('aws-access-key', 100, 102, valued);
+    const text = lines('', 'abcdef', 'abcdef');
+
+    const boxes = (found: ReturnType<typeof finding>[], source?: typeof text) =>
+      findingDecorations(found, editorWindow, TEST_GROUPS, TEST_SIGNATURES, source).filter(
+        (d) => d.options.inlineClassName,
+      );
+
+    expect(boxes([inWindow])).toEqual([]);
+    expect(boxes([startsBefore], text)).toEqual([]);
+    expect(boxes([inWindow], text)).toHaveLength(1);
+  });
+
+  it('marks nothing without findings', () => {
+    expect(findingDecorations([], editorWindow, TEST_GROUPS, TEST_SIGNATURES)).toEqual([]);
+  });
+});
+
+describe('paneDecorations with findings', () => {
+  const valued = finding('aws-access-key', 102, 102, { value_start: 0, value_end: 3 });
+  const view = {
+    editorWindow,
+    matchedFileLines: [],
+    selection: [],
+    filter: null,
+    text: lines('abc', 'abc'),
+    hiddenContent: new Map<string, string>(),
+    findings: [valued],
+    signatures: testCatalogue(),
+  };
+
+  it("marks the findings with the bar, the marks and the value's box", () => {
+    const decorations = paneDecorations(view);
+
+    expect(
+      decorations.map((d) => d.options.glyphMarginClassName ?? d.options.inlineClassName),
+    ).toEqual(['monaco-finding-bar group-palette-1', 'monaco-finding-value group-palette-1']);
+  });
+
+  // A hide or show filter rewrites the text, so its columns are not the file's.
+  it.each(['hide', 'show'] as const)(
+    'boxes no value while a %s filter rewrites the text',
+    (mode) => {
+      const filter = { enabled: true, pattern: 'q', mode, compiledRegex: /q/ };
+
+      const decorations = paneDecorations({ ...view, filter });
+
+      expect(
+        decorations.some((d) => d.options.inlineClassName?.startsWith('monaco-finding-value')),
+      ).toBe(false);
+      expect(decorations.some((d) => d.options.glyphMarginClassName)).toBe(true);
+    },
+  );
+});
+
 describe('isSamePaneView', () => {
   const view = {
     editorWindow,
@@ -216,6 +418,8 @@ describe('isSamePaneView', () => {
     text: lines('abc'),
     hiddenContent: new Map<string, string>(),
     gutterRuns: [],
+    findings: [],
+    signatures: testCatalogue(),
   };
 
   // A tab's update builds the view anew: the window is a new object that
@@ -236,6 +440,8 @@ describe('isSamePaneView', () => {
     ['another text', { text: lines('abc') }],
     ['another hidden-content map', { hiddenContent: new Map<string, string>() }],
     ['other gutter runs', { gutterRuns: [] }],
+    ['other findings, the same ones in a new list', { findings: [] }],
+    ['another catalogue', { signatures: testCatalogue() }],
   ])('is another view with %s', (_name, change) => {
     expect(isSamePaneView(view, { ...view, ...change })).toBe(false);
   });

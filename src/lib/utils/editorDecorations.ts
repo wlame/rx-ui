@@ -11,8 +11,9 @@
  * The class names here are styled in components/editor/editorDecorations.css.
  */
 import type * as Monaco from 'monaco-editor';
-import type { RegexFilter } from '../types';
+import type { Finding, GroupInfo, RegexFilter, SignatureInfo } from '../types';
 import type { GutterRun } from './chainZones';
+import { groupColors, groupStyle } from './groupStyle';
 import type { LineRange } from './lineSelection';
 import { HIDDEN_MARKER } from './processContent';
 import { matchedSpans } from './regexMatches';
@@ -23,8 +24,14 @@ type DecorationOptions = Monaco.editor.IModelDecorationOptions;
 /** Monaco's MinimapPosition.Inline, spelled out so this module needs no Monaco runtime. */
 const MINIMAP_INLINE = 1;
 
+/** Monaco's MinimapPosition.Gutter: a thin mark beside the minimap's text. */
+const MINIMAP_GUTTER = 2;
+
 /** Monaco's OverviewRulerLane.Full: a mark across the whole width of the scrollbar. */
 const OVERVIEW_RULER_FULL = 7;
+
+/** Monaco's OverviewRulerLane.Left: a mark in the left third of the scrollbar. */
+const OVERVIEW_RULER_LEFT = 1;
 
 /** The part of the file the editor holds. */
 export interface EditorWindow {
@@ -186,6 +193,132 @@ export function hiddenMarkerDecorations(
   return out;
 }
 
+/** The catalogue the finding marks take their colours and hovers from. */
+export interface FindingCatalogue {
+  /** The catalogue's signatures, opt-in and disabled ones included. */
+  list: readonly SignatureInfo[];
+  /** The catalogue's groups; a group's `order` sets its colour. */
+  groups: readonly GroupInfo[];
+}
+
+/** The levels a hover writes in bold. */
+const STRONG_LEVELS: ReadonlySet<string> = new Set(['high', 'critical']);
+
+/** Every character Markdown may read as syntax: ASCII punctuation, which a backslash escapes. */
+const MARKDOWN_SYNTAX = /[\\`*_{}[\]()#+\-.!|<>~&]/g;
+
+/**
+ * `text` as Markdown that shows it as written: a signature's name and
+ * description come from a user's file, and the hover must not render
+ * them as an image (a request) or a link.
+ */
+function escapeMarkdown(text: string): string {
+  return text.replace(MARKDOWN_SYNTAX, '\\$&');
+}
+
+/**
+ * The hover of a finding's bar, from the catalogue only: the signature's
+ * name, its level (bold when high or critical), the finding's lines and
+ * the description. A finding's text never appears here: it would come
+ * from the editor's lines, which no redaction masked.
+ */
+function findingHover(finding: Finding, signature: SignatureInfo | undefined): string {
+  const { start_line: start, end_line: end } = finding;
+  const lines = start === end ? `line ${start}` : `lines ${start}–${end}`;
+  const parts = [`**${escapeMarkdown(signature?.name ?? finding.signature)}**`];
+  if (signature) {
+    const level = escapeMarkdown(signature.level);
+    parts.push(STRONG_LEVELS.has(signature.level) ? `**${level}**` : level);
+  }
+  parts.push(lines);
+  const head = parts.join(' · ');
+  return signature?.description ? `${head}\n\n${escapeMarkdown(signature.description)}` : head;
+}
+
+/** How many bytes UTF-8 takes for one code point. */
+function utf8Length(codePoint: number): number {
+  if (codePoint < 0x80) return 1;
+  if (codePoint < 0x800) return 2;
+  return codePoint < 0x10000 ? 3 : 4;
+}
+
+/**
+ * The Monaco column at `byteOffset` bytes of `line`'s UTF-8 text: Monaco
+ * counts UTF-16 code units, a finding's value counts bytes. An offset
+ * inside a character gives the column after it; one past the end, the
+ * column after the last character.
+ */
+function columnAtByte(line: string, byteOffset: number): number {
+  let bytes = 0;
+  let units = 0;
+  for (const char of line) {
+    if (bytes >= byteOffset) break;
+    bytes += utf8Length(char.codePointAt(0) ?? 0);
+    units += char.length;
+  }
+  return units + 1;
+}
+
+/** The box around a finding's value, on its first line, or null when it has none to show. */
+function valueBox(
+  finding: Finding,
+  editorWindow: EditorWindow,
+  text: LineSource | null,
+  className: string,
+): Decoration | null {
+  const { value_start: start, value_end: end } = finding;
+  const line = toMonacoLine(finding.start_line, editorWindow);
+  if (text === null || line === null || start === undefined || end === undefined) return null;
+  const content = text.getLineContent(line);
+  const startColumn = columnAtByte(content, start);
+  const endColumn = columnAtByte(content, end);
+  if (endColumn <= startColumn) return null;
+  return inlineSpan(line, startColumn, endColumn, {
+    inlineClassName: `monaco-finding-value ${className}`,
+  });
+}
+
+/**
+ * Marks the findings the window holds: for each, a bar in the glyph
+ * margin over its lines (cut to the window) in its group's colour, with
+ * the signature's hover, marks on the minimap and the scrollbar, and a
+ * box around its value on its first line when the editor's `text` is
+ * given. No line gets a background: the selection owns those.
+ */
+export function findingDecorations(
+  findings: readonly Finding[],
+  editorWindow: EditorWindow,
+  groups: readonly GroupInfo[],
+  catalogue: readonly SignatureInfo[],
+  text: LineSource | null = null,
+): Decoration[] {
+  const signatureOf = new Map(catalogue.map((signature) => [signature.id, signature]));
+  const windowEnd = editorWindow.startLine + editorWindow.lineCount - 1;
+  const out: Decoration[] = [];
+  for (const finding of findings) {
+    const first = toMonacoLine(Math.max(finding.start_line, editorWindow.startLine), editorWindow);
+    const last = toMonacoLine(Math.min(finding.end_line, windowEnd), editorWindow);
+    if (first === null || last === null || first > last) continue;
+    const signature = signatureOf.get(finding.signature);
+    const group = signature?.group ?? '';
+    const { className } = groupStyle(group, groups);
+    const { light, dark } = groupColors(group, groups);
+    out.push({
+      range: { startLineNumber: first, startColumn: 1, endLineNumber: last, endColumn: 1 },
+      options: {
+        isWholeLine: true,
+        glyphMarginClassName: `monaco-finding-bar ${className}`,
+        glyphMarginHoverMessage: { value: findingHover(finding, signature) },
+        minimap: { color: light, darkColor: dark, position: MINIMAP_GUTTER },
+        overviewRuler: { color: light, darkColor: dark, position: OVERVIEW_RULER_LEFT },
+      },
+    });
+    const box = valueBox(finding, editorWindow, text, className);
+    if (box) out.push(box);
+  }
+  return out;
+}
+
 /** What the pane shows that its decorations mark. */
 export interface PaneView {
   editorWindow: EditorWindow;
@@ -200,6 +333,10 @@ export interface PaneView {
   hiddenContent: ReadonlyMap<string, string>;
   /** A log chain's gutter classes, in runs of editor lines; none for a file. */
   gutterRuns?: readonly GutterRun[];
+  /** The findings of the file around the window; none in a log chain's tab. */
+  findings?: readonly Finding[];
+  /** The catalogue the findings are marked by. */
+  signatures?: FindingCatalogue;
 }
 
 /** Whether two values of a field of a pane view are the same. */
@@ -220,6 +357,8 @@ const SAME_PANE_FIELDS: { [K in keyof Required<PaneView>]: SameField<PaneView[K]
   text: isSameObject,
   hiddenContent: isSameObject,
   gutterRuns: isSameObject,
+  findings: isSameObject,
+  signatures: isSameObject,
 };
 
 const PANE_FIELDS = Object.keys(SAME_PANE_FIELDS) as (keyof PaneView)[];
@@ -231,8 +370,9 @@ function isSameField<K extends keyof PaneView>(key: K, a: PaneView, b: PaneView)
 /**
  * Whether two pane views mark the same: every field the same. Objects
  * built from the lines or the text (the matched lines, the hidden
- * content, the gutter runs) count only as the same object, so a view
- * whose decorations would differ is never taken for the same one.
+ * content, the gutter runs) and the findings count only as the same
+ * object, so a view whose decorations would differ is never taken for
+ * the same one.
  */
 export function isSamePaneView(a: PaneView, b: PaneView): boolean {
   return PANE_FIELDS.every((key) => isSameField(key, a, b));
@@ -257,15 +397,25 @@ const FILTER_DECORATIONS: Record<
 };
 
 /**
- * Every decoration of the pane: matched lines, the selected lines, what
- * an active filter does, and a log chain's gutter classes. A filter is
- * active when it is enabled and its pattern compiled.
+ * Every decoration of the pane: matched lines, the findings, the selected
+ * lines, what an active filter does, and a log chain's gutter classes. A
+ * filter is active when it is enabled and its pattern compiled. While a
+ * hide or show filter rewrites the text, its columns are not the file's,
+ * so no finding's value is boxed.
  */
 export function paneDecorations(view: PaneView): Decoration[] {
   const { editorWindow, filter, text } = view;
   const isFilterActive = Boolean(filter?.enabled && filter.compiledRegex);
+  const isTextRewritten = isFilterActive && filter?.mode !== 'highlight';
   return [
     ...matchLineDecorations(view.matchedFileLines, editorWindow),
+    ...findingDecorations(
+      view.findings ?? [],
+      editorWindow,
+      view.signatures?.groups ?? [],
+      view.signatures?.list ?? [],
+      isTextRewritten ? null : text,
+    ),
     ...selectionDecorations(view.selection, editorWindow),
     ...(filter && isFilterActive && text
       ? FILTER_DECORATIONS[filter.mode](filter.pattern, text, view.hiddenContent)
