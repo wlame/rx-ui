@@ -32,6 +32,15 @@ export type TimeRangeResponse = Schemas['TimeRangeResponse'];
 /** One file or directory in a `GET /v1/tree` listing; `type` is `file` or `directory`. */
 export type TreeEntry = Schemas['TreeEntry'];
 
+/**
+ * What the findings cache holds for a file of a tree listing (the
+ * entry's `findings`): `full` when every signature of the default set
+ * has a current entry, `partial` when some signature has one, with the
+ * findings count of every current entry. Null for a directory, a file
+ * that is not text, and a file the cache holds nothing current for.
+ */
+export type TreeFindings = TreeEntry['findings'];
+
 /** `GET /v1/tree`. */
 export type TreeResponse = Schemas['TreeResponse'];
 
@@ -86,12 +95,12 @@ export type TraceResponse = Schemas['TraceResponse'];
 // Index endpoint types (GET /v1/index, POST /v1/index)
 
 /**
- * `GET /v1/index`: a file's cached index, with its analysis when one was
- * performed. The result of an index task has the same fields and two
- * more, so this type also holds what `POST /v1/index` builds.
+ * `GET /v1/index`: a file's cached index. The result of an index task has
+ * the same fields and two more, so this type also holds what
+ * `POST /v1/index` builds.
  *
- * `line_length`, `longest_line`, `line_count` and the other statistics
- * are null when the index was built without an analysis.
+ * `line_ending`, `line_length` and `longest_line` are null for a
+ * seekable zstd file, whose index has no line-length statistics.
  */
 export type IndexResponse = Schemas['IndexResponse'];
 
@@ -108,29 +117,36 @@ export type CompressTaskResult = Schemas['CompressTaskResult'];
 export type LineIndexEntry = Schemas['LineIndexEntry'];
 
 /**
- * Line-length statistics; null without an analysis. Only `max` is always
- * there: the others are null when the backend cannot compute them.
+ * Line-length statistics; null for a seekable zstd file. Only `max` is
+ * always there: the others are null when the backend cannot compute them.
  */
 export type LineLengthStats = Schemas['LineLengthStats'];
 
-/** Where the longest line is; null without an analysis. */
+/** Where the longest line is; null for a seekable zstd file. */
 export type LongestLine = Schemas['LongestLine'];
-
-/** One anomaly an analysis found: a line range, its detector, category and severity. */
-export type AnomalyRangeResult = Schemas['AnomalyRangeResult'];
 
 /**
  * The 409 body of `POST /v1/index` or `/v1/compress` while a task is
- * already running for the path. `task_id` names that task.
+ * already running for the path, and of `DELETE /v1/tasks/{task_id}` for
+ * a task that already ended. `task_id` names that task.
  */
 export type TaskConflictError = Schemas['TaskConflictError'];
 
 /**
  * `GET /v1/tasks/{id}`. `result` is null until the task completes, then
  * the result of its operation: an `IndexTaskResult`, a
- * `CompressTaskResult` or a `ChainIndexTaskResult`.
+ * `CompressTaskResult`, a `ChainIndexTaskResult` or, for a findings
+ * scan, a `FindingsResponse`. `bytes_read` and `bytes_total` follow a
+ * findings scan; they are null for any other task.
  */
 export type TaskStatus = Schemas['TaskStatusResponse'];
+
+/**
+ * The statuses a task reports in `TaskStatus.status`, which the contract
+ * types as a plain string. `cancelled` ends a findings scan stopped by
+ * `DELETE /v1/tasks/{task_id}`; no other task is cancelled.
+ */
+export type TaskState = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 /**
  * The result of a completed log chain index task (`chain_index`): the
@@ -141,22 +157,55 @@ export type ChainIndexTaskResult = Schemas['ChainIndexTaskResult'];
 /** `POST /v1/index`: the task that builds the index. */
 export type IndexTaskResponse = Schemas['TaskResponse'];
 
-// Detectors endpoint types (GET /v1/detectors)
+// Signatures and findings (/v1/signatures, /v1/findings). rx-go serves
+// them when `/health` lists `signatures`; ask `backendHas('signatures')`
+// before calling a route.
 
-/** The severity band a detector can emit, 0.0 to 1.0. */
-export type SeverityRange = Schemas['SeverityRange'];
+/**
+ * One signature of the catalogue: a named definition of something worth
+ * noticing in a file, built in or from a user file. `default` is false
+ * for an opt-in signature, and `disabled_by` names the user file that
+ * switched a built-in off (null otherwise); the default set is every
+ * signature with `default` and without `disabled_by`.
+ */
+export type SignatureInfo = Schemas['SignatureInfo'];
 
-/** One detector a backend has registered. */
-export type DetectorInfo = Schemas['DetectorInfo'];
+/** One group of signatures. Its 1-based `order` sets its colour (`utils/groupStyle.ts`). */
+export type GroupInfo = Schemas['GroupInfo'];
 
-/** One category detectors report under. */
-export type CategoryInfo = Schemas['CategoryInfo'];
+/** A problem the backend found loading the signature files: the file, the line and the id. */
+export type LoadErrorInfo = Schemas['LoadErrorInfo'];
 
-/** One band of the severity scale. */
-export type SeverityLevel = Schemas['SeverityScaleLevel'];
+/**
+ * `GET /v1/signatures`: every loaded signature in group order (disabled
+ * built-ins too), the groups in their order, the levels, and the load
+ * errors.
+ */
+export type SignaturesResponse = Schemas['SignaturesResponse'];
 
-/** `GET /v1/detectors`. Both backends ship different sets; render whatever comes. */
-export type DetectorsResponse = Schemas['DetectorsResponse'];
+/**
+ * One place in a file where a signature matched: its first and last
+ * line, its byte range in the text and the time of its first line.
+ * `excerpt`, `lines` and `before` come masked and clipped by the
+ * backend; the viewer never builds a finding's text from `/v1/samples`,
+ * which gives the lines unmasked.
+ */
+export type Finding = Schemas['Finding'];
+
+/**
+ * `GET /v1/findings` (cache only, never a scan): the state of the file
+ * for the selection, the counts of each checked signature, and one page
+ * of the stored findings that pass the filters. Also the result of a
+ * completed findings scan task.
+ */
+export type FindingsResponse = Schemas['FindingsResponse'];
+
+/**
+ * The `ticks` member of a findings answer: the filtered findings placed
+ * in the columns of a timeline over the file's time range; null unless
+ * the request asked for `ticks`.
+ */
+export type FindingsTicks = FindingsResponse['ticks'];
 
 // Log chain types (/v1/logs/*). rx-go serves them when `/health` lists
 // `log_chains`; ask `backendHas('log_chains')` before calling a route.
@@ -367,11 +416,7 @@ export interface OpenFile {
    * never past the last line once the store knows it.
    */
   selectedLines: LineRange[];
-  // Anomaly data from index
   isIndexed: boolean; // Whether the file has an index
-  anomalies: AnomalyRangeResult[] | null; // Anomalies detected in the file
-  anomalySummary: Record<string, number> | null; // Category -> count
-  selectedAnomalyCategory: string | null; // Currently selected category for highlighting (null = none)
   /**
    * The kind of file its line index records (`file_type`), or null while
    * no index is known. Only the index tells a seekable zstd file from a

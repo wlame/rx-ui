@@ -290,7 +290,7 @@ describe('the page size of a file', () => {
       const params = new URL(url, 'http://localhost').searchParams;
       if (url.includes('/v1/index')) {
         if (!fileType) return jsonAnswer(404, { detail: 'no index' });
-        return jsonAnswer(200, { file_type: fileType, line_count: lineCount, anomalies: null });
+        return jsonAnswer(200, { file_type: fileType, line_count: lineCount });
       }
       asked.push(params.get('lines') ?? '');
       const answer = await serveLines(url);
@@ -492,17 +492,6 @@ describe('the selected lines of a tab', () => {
     files.setSelection('/logs/a.log', [{ start: 9_990, end: 10_500 }]);
 
     expect(openedFile('/logs/a.log').selectedLines).toEqual([{ start: 9_990, end: 10_000 }]);
-  });
-
-  it('keeps the selection when an anomaly category is chosen', async () => {
-    serveFileOf(100);
-    await files.openFile('/logs/a.log', { isIndexed: false });
-    files.setSelection('/logs/a.log', [{ start: 10, end: 12 }]);
-
-    files.toggleAnomalyCategory('/logs/a.log', 'error');
-
-    expect(openedFile('/logs/a.log').selectedAnomalyCategory).toBe('error');
-    expect(openedFile('/logs/a.log').selectedLines).toEqual([{ start: 10, end: 12 }]);
   });
 });
 
@@ -734,7 +723,7 @@ describe('a file whose line index is being built', () => {
     const preferSent: (string | undefined)[] = [];
     const spy = vi.fn(async (url: string, init?: { headers?: Record<string, string> }) => {
       if (url.startsWith('/health')) {
-        return json(200, { contract_version: '1.5', features: ['samples_index_build'] });
+        return json(200, { contract_version: '2.0', features: ['samples_index_build'] });
       }
       if (url.includes('/v1/tasks/')) {
         const waiting = get(files).openFiles.find((f) => f.path === path);
@@ -749,7 +738,7 @@ describe('a file whose line index is being built', () => {
           completed_at: null,
           error: null,
           progress: 1,
-          result: { line_index: [[1, 0]], line_count: lineCount, anomalies: null },
+          result: { line_index: [[1, 0]], line_count: lineCount },
         });
       }
       if (url.includes('/v1/samples')) preferSent.push(init?.headers?.Prefer);
@@ -851,7 +840,7 @@ describe('the time range of an open file', () => {
     // The health store is shared: leave it with no features for the next test.
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonAnswer(200, { contract_version: '1.5' })),
+      vi.fn(async () => jsonAnswer(200, { contract_version: '2.0' })),
     );
     await health.check();
     contractGate.reset();
@@ -885,7 +874,7 @@ describe('the time range of an open file', () => {
     let rangeAsks = 0;
     let samplesAsked = 0;
     const spy = vi.fn(async (url: string) => {
-      if (url.startsWith('/health')) return jsonAnswer(200, { contract_version: '1.5', features });
+      if (url.startsWith('/health')) return jsonAnswer(200, { contract_version: '2.0', features });
       const params = new URL(url, 'http://localhost').searchParams;
       const path = params.get('path') ?? '';
       if (url.includes('/v1/time-range')) {
@@ -903,7 +892,7 @@ describe('the time range of an open file', () => {
           completed_at: null,
           error: null,
           progress: 1,
-          result: { line_index: [[1, 0]], line_count: lineCount, anomalies: null },
+          result: { line_index: [[1, 0]], line_count: lineCount },
         });
       }
       if (url.includes('/v1/samples') && building && samplesAsked++ === 0) {
@@ -1066,7 +1055,7 @@ describe('a line index built in the background', () => {
     for (const shown of get(notifications)) notifications.dismiss(shown.id);
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonAnswer(200, { contract_version: '1.5' })),
+      vi.fn(async () => jsonAnswer(200, { contract_version: '2.0' })),
     );
     await health.check();
     contractGate.reset();
@@ -1094,7 +1083,7 @@ describe('a line index built in the background', () => {
       const path = params.get('path') ?? '';
       if (url.startsWith('/health')) {
         return jsonAnswer(200, {
-          contract_version: '1.6',
+          contract_version: '2.0',
           features: ['samples_index_build', 'time_range', 'samples_timestamps'],
         });
       }
@@ -1119,7 +1108,7 @@ describe('a line index built in the background', () => {
           progress: 1,
           result:
             status === 'completed'
-              ? { line_index: [[1, 0]], line_count: 42_554_368, anomalies: null, file_type: 'text' }
+              ? { line_index: [[1, 0]], line_count: 42_554_368, file_type: 'text' }
               : null,
         });
       }
@@ -1293,7 +1282,7 @@ describe('a jump by time', () => {
     timeCursor.clear();
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonAnswer(200, { contract_version: '1.5' })),
+      vi.fn(async () => jsonAnswer(200, { contract_version: '2.0' })),
     );
     await health.check();
     contractGate.reset();
@@ -1315,7 +1304,7 @@ describe('a jump by time', () => {
     const serveLines = serveFileOf(lineCount).getMockImplementation()!;
     const timeQueries: URLSearchParams[] = [];
     const spy = vi.fn(async (url: string) => {
-      if (url.startsWith('/health')) return jsonAnswer(200, { contract_version: '1.5', features });
+      if (url.startsWith('/health')) return jsonAnswer(200, { contract_version: '2.0', features });
       const params = new URL(url, 'http://localhost').searchParams;
       const value = params.get('timestamps');
       if (value === null) {
@@ -1524,7 +1513,7 @@ describe('a time zone chosen for a file', () => {
     commandLog.clear();
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonAnswer(200, { contract_version: '1.5' })),
+      vi.fn(async () => jsonAnswer(200, { contract_version: '2.0' })),
     );
     await health.check();
     contractGate.reset();
@@ -1551,7 +1540,7 @@ describe('a time zone chosen for a file', () => {
     const samples: URLSearchParams[] = [];
     const ranges: URLSearchParams[] = [];
     const spy = vi.fn(async (url: string) => {
-      if (url.startsWith('/health')) return jsonAnswer(200, { contract_version: '1.6', features });
+      if (url.startsWith('/health')) return jsonAnswer(200, { contract_version: '2.0', features });
       const params = new URL(url, 'http://localhost').searchParams;
       const zone = params.get('file_tz');
       const isRangeAsk = url.includes('/v1/time-range');

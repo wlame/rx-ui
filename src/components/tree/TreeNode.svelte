@@ -4,7 +4,6 @@
   import { chainModeOn } from '$lib/stores/chainMode';
   import { indexFile, treeMenuItems, type TreeMenuAction } from '$lib/indexTasks';
   import { openTreeRow } from '$lib/fileOpening';
-  import { openAnalysis } from '$lib/stores/analysisDialog';
   import { treeTabStop } from '$lib/stores/treeFocus';
   import { isChainRow, rowKey, shownChildren } from '$lib/utils/chainTree';
   import { formatCount, formatSize } from '$lib/utils/format';
@@ -88,12 +87,6 @@
     showContextMenu = false;
   }
 
-  /** The app draws the dialog, so it stays on screen whatever the panel or the row does. */
-  function handleAnalyze() {
-    closeContextMenu();
-    openAnalysis({ path: node.path, name: node.name });
-  }
-
   async function handleIndex(reindex: boolean) {
     closeContextMenu();
     notifications.info(`Indexing ${node.name}...`, 3000);
@@ -108,7 +101,6 @@
 
   /** What each context-menu item does. */
   const MENU_HANDLERS: Record<TreeMenuAction, () => void> = {
-    analyze: handleAnalyze,
     index: () => handleIndex(false),
     reindex: () => handleIndex(true),
   };

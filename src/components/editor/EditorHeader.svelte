@@ -1,15 +1,13 @@
 <script lang="ts">
   /**
    * The editor pane's header: the file's name and badges, the line
-   * readout with its go-to box, the chip of the selected lines, the
-   * anomaly chips and the toolbar; for a
-   * log chain, the chain's summary and its parts, and a go-to box that
-   * takes a global line or `part:line`.
+   * readout with its go-to box, the chip of the selected lines and the
+   * toolbar; for a log chain, the chain's summary and its parts, and a
+   * go-to box that takes a global line or `part:line`.
    *
    * What changes only the file's state in the store happens here. What
    * moves the pane's view, or the filter bar the pane owns, is reported
-   * to the pane: a jump to a line the pane holds, a step to an anomaly,
-   * and the filter toggle.
+   * to the pane: a jump to a line the pane holds, and the filter toggle.
    */
   import { createEventDispatcher } from 'svelte';
   import type { MonacoTheme, OpenFile } from '$lib/types';
@@ -19,7 +17,6 @@
   import { parseChainLineTarget } from '$lib/utils/chainParts';
   import { chainRangeLabels } from '$lib/utils/chainPane';
   import ChainSummary from './ChainSummary.svelte';
-  import AnomalyCategoryNav from './AnomalyCategoryNav.svelte';
   import EditorToolbar from './EditorToolbar.svelte';
   import LineRangeNav from './LineRangeNav.svelte';
   import SelectionChip from './SelectionChip.svelte';
@@ -37,7 +34,6 @@
 
   const dispatch = createEventDispatcher<{
     jump: { line: number };
-    navigateAnomaly: { category: string; direction: 'next' | 'previous' };
     toggleFilter: void;
   }>();
 </script>
@@ -80,12 +76,6 @@
         ranges={file.selectedLines}
         copy={canCopySelection(file) ? () => copySelection(file) : null}
         clear={() => files.setSelection(file.path, [])}
-      />
-      <AnomalyCategoryNav
-        summary={file.anomalySummary}
-        selectedCategory={file.selectedAnomalyCategory}
-        on:toggle={(e) => files.toggleAnomalyCategory(file.path, e.detail.category)}
-        on:navigate={(e) => dispatch('navigateAnomaly', e.detail)}
       />
 
       <EditorToolbar

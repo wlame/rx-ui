@@ -403,7 +403,7 @@ describe('isShortcut', () => {
     ['applyFilter', press('Enter', { keyCode: 229 })],
     ['focusSearch', press('k', { metaKey: true, isComposing: true })],
     ['closeHistory', press('Escape', { isComposing: true })],
-    ['closeAnalysis', press('Escape', { keyCode: 229 })],
+    ['closeChainParts', press('Escape', { keyCode: 229 })],
     ['showFiles', press('¡', { code: 'Digit1', altKey: true, isComposing: true })],
     ['showSearch', press('F', { metaKey: true, shiftKey: true, keyCode: 229 })],
   ] as const)('leaves %s to an input method that composes', (id, event) => {
@@ -412,8 +412,8 @@ describe('isShortcut', () => {
 });
 
 describe('panel and tree keys', () => {
-  it('matches Escape as the key that closes the recent commands, the analysis and a chain part list', () => {
-    for (const id of ['closeHistory', 'closeAnalysis', 'closeChainParts'] as const) {
+  it('matches Escape as the key that closes the recent commands and a chain part list', () => {
+    for (const id of ['closeHistory', 'closeChainParts'] as const) {
       expect(isShortcut(id, press('Escape'))).toBe(true);
       expect(isShortcut(id, press('Enter'))).toBe(false);
     }
@@ -532,7 +532,7 @@ describe('the shortcut list', () => {
     expect(new Set(listed.map((s) => s.id)).size).toBe(SHORTCUTS.length);
   });
 
-  it('holds the pane, search and chip shortcuts besides the window-wide ones', () => {
+  it('holds the pane and search shortcuts besides the window-wide ones', () => {
     const labels = SHORTCUTS.map(shortcutLabel);
 
     expect(labels).toEqual(
@@ -546,7 +546,6 @@ describe('the shortcut list', () => {
         'Alt+C',
         'Alt+W',
         'Alt+R',
-        '⌘/Alt+click',
       ]),
     );
   });
@@ -620,8 +619,8 @@ describe('the shortcut list', () => {
     [
       'openPanel',
       'While a panel is open',
-      ['closeHistory', 'closeAnalysis', 'closeChainParts', 'closeRecentTabs'],
-      ['Esc', 'Esc', 'Esc', 'Alt+Esc or Esc'],
+      ['closeHistory', 'closeChainParts', 'closeRecentTabs'],
+      ['Esc', 'Esc', 'Alt+Esc or Esc'],
     ],
     [
       'timeline',

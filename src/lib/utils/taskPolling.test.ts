@@ -15,7 +15,6 @@ function indexResult(fields: Partial<IndexTaskResult> = {}): IndexTaskResult {
     size_bytes: 0,
     created_at: '2026-10-03T00:00:00Z',
     build_time_seconds: 0,
-    analysis_performed: false,
     line_index: [[1, 0]],
     index_entries: 1,
     index_path: '/cache/index.json',
@@ -27,9 +26,6 @@ function indexResult(fields: Partial<IndexTaskResult> = {}): IndexTaskResult {
     compression_format: null,
     decompressed_size_bytes: null,
     compression_ratio: null,
-    anomaly_count: 0,
-    anomaly_summary: null,
-    anomalies: null,
     time_summary: null,
     cli_command: `rx index ${PATH}`,
     success: true,
@@ -62,6 +58,8 @@ function task(status: string, result: TaskStatus['result'] = null, error?: strin
     completed_at: null,
     error: error ?? null,
     progress: null,
+    bytes_read: null,
+    bytes_total: null,
     result,
   };
 }
@@ -104,6 +102,19 @@ describe('pollTask', () => {
     expect(fetchStatus).toHaveBeenCalledTimes(3);
   });
 
+  it('rejects when the task was cancelled, saying so', async () => {
+    const result = pollTask('t1', {
+      fetchStatus: statuses(task('cancelled')),
+      signal: new AbortController().signal,
+      intervalMs: INTERVAL,
+    });
+    result.catch(() => {});
+
+    await advance(1);
+
+    await expect(result).rejects.toThrow('Task t1 was cancelled');
+  });
+
   it('rejects with the task error when the task fails', async () => {
     const fetchStatus = statuses(task('failed', null, 'build index: disk full'));
     const result = pollTask('t1', {
@@ -118,7 +129,7 @@ describe('pollTask', () => {
     await expect(result).rejects.toThrow('build index: disk full');
   });
 
-  // An analysis of a multi-gigabyte file runs longer than any fixed
+  // An index of a multi-gigabyte file can take longer than any fixed
   // number of attempts; a running task is still making progress.
   it('keeps polling past ten minutes while the task is running', async () => {
     const answers = [
@@ -279,6 +290,18 @@ describe('watchTask', () => {
       kind: 'failed',
       task: { error: 'app.log.1: build index: disk full' },
     });
+  });
+
+  // A findings scan stopped by DELETE /v1/tasks/{task_id} never completes;
+  // a poll that went on would ask for ever.
+  it('ends with the cancelled status of a stopped scan', async () => {
+    const fetchStatus = statuses(task('running'), task('cancelled'));
+    const end = watch(fetchStatus);
+
+    await advance(3);
+
+    await expect(end).resolves.toEqual({ kind: 'cancelled', task: task('cancelled') });
+    expect(fetchStatus).toHaveBeenCalledTimes(2);
   });
 
   // The backend drops a finished task from its table; a 404 after the

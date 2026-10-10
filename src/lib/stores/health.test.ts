@@ -5,7 +5,7 @@ import { get } from 'svelte/store';
  * A `fetch` that answers `/health` for a backend on `contractVersion`,
  * listing `features` when given and leaving the key out when not.
  */
-function serveHealth(contractVersion = '1.3', features?: unknown) {
+function serveHealth(contractVersion = '2.0', features?: unknown) {
   const spy = vi.fn(async (_url: string) => ({
     ok: true,
     status: 200,
@@ -52,8 +52,8 @@ describe('health', () => {
 
   // The cover over the app and the window-wide shortcuts read this.
   it.each([
-    ['2.0', true],
-    ['1.3', false],
+    ['1.7', true],
+    ['2.0', false],
   ])('says the contract is refused for a backend on %s: %s', async (version, refused) => {
     serveHealth(version);
     const { contractRefused, health } = await import('./health');
@@ -71,7 +71,7 @@ describe('backendHas', () => {
   });
 
   it('says a feature the backend lists is there and one it does not list is absent', async () => {
-    serveHealth('1.5', ['time_range', 'trace_matching_flags']);
+    serveHealth('2.0', ['time_range', 'trace_matching_flags']);
     const { backendHas, health } = await import('./health');
 
     await health.check();
@@ -83,7 +83,7 @@ describe('backendHas', () => {
 
   // Every chain feature of the viewer asks for log_chains first.
   it('says whether the backend serves log chains', async () => {
-    serveHealth('1.7', ['time_range', 'log_chains']);
+    serveHealth('2.0', ['time_range', 'log_chains']);
     const { backendHas, health } = await import('./health');
 
     await health.check();
@@ -93,7 +93,7 @@ describe('backendHas', () => {
   });
 
   it('reads the state it is given, so a component can pass $health', async () => {
-    serveHealth('1.5', ['samples_index_build']);
+    serveHealth('2.0', ['samples_index_build']);
     const { backendHas, health } = await import('./health');
 
     await health.check();
@@ -106,7 +106,7 @@ describe('backendHas', () => {
     ['leaves out the features key', undefined],
     ['sends features that are not a list', 'time_range'],
   ])('reads every feature as absent from a backend that %s', async (_name, features) => {
-    serveHealth('1.5', features);
+    serveHealth('2.0', features);
     const { backendHas, health } = await import('./health');
 
     await health.check();

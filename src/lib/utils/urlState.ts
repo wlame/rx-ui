@@ -4,15 +4,16 @@
  * The URL names what a user would bookmark, share or come back to: the
  * active file or log chain, the line its view is anchored on or the
  * time it jumped to (in a chain, with the fingerprint of the files that
- * line was read in), the lines selected in it, its highlighting, filter
- * and anomaly category, the
- * panel the side panel shows, whether rotated logs are grouped into
+ * line was read in), the lines selected in it, its highlighting and
+ * filter, the panel the side panel shows, whether rotated logs are grouped into
  * chains, whether the files panel shows its labels, which value it shows
  * and how it sorts its rows, the last search, whether its results show
  * byte offsets, the timestamps stash, and the time zones chosen for files
  * and chains. Each key has one row in `CODECS`, which reads it as
  * untrusted input (a missing or invalid value gives that key's default)
- * and writes it back, leaving a value at its default out of the link.
+ * and writes it back, leaving a value at its default out of the link. A
+ * key an earlier viewer wrote and this one no longer reads is in
+ * `RETIRED_PARAMS`: ignored in a link, and left out of the link written.
  *
  * This module is the only place that writes the view to `history`.
  * Secrets stay out of it: the API token arrives in the hash and is moved
@@ -111,8 +112,6 @@ export interface ViewState {
   highlight: boolean | null;
   /** The active file's regex filter, or null for none. */
   filter: FilterState | null;
-  /** The anomaly category highlighted in the active file, or null for none. */
-  category: string | null;
   tab: SidebarTab;
   /** Rotated logs are grouped into log chains (`chains=1`). */
   chains: boolean;
@@ -150,7 +149,6 @@ export const DEFAULT_VIEW: ViewState = {
   sel: [],
   highlight: null,
   filter: null,
-  category: null,
   tab: 'tree',
   chains: false,
   labels: true,
@@ -459,11 +457,6 @@ const CODECS: { [K in keyof ViewState]: ParamCodec<ViewState[K]> } = {
       return out;
     },
   },
-  category: {
-    names: ['category'],
-    parse: (params) => nonEmpty(params.get('category')),
-    serialize: (category) => (category === null ? [] : [['category', category]]),
-  },
   tab: {
     names: ['tab'],
     parse: (params) => {
@@ -531,6 +524,14 @@ const CODECS: { [K in keyof ViewState]: ParamCodec<ViewState[K]> } = {
 
 const VIEW_KEYS = Object.keys(CODECS) as (keyof ViewState)[];
 
+/**
+ * Parameters an earlier viewer wrote that this one no longer reads:
+ * `category`, the anomaly category the index analysis marked. A link
+ * that holds one opens as if it did not, and the link written next
+ * leaves it out.
+ */
+const RETIRED_PARAMS: readonly string[] = ['category'];
+
 /** Read one key with its codec; a helper so the key's type flows through. */
 function parseKey<K extends keyof ViewState>(key: K, params: URLSearchParams): ViewState[K] {
   return CODECS[key].parse(params);
@@ -550,14 +551,15 @@ export function parseViewState(query: string): ViewState {
 
 /**
  * The query string that says `view`, built on `current`: every parameter
- * a key owns is replaced, and any other parameter is kept. Returns `''`
- * when nothing is left.
+ * a key owns is replaced, a retired one is dropped, and any other
+ * parameter is kept. Returns `''` when nothing is left.
  */
 export function serializeViewState(view: ViewState, current: string): string {
   const params = new URLSearchParams(current);
   for (const key of VIEW_KEYS) {
     for (const name of CODECS[key].names) params.delete(name);
   }
+  for (const name of RETIRED_PARAMS) params.delete(name);
   for (const key of VIEW_KEYS) {
     for (const [name, value] of serializeKey(key, view)) params.append(name, value);
   }
@@ -590,7 +592,7 @@ function isStepKey<K extends keyof ViewState>(
  * any key changed in a way that is a step (opening a file or a chain,
  * running a search, showing another panel, a jump by time),
  * otherwise a replace (the line and its part, the selected lines, the
- * highlighting, the filter, the category, chain mode, the files panel's labels, value and
+ * highlighting, the filter, chain mode, the files panel's labels, value and
  * sort, the offsets switch, the stash, the file zones).
  */
 export function historyModeFor(previous: ViewState, next: ViewState): HistoryMode {

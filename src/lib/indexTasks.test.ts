@@ -2,17 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import { files, tree } from './stores';
 import { commandLog } from './stores/commands';
-import {
-  AnalysisUnavailableError,
-  analyzeFile,
-  chainMenuItems,
-  conflictTaskId,
-  indexChain,
-  indexFile,
-  treeMenuItems,
-} from './indexTasks';
+import { chainMenuItems, conflictTaskId, indexChain, indexFile, treeMenuItems } from './indexTasks';
 import { ApiError } from './api';
-import { isAbortError } from './utils/latestRequest';
 import type { TreeNode } from './types';
 
 const ROOT = '/var/log';
@@ -65,26 +56,11 @@ function stubBackend(routes: Record<string, Handler | Answer[]>) {
   return { calls, routes: () => calls.map((c) => c.route) };
 }
 
-function indexData(analysisPerformed: boolean, extra: Record<string, unknown> = {}) {
+function indexData(extra: Record<string, unknown> = {}) {
   return {
     path: PATH,
-    analysis_performed: analysisPerformed,
     line_index: [[1, 0]],
     line_count: 120,
-    anomalies: analysisPerformed
-      ? [
-          {
-            start_line: 7,
-            end_line: 7,
-            start_offset: 0,
-            end_offset: 10,
-            severity: 0.9,
-            category: 'error',
-            description: 'ERROR line',
-            detector: 'error_keyword',
-          },
-        ]
-      : null,
     ...extra,
   };
 }
@@ -120,193 +96,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('analyzeFile', () => {
-  // Opening a large or compressed file writes an index without analysis;
-  // showing it as the analysis reports a clean file.
-  it('starts an analysis when the cached index has none', async () => {
-    const backend = stubBackend({
-      'GET /v1/index': [[200, indexData(false)]],
-      'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [running('t1'), completed('t1', indexData(true))],
-    });
-
-    const result = analyzeFile(PATH, { signal: new AbortController().signal });
-    await settle();
-
-    await expect(result).resolves.toMatchObject({ analysis_performed: true });
-    const post = backend.calls.find((c) => c.route === 'POST /v1/index');
-    expect(post?.body).toMatchObject({ path: PATH, analyze: true });
-  });
-
-  it('shows a cached index that holds an analysis without starting a task', async () => {
-    const backend = stubBackend({ 'GET /v1/index': [[200, indexData(true)]] });
-
-    const result = await analyzeFile(PATH, { signal: new AbortController().signal });
-
-    expect(result.analysis_performed).toBe(true);
-    expect(backend.routes()).toEqual(['GET /v1/index']);
-  });
-
-  it('starts an analysis when there is no index at all', async () => {
-    const backend = stubBackend({
-      'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [completed('t1', indexData(true))],
-    });
-
-    const result = analyzeFile(PATH, { signal: new AbortController().signal });
-    await settle();
-
-    await expect(result).resolves.toMatchObject({ analysis_performed: true });
-    expect(backend.routes()).toContain('POST /v1/index');
-  });
-
-  it('joins the running task a 409 names, and starts no second one', async () => {
-    const backend = stubBackend({
-      'POST /v1/index': [
-        [409, { detail: `Indexing already in progress for ${PATH} (task: 0a1b-2c3d)` }],
-      ],
-      'GET /v1/tasks/0a1b-2c3d': [completed('0a1b-2c3d', indexData(true))],
-    });
-
-    const result = analyzeFile(PATH, { signal: new AbortController().signal });
-    await settle();
-
-    await expect(result).resolves.toMatchObject({ analysis_performed: true });
-    expect(backend.routes().filter((r) => r === 'POST /v1/index')).toHaveLength(1);
-  });
-
-  // The joined task may be a plain index build, which ends without an
-  // analysis; the analysis is then asked for once it is free to start.
-  it('asks again for an analysis when the joined task ended without one', async () => {
-    const backend = stubBackend({
-      'POST /v1/index': [
-        [409, { detail: 'Indexing already in progress (task: t1)' }],
-        started('t2'),
-      ],
-      'GET /v1/tasks/t1': [completed('t1', indexData(false))],
-      'GET /v1/tasks/t2': [completed('t2', indexData(true))],
-    });
-
-    const result = analyzeFile(PATH, { signal: new AbortController().signal });
-    await settle();
-
-    await expect(result).resolves.toMatchObject({ analysis_performed: true });
-    expect(backend.routes().filter((r) => r === 'POST /v1/index')).toHaveLength(2);
-  });
-
-  // A backend that cannot analyse a file answers the analysis task with
-  // an index and analysis_performed false. Asking again gets the same.
-  it('says the analysis is not available when its own task ends without one', async () => {
-    const backend = stubBackend({
-      'POST /v1/index': [started('t1'), started('t2')],
-      'GET /v1/tasks/t1': [completed('t1', indexData(false))],
-      'GET /v1/tasks/t2': [completed('t2', indexData(false))],
-    });
-
-    const result = analyzeFile(PATH, { signal: new AbortController().signal });
-    result.catch(() => {});
-    await settle();
-
-    await expect(result).rejects.toBeInstanceOf(AnalysisUnavailableError);
-    await expect(result).rejects.toThrow('Analysis not available for this file.');
-    expect(backend.routes().filter((r) => r === 'POST /v1/index')).toHaveLength(1);
-  });
-
-  it('asks only once more after a joined task, and then says the analysis is not available', async () => {
-    const backend = stubBackend({
-      'POST /v1/index': [
-        [409, { detail: 'Indexing already in progress (task: t1)' }],
-        started('t2'),
-        started('t3'),
-      ],
-      'GET /v1/tasks/t1': [completed('t1', indexData(false))],
-      'GET /v1/tasks/t2': [completed('t2', indexData(false))],
-      'GET /v1/tasks/t3': [completed('t3', indexData(false))],
-    });
-
-    const result = analyzeFile(PATH, { signal: new AbortController().signal });
-    result.catch(() => {});
-    await settle();
-
-    await expect(result).rejects.toBeInstanceOf(AnalysisUnavailableError);
-    expect(backend.routes().filter((r) => r === 'POST /v1/index')).toHaveLength(2);
-  });
-
-  it("gives the backend's reason when it refuses to analyse the file", async () => {
-    stubBackend({
-      'POST /v1/index': [[400, { detail: `${PATH} is not a text file` }]],
-    });
-
-    const result = analyzeFile(PATH, { signal: new AbortController().signal });
-    result.catch(() => {});
-    await settle();
-
-    await expect(result).rejects.toBeInstanceOf(AnalysisUnavailableError);
-    await expect(result).rejects.toThrow(
-      `Analysis not available for this file: ${PATH} is not a text file`,
-    );
-  });
-
-  // The index built on the way is real: the tree still gets its badge.
-  it('marks the file indexed when the analysis is not available', async () => {
-    stubBackend({
-      'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [completed('t1', indexData(false))],
-    });
-    const markIndexed = vi.spyOn(tree, 'markIndexed');
-
-    const result = analyzeFile(PATH, { signal: new AbortController().signal });
-    result.catch(() => {});
-    await settle();
-
-    await expect(result).rejects.toBeInstanceOf(AnalysisUnavailableError);
-    expect(markIndexed).toHaveBeenCalledWith(PATH, 120);
-    markIndexed.mockRestore();
-  });
-
-  it('stops polling once its signal aborts', async () => {
-    const backend = stubBackend({
-      'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [running('t1')],
-    });
-    const dialog = new AbortController();
-
-    const result = analyzeFile(PATH, { signal: dialog.signal });
-    result.catch(() => {});
-    await settle(2);
-    dialog.abort();
-    const pollsAtClose = backend.routes().filter((r) => r === 'GET /v1/tasks/t1').length;
-    await settle(5);
-
-    await expect(result).rejects.toSatisfy(isAbortError);
-    expect(backend.routes().filter((r) => r === 'GET /v1/tasks/t1')).toHaveLength(pollsAtClose);
-  });
-
-  it('reuses the poll already running for the file instead of asking again', async () => {
-    const backend = stubBackend({
-      'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [running('t1'), running('t1'), completed('t1', indexData(true))],
-    });
-
-    const first = analyzeFile(PATH, { signal: new AbortController().signal });
-    await settle(1);
-    const second = analyzeFile(PATH, { signal: new AbortController().signal });
-    await settle(3);
-
-    await expect(first).resolves.toMatchObject({ analysis_performed: true });
-    await expect(second).resolves.toMatchObject({ analysis_performed: true });
-    expect(backend.routes().filter((r) => r === 'POST /v1/index')).toHaveLength(1);
-    expect(backend.routes().filter((r) => r === 'GET /v1/tasks/t1')).toHaveLength(3);
-  });
-});
-
 describe('indexFile', () => {
   // The backend answers a file under its size threshold with a 400; a
   // user who asks for an index wants one whatever the size.
-  it('asks for an index whatever the file size', async () => {
+  // The contract refuses a body with a member it does not name (422).
+  it('asks for an index whatever the file size, with only the members the contract names', async () => {
     const backend = stubBackend({
       'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [completed('t1', indexData(false))],
+      'GET /v1/tasks/t1': [completed('t1', indexData())],
     });
 
     const result = indexFile(PATH, { reindex: false });
@@ -314,15 +111,14 @@ describe('indexFile', () => {
     await result;
 
     const post = backend.calls.find((c) => c.route === 'POST /v1/index');
-    expect(post?.body).toMatchObject({ path: PATH, threshold: 0, force: false, analyze: false });
+    expect(post?.body).toEqual({ path: PATH, force: false, threshold: 0 });
   });
 
   // Without force the backend hands back the cached index unchanged.
-  it('forces a rebuild on re-index', async () => {
+  it('forces a rebuild on re-index, and asks for nothing first', async () => {
     const backend = stubBackend({
-      'GET /v1/index': [[200, indexData(false)]],
       'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [completed('t1', indexData(false))],
+      'GET /v1/tasks/t1': [completed('t1', indexData())],
     });
 
     const result = indexFile(PATH, { reindex: true });
@@ -330,23 +126,8 @@ describe('indexFile', () => {
     await result;
 
     const post = backend.calls.find((c) => c.route === 'POST /v1/index');
-    expect(post?.body).toMatchObject({ path: PATH, threshold: 0, force: true, analyze: false });
-  });
-
-  // A rebuild without analysis would drop the anomalies the file has.
-  it('keeps the analysis on re-index when the cached index has one', async () => {
-    const backend = stubBackend({
-      'GET /v1/index': [[200, indexData(true)]],
-      'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [completed('t1', indexData(true))],
-    });
-
-    const result = indexFile(PATH, { reindex: true });
-    await settle();
-    await result;
-
-    const post = backend.calls.find((c) => c.route === 'POST /v1/index');
-    expect(post?.body).toMatchObject({ force: true, analyze: true });
+    expect(post?.body).toEqual({ path: PATH, force: true, threshold: 0 });
+    expect(backend.routes()).toEqual(['POST /v1/index', 'GET /v1/tasks/t1']);
   });
 });
 
@@ -371,30 +152,28 @@ describe('a finished task', () => {
     return get(tree).roots[0]?.children.find((n) => n.path === PATH);
   }
 
-  it('marks the file indexed in the tree and gives the open file its anomalies', async () => {
+  it('marks the file indexed in the tree and gives the open file its line count', async () => {
     await loadTreeWithFile();
     stubBackend({
       'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [completed('t1', indexData(true, { line_count: 120 }))],
+      'GET /v1/tasks/t1': [completed('t1', indexData({ line_count: 120 }))],
     });
     await files.openFile(PATH, { fileSize: 1000, isIndexed: false });
 
-    const result = analyzeFile(PATH, { signal: new AbortController().signal });
+    const result = indexFile(PATH, { reindex: false });
     await settle();
     await result;
 
     expect(treeEntry()).toMatchObject({ is_indexed: true, line_count: 120 });
     const open = get(files).openFiles.find((f) => f.path === PATH);
     expect(open).toMatchObject({ isIndexed: true, totalLines: 120 });
-    expect(open?.anomalies).toHaveLength(1);
-    expect(open?.anomalySummary).toEqual({ error: 1 });
   });
 
   it('refreshes the tree badge after a plain index', async () => {
     await loadTreeWithFile();
     stubBackend({
       'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [completed('t1', indexData(false, { line_count: 80 }))],
+      'GET /v1/tasks/t1': [completed('t1', indexData({ line_count: 80 }))],
     });
 
     const result = indexFile(PATH, { reindex: false });
@@ -409,12 +188,12 @@ describe('a finished task', () => {
     await loadTreeWithFile();
     stubBackend({
       'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [completed('t1', indexData(true, { line_count: null }))],
+      'GET /v1/tasks/t1': [completed('t1', indexData({ line_count: null }))],
     });
     await files.openFile(PATH, { fileSize: 1000, isIndexed: false });
     const linesBefore = get(files).openFiles.find((f) => f.path === PATH)?.totalLines;
 
-    const result = analyzeFile(PATH, { signal: new AbortController().signal });
+    const result = indexFile(PATH, { reindex: false });
     await settle();
     await result;
 
@@ -425,30 +204,11 @@ describe('a finished task', () => {
   });
 });
 
-describe('the equivalent command of an index or an analysis', () => {
-  it('records the command of the analysis it shows', async () => {
-    stubBackend({
-      'GET /v1/index': [[200, indexData(false)]],
-      'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [
-        completed('t1', indexData(true, { cli_command: `rx index ${PATH} --analyze` })),
-      ],
-    });
-
-    const result = analyzeFile(PATH, { signal: new AbortController().signal });
-    await settle();
-    await result;
-
-    expect(get(commandLog)[0]).toMatchObject({
-      command: `rx index ${PATH} --analyze`,
-      action: 'analysis',
-    });
-  });
-
+describe('the equivalent command of an index', () => {
   it('records the command of the index it built', async () => {
     stubBackend({
       'POST /v1/index': [started('t1')],
-      'GET /v1/tasks/t1': [completed('t1', indexData(false, { cli_command: `rx index ${PATH}` }))],
+      'GET /v1/tasks/t1': [completed('t1', indexData({ cli_command: `rx index ${PATH}` }))],
     });
 
     const result = indexFile(PATH, { reindex: false });
@@ -470,8 +230,9 @@ describe('treeMenuItems', () => {
     expect(treeMenuItems({ ...file, is_text: false })).toEqual([]);
   });
 
-  it('offers Analyze on a plain text file', () => {
-    expect(treeMenuItems(file).map((i) => i.label)).toEqual(['Analyze']);
+  // A plain file gets its line index on first use.
+  it('offers nothing on a plain text file', () => {
+    expect(treeMenuItems(file)).toEqual([]);
   });
 
   it.each([
@@ -479,7 +240,7 @@ describe('treeMenuItems', () => {
     [true, 'Re-index'],
   ])('offers an index item on a compressed file indexed=%s', (isIndexed, label) => {
     const items = treeMenuItems({ ...file, is_compressed: true, is_indexed: isIndexed });
-    expect(items.map((i) => i.label)).toEqual(['Analyze', label]);
+    expect(items.map((i) => i.label)).toEqual([label]);
   });
 });
 

@@ -10,10 +10,13 @@
  *   would make this viewer misread the data, so it refuses to run rather
  *   than showing something wrong.
  *
- * Bump this together with the backends' constants
- * (`rx-go/internal/webapi/contract.go`, `rx-python/src/rx/contract.py`).
+ * Bump this together with rx-go's `ContractVersion`
+ * (`rx-go/internal/webapi/contract.go`). Contract 2 removed the index
+ * analysis and `/v1/detectors` and added the signature catalogue and the
+ * findings routes; rx-python still speaks contract 1, so this viewer
+ * refuses it.
  */
-export const SUPPORTED_CONTRACT_MAJOR = 1;
+export const SUPPORTED_CONTRACT_MAJOR = 2;
 
 /** What the viewer decided about a backend's contract version. */
 export type ContractCompatibility =
@@ -25,9 +28,9 @@ export type ContractCompatibility =
  * Decide whether this viewer can talk to a backend reporting `version`.
  *
  * An absent or unparseable version is `unknown` rather than
- * `incompatible`: a backend released before `contract_version` existed
- * still speaks contract 1, and refusing to load against it would be worse
- * than proceeding.
+ * `incompatible`: nothing is known about the backend's contract, as when
+ * `/health` cannot be read, so the viewer proceeds rather than block on a
+ * guess.
  */
 export function checkContractVersion(version: string | null | undefined): ContractCompatibility {
   if (!version) return { kind: 'unknown' };

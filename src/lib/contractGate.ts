@@ -8,10 +8,10 @@
  * a supported contract the gate opens and the waiting requests go out.
  *
  * Before the first answer the gate can be held, so the requests the app
- * makes as it starts (the tree, the detectors, a file named in the link)
- * wait for that answer instead of racing it. A failed `/health` opens
- * the gate: nothing is known about the contract, and the requests then
- * fail or succeed on their own, as they would without the gate.
+ * makes as it starts (the tree, a file named in the link) wait for that
+ * answer instead of racing it. A failed `/health` opens the gate:
+ * nothing is known about the contract, and the requests then fail or
+ * succeed on their own, as they would without the gate.
  */
 import type { ContractCompatibility } from './utils/contractVersion';
 

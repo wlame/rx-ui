@@ -6,33 +6,24 @@ import { get } from 'svelte/store';
 import { health, trace, tree } from '$lib/stores';
 import {
   clickPanelButton,
-  modalOpen,
   searchFocusRequested,
   shortcutsHelpOpen,
-  showPanel,
   sidebarTab,
   sidebarVisible,
   treeFocusRequested,
-  type SidebarTab,
 } from '$lib/stores/layout';
 import { chainMode } from '$lib/stores/chainMode';
 import { DEFAULT_FILES_VIEW, filesView } from '$lib/stores/filesView';
 import { draftFromSearch, searchDraft } from '$lib/stores/searchDraft';
 import { searchRequest } from '$lib/stores/trace';
 import { LOG_ROOT, LogDirBackend, serveLogDir } from '$lib/testing/fakeLogDir';
-import { closeAnalysis } from '$lib/stores/analysisDialog';
-import { startViewSync } from '$lib/viewState';
+import ModalDialogHarness from '$lib/testing/ModalDialogHarness.svelte';
 import KeyboardShortcuts from '../common/KeyboardShortcuts.svelte';
-import AnalyzeDialogHost from '../tree/AnalyzeDialogHost.svelte';
-import ActivityBar from './ActivityBar.svelte';
 import Sidebar from './Sidebar.svelte';
 
-let mounted: (Sidebar | KeyboardShortcuts | ActivityBar | AnalyzeDialogHost)[] = [];
+let mounted: (Sidebar | KeyboardShortcuts | ModalDialogHarness)[] = [];
 
-/**
- * The side panel, the window's key handler and the analysis dialog's
- * host, over a backend with one search root.
- */
+/** The side panel and the window's key handler, over a backend with one search root. */
 async function mount(backend = new LogDirBackend({ features: [] })) {
   serveLogDir(backend);
   await health.check();
@@ -41,7 +32,6 @@ async function mount(backend = new LogDirBackend({ features: [] })) {
   document.body.appendChild(target);
   mounted = [
     new Sidebar({ target, props: { width: 300 } }),
-    new AnalyzeDialogHost({ target: document.body }),
     new KeyboardShortcuts({ target: document.body }),
   ];
   await tick();
@@ -51,13 +41,6 @@ async function mount(backend = new LogDirBackend({ features: [] })) {
     tree: () => target.querySelector<HTMLElement>('[role="tree"]'),
     firstRow: () => target.querySelector<HTMLElement>('[role="treeitem"]'),
   };
-}
-
-/** The tree row whose text starts with `name`. */
-function rowNamed(target: HTMLElement, name: string): HTMLElement | undefined {
-  return [...target.querySelectorAll<HTMLElement>('[role="treeitem"]')].find((row) =>
-    row.textContent?.trim().startsWith(name),
-  );
 }
 
 async function typeValue(input: HTMLInputElement, value: string) {
@@ -81,7 +64,6 @@ async function pressAnywhere(init: KeyboardEventInit) {
 afterEach(() => {
   for (const component of mounted) component.$destroy();
   mounted = [];
-  closeAnalysis();
   sidebarTab.set('tree');
   sidebarVisible.set(true);
   shortcutsHelpOpen.set(false);
@@ -209,54 +191,6 @@ describe('the panel keys over the side panel', () => {
   });
 });
 
-/**
- * Open the analysis of a file from its row's context menu, as a user
- * does, with the backend holding the answer so the dialog stays open;
- * the focus goes to its Close button.
- */
-async function openAnalysisFromTree(features: string[] = []) {
-  const backend = new LogDirBackend({ features });
-  backend.hold('/v1/index');
-  const { target } = await mount(backend);
-  rowNamed(target, 'logs')?.click();
-  await vi.waitFor(() => expect(rowNamed(target, 'agentctl.log')).toBeDefined());
-  rowNamed(target, 'agentctl.log')?.dispatchEvent(
-    new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
-  );
-  await tick();
-  const analyze = [...target.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
-    (item) => item.textContent?.trim() === 'Analyze',
-  );
-  analyze?.click();
-  await tick();
-  const dialog = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]');
-  const closeButton = dialog?.querySelector<HTMLButtonElement>('button[aria-label="Close"]');
-  if (!dialog || !closeButton) throw new Error('the analysis dialog did not open');
-  closeButton.focus();
-  return { target, dialog, closeButton };
-}
-
-/** Whether `element` is drawn: in the page, under no `hidden` element and none set to `display: none`. */
-function isDrawn(element: Element): boolean {
-  if (!element.isConnected) return false;
-  for (let at: Element | null = element; at; at = at.parentElement) {
-    if (at.hasAttribute('hidden')) return false;
-    if (at instanceof HTMLElement && at.style.display === 'none') return false;
-  }
-  return true;
-}
-
-/**
- * What Back or Forward does to the page: the address bar names another
- * entry, then `popstate` fires and the view sync restores it.
- */
-async function stepHistoryTo(query: string) {
-  history.replaceState(null, '', query);
-  window.dispatchEvent(new PopStateEvent('popstate'));
-  await tick();
-  await tick();
-}
-
 /** Press a key on `element`, then let the reactive updates run. */
 async function keyDown(element: HTMLElement, init: KeyboardEventInit) {
   const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
@@ -265,113 +199,6 @@ async function keyDown(element: HTMLElement, init: KeyboardEventInit) {
   await tick();
   return event;
 }
-
-describe('the analysis dialog opened from the files panel', () => {
-  it.each([
-    ['Alt+2', { key: '™', code: 'Digit2', altKey: true }],
-    ['Cmd+Shift+F', { key: 'F', code: 'KeyF', metaKey: true, shiftKey: true }],
-    ['Ctrl+K', { key: 'k', code: 'KeyK', ctrlKey: true }],
-    ['Alt+1', { key: '¡', code: 'Digit1', altKey: true }],
-    ['Cmd+Shift+E', { key: 'E', code: 'KeyE', metaKey: true, shiftKey: true }],
-    ['Cmd+B', { key: 'b', code: 'KeyB', metaKey: true }],
-  ])(
-    '%s leaves the dialog shown, the focus in it and the key to the browser',
-    async (_name, init) => {
-      const { target, dialog, closeButton } = await openAnalysisFromTree();
-
-      const event = await keyDown(closeButton, init);
-
-      expect(event.defaultPrevented).toBe(false);
-      expect(isDrawn(dialog)).toBe(true);
-      expect(target.querySelector('aside')?.style.display).not.toBe('none');
-      expect(document.activeElement).toBe(closeButton);
-    },
-  );
-
-  it('lets Alt+2 show Search once the dialog is closed', async () => {
-    const { closeButton } = await openAnalysisFromTree();
-    closeButton.click();
-    await tick();
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
-
-    const event = await pressAnywhere({ key: '™', code: 'Digit2', altKey: true });
-
-    expect(event.defaultPrevented).toBe(true);
-    expect(get(sidebarTab)).toBe('search');
-  });
-});
-
-describe('the analysis dialog when the panel behind it changes', () => {
-  let stopSync: () => void = () => {};
-
-  afterEach(() => {
-    stopSync();
-    stopSync = () => {};
-    history.replaceState(null, '', '/');
-  });
-
-  it('stays drawn with the focus in it when Back shows Search, and Esc gives the keys back', async () => {
-    const { dialog, closeButton } = await openAnalysisFromTree();
-    const bar = document.body.appendChild(document.createElement('div'));
-    mounted.push(new ActivityBar({ target: bar }));
-    stopSync = startViewSync();
-
-    await stepHistoryTo('?tab=search');
-
-    expect(get(sidebarTab)).toBe('search');
-    expect(isDrawn(dialog)).toBe(true);
-    expect(document.activeElement).toBe(closeButton);
-    expect(get(modalOpen)).toBe(true);
-
-    await keyDown(closeButton, { key: 'Escape' });
-
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(get(modalOpen)).toBe(false);
-    const altOne = await pressAnywhere({ key: '¡', code: 'Digit1', altKey: true });
-    expect(altOne.defaultPrevented).toBe(true);
-    expect(get(sidebarTab)).toBe('tree');
-    bar.querySelector<HTMLButtonElement>('button[aria-label="Search"]')?.click();
-    expect(get(sidebarTab)).toBe('search');
-  });
-
-  // A dialog counted in modalOpen but not drawn leaves every panel key
-  // and the activity bar dead, with nothing on screen to close.
-  it('is counted as open only while it is drawn, through panel switches, Back, Forward and a collapse', async () => {
-    const { target, dialog, closeButton } = await openAnalysisFromTree();
-    const folder = rowNamed(target, 'logs')?.dataset.rowId;
-    if (!folder) throw new Error('the folder that holds the file is not rendered');
-    stopSync = startViewSync();
-    /** Each step, and the panel it leaves shown. */
-    const steps: [string, () => unknown, SidebarTab][] = [
-      ['Search shown', () => showPanel('search', false), 'search'],
-      ['Back to Files', () => stepHistoryTo('/'), 'tree'],
-      ['Forward to Search', () => stepHistoryTo('?tab=search'), 'search'],
-      ['Files shown', () => showPanel('tree', false), 'tree'],
-      ['the folder collapsed', () => tree.toggleExpanded(folder), 'tree'],
-      ['the side panel hidden', () => sidebarVisible.set(false), 'tree'],
-    ];
-    const expectCountedAsDrawn = (step: string) => {
-      const modals = [...document.querySelectorAll('[aria-modal="true"]')];
-      expect(modals.filter(isDrawn), step).toEqual(modals);
-      expect(get(modalOpen), step).toBe(modals.length > 0);
-    };
-
-    for (const [step, act, tab] of steps) {
-      await act();
-      await tick();
-
-      expect(get(sidebarTab), step).toBe(tab);
-      expect(document.querySelectorAll('[aria-modal="true"]'), step).toHaveLength(1);
-      expectCountedAsDrawn(step);
-    }
-    expect(rowNamed(target, 'agentctl.log')).toBeUndefined();
-
-    await keyDown(closeButton, { key: 'Escape' });
-
-    expect(dialog.isConnected).toBe(false);
-    expectCountedAsDrawn('closed');
-  });
-});
 
 /**
  * The files panel's keys belong to it only while it is shown and no
@@ -437,8 +264,14 @@ describe('the files panel keys while something else owns the keyboard', () => {
     expectNothingChanged(await pressAnywhere(init));
   });
 
-  it.each(FILES_KEYS)('%s does nothing while the analysis dialog is open', async (_name, init) => {
-    const { closeButton } = await openAnalysisFromTree(['log_chains']);
+  it.each(FILES_KEYS)('%s does nothing while a modal dialog is open', async (_name, init) => {
+    await mount(new LogDirBackend({ features: ['log_chains'] }));
+    mounted.push(new ModalDialogHarness({ target: document.body }));
+    const closeButton = document.querySelector<HTMLButtonElement>(
+      '[aria-modal="true"] button[aria-label="Close"]',
+    );
+    if (!closeButton) throw new Error('the dialog is not rendered');
+    closeButton.focus();
 
     expectNothingChanged(await keyDown(closeButton, init));
     expect(document.activeElement).toBe(closeButton);

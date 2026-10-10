@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { health, settings, detectors } from '$lib/stores';
+  import { health, settings } from '$lib/stores';
   import { contractRefused } from '$lib/stores/health';
   import { readViewState } from '$lib/utils/urlState';
   import { loadView, startViewSync } from '$lib/viewState';
@@ -9,7 +9,6 @@
   import Sidebar from './components/layout/Sidebar.svelte';
   import MainContent from './components/layout/MainContent.svelte';
   import StatusBar from './components/layout/StatusBar.svelte';
-  import AnalyzeDialogHost from './components/tree/AnalyzeDialogHost.svelte';
   import KeyboardShortcuts from './components/common/KeyboardShortcuts.svelte';
   import RecentTabsSwitcher from './components/layout/RecentTabsSwitcher.svelte';
   import Notifications from './components/common/Notifications.svelte';
@@ -18,9 +17,6 @@
 
   onMount(() => {
     health.startPolling();
-
-    // Fetch detector metadata on app load (non-blocking)
-    detectors.fetchDetectors();
 
     // The link rebuilds the view; chain mode is on only when it says
     // `chains=1`. The URL follows the view only once that is done, so a
@@ -53,8 +49,6 @@
   </div>
 
   <StatusBar />
-  <!-- Before the shortcut list, which opens over it. -->
-  <AnalyzeDialogHost />
   <KeyboardShortcuts />
   <RecentTabsSwitcher />
   <Notifications />

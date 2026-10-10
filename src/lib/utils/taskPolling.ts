@@ -1,5 +1,5 @@
 import { api, ApiError } from '../api';
-import type { IndexTaskResult, TaskStatus } from '../types';
+import type { IndexTaskResult, TaskState, TaskStatus } from '../types';
 import type { TabKey } from './tabKey';
 
 /**
@@ -7,9 +7,9 @@ import type { TabKey } from './tabKey';
  * log chain's index task included), `pollTask` and `TaskPolls` for an
  * index task (`POST /v1/index`), whose result is a line index.
  *
- * A poll has no attempt cap: an analysis of a multi-gigabyte file can run
- * for longer than any fixed limit, and a task that still reports `queued`
- * or `running` is making progress. A poll ends when the task ends, when
+ * A poll has no attempt cap: an index or a findings scan of a
+ * multi-gigabyte file can run for longer than any fixed limit, and a task
+ * that still reports `queued` or `running` is making progress. A poll ends when the task ends, when
  * the backend stops answering, or when everyone waiting for it has left.
  */
 
@@ -17,7 +17,7 @@ import type { TabKey } from './tabKey';
 export type FetchTaskStatus = (taskId: string, signal: AbortSignal) => Promise<TaskStatus>;
 
 /** A task status that ends the poll loop. */
-type TaskOutcome = 'completed' | 'failed';
+type TaskOutcome = Extract<TaskState, 'completed' | 'failed' | 'cancelled'>;
 
 /**
  * What a task status means for the poll loop. A status not listed keeps
@@ -27,6 +27,7 @@ type TaskOutcome = 'completed' | 'failed';
 const TASK_OUTCOME: ReadonlyMap<string, TaskOutcome> = new Map<string, TaskOutcome>([
   ['completed', 'completed'],
   ['failed', 'failed'],
+  ['cancelled', 'cancelled'],
 ]);
 
 const DEFAULT_INTERVAL_MS = 1000;
@@ -88,7 +89,8 @@ function completedIndex(task: TaskStatus): IndexTaskResult {
 }
 
 /**
- * How a followed task ended: its last status, completed or failed, or
+ * How a followed task ended: its last status, completed, failed or
+ * cancelled (a findings scan stopped by `DELETE /v1/tasks/{task_id}`), or
  * gone: the backend answered 404, having forgotten the task (a restart,
  * its retention, or a table that dropped a finished task). `wasSeen` says
  * whether a status of the task was read before the 404; a task seen
@@ -97,6 +99,7 @@ function completedIndex(task: TaskStatus): IndexTaskResult {
 export type TaskEnd =
   | { kind: 'completed'; task: TaskStatus }
   | { kind: 'failed'; task: TaskStatus }
+  | { kind: 'cancelled'; task: TaskStatus }
   | { kind: 'gone'; error: unknown; wasSeen: boolean };
 
 /**
@@ -140,7 +143,7 @@ export async function watchTask(taskId: string, options: PollOptions): Promise<T
  * Poll one index task until it completes, and resolve with its result.
  *
  * Rejects when the task completes without an index result, with the
- * task's own error when it fails, with the last request
+ * task's own error when it fails, when it was cancelled, with the last request
  * error after several failed requests in a row or a 404, and with an
  * `AbortError` when the signal aborts.
  */
@@ -148,6 +151,7 @@ export async function pollTask(taskId: string, options: PollOptions): Promise<In
   const end = await watchTask(taskId, options);
   if (end.kind === 'gone') throw end.error;
   if (end.kind === 'failed') throw new Error(end.task.error || `Task ${taskId} failed`);
+  if (end.kind === 'cancelled') throw new Error(`Task ${taskId} was cancelled`);
   return completedIndex(end.task);
 }
 

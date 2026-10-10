@@ -58,7 +58,7 @@ async function backendWith(features: string[], isChainMode: boolean) {
       ok: true,
       status: 200,
       statusText: 'OK',
-      json: async () => ({ contract_version: '1.7', features }),
+      json: async () => ({ contract_version: '2.0', features }),
       text: async () => '',
     })),
   );

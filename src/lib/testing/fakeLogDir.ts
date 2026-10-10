@@ -197,6 +197,7 @@ export function treeEntry(
     is_indexed: null,
     is_text: null,
     line_count: null,
+    findings: null,
     modified_at: null,
     size: null,
     size_human: null,
@@ -330,7 +331,7 @@ export class LogDirBackend {
     switch (pathname) {
       case '/health':
         return answer(200, {
-          contract_version: '1.7',
+          contract_version: '2.0',
           features: this.options.features ?? ['log_chains'],
         });
       case '/v1/tree':

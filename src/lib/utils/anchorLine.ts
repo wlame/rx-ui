@@ -3,7 +3,7 @@
  *
  * The anchor is the line the user went to: the line a file was opened
  * at (line 1 when none was asked for), a go-to-line target, a search
- * match, an anomaly, the end of the file. It stays that line for as long
+ * match, the end of the file. It stays that line for as long
  * as the line is on screen. Once the user scrolls it out of view, the
  * anchor becomes the line at the center of the view; the editor reveals
  * a target in the center, so a link reopens the file showing the same

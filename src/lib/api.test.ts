@@ -154,8 +154,8 @@ describe('request shape', () => {
 
   it('calls the versioned prefix for everything else', async () => {
     const spy = stubFetch({});
-    await api.getDetectors();
-    expect(spy.mock.calls[0][0]).toBe('/v1/detectors');
+    await api.getIndex('/a.log');
+    expect(spy.mock.calls[0][0]).toBe('/v1/index?path=%2Fa.log');
   });
 
   it('passes a cancellation signal through to fetch', async () => {
@@ -229,18 +229,18 @@ describe('the API token', () => {
   });
 
   it('sends the token the tab holds', async () => {
-    const spy = stubFetch({ json: async () => ({ detectors: [] }) });
+    const spy = stubFetch({ json: async () => ({ entries: [] }) });
     setApiToken('s3cret');
 
-    await api.getDetectors();
+    await api.getTree();
 
     expect(spy.mock.calls[0][1].headers).toMatchObject({ Authorization: 'Bearer s3cret' });
   });
 
   it('sends no Authorization header without a token', async () => {
-    const spy = stubFetch({ json: async () => ({ detectors: [] }) });
+    const spy = stubFetch({ json: async () => ({ entries: [] }) });
 
-    await api.getDetectors();
+    await api.getTree();
 
     expect(spy.mock.calls[0][1].headers).not.toHaveProperty('Authorization');
   });
@@ -253,14 +253,14 @@ describe('the API token', () => {
       text: async () => '{"detail":"an API token is required"}',
     });
 
-    await expect(api.getDetectors()).rejects.toMatchObject({ status: 401 });
+    await expect(api.getTree()).rejects.toMatchObject({ status: 401 });
     expect(get(tokenRequired)).toBe(true);
   });
 
   it('leaves the prompt down for any other error', async () => {
     stubFetch({ ok: false, status: 403, statusText: 'Forbidden', text: async () => '' });
 
-    await expect(api.getDetectors()).rejects.toMatchObject({ status: 403 });
+    await expect(api.getTree()).rejects.toMatchObject({ status: 403 });
     expect(get(tokenRequired)).toBe(false);
   });
 });

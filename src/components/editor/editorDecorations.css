@@ -14,18 +14,6 @@
   margin-left: 3px;
 }
 
-/* Monaco decorations for category-based anomaly highlighting; each
-   category's color class (monaco-anomaly-palette-N) is built from the
-   palette in src/lib/utils/categoryStyle.ts. */
-.monaco-anomaly-category-line {
-  background-color: rgba(107, 114, 128, 0.15) !important; /* default gray */
-}
-
-.monaco-anomaly-category-glyph {
-  width: 4px !important;
-  margin-left: 3px;
-}
-
 /* Monaco decorations for regex filter highlight mode */
 .monaco-regex-highlight {
   background-color: rgba(255, 235, 59, 0.4);
@@ -111,7 +99,7 @@
 
 /* The selected lines (src/lib/utils/lineSelection.ts): a blue background
    across the whole line, a bar in the margin and bold line numbers; not
-   the amber of search matches, not the red of anomalies. Monaco puts its
+   the amber of search matches. Monaco puts its
    theme's base (vs, vs-dark) on .monaco-editor. Last in this file, so a
    selected line's number keeps its colour in a log chain's gutter. */
 .monaco-selected-line {

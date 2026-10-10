@@ -185,10 +185,16 @@ describe('parseViewState', () => {
     });
   });
 
-  it('reads an empty filter or category as none', () => {
-    const parsed = parseViewState('?file=/a.log&filter=&filter_mode=hide&category=');
-    expect(parsed.filter).toBeNull();
-    expect(parsed.category).toBeNull();
+  it('reads an empty filter as none', () => {
+    expect(parseViewState('?file=/a.log&filter=&filter_mode=hide').filter).toBeNull();
+  });
+
+  // The anomaly category left the viewer with the index analysis; links
+  // written before still carry it.
+  it('reads a link with category as the same view as the link without it', () => {
+    expect(parseViewState('?file=/a.log&category=error&line=7')).toEqual(
+      parseViewState('?file=/a.log&line=7'),
+    );
   });
 
   it('returns no search when the URL names no pattern, or only empty ones', () => {
@@ -225,12 +231,8 @@ describe('serializeViewState and parseViewState', () => {
     ['highlighting off', view({ file: '/a.log', highlight: false })],
     ['a file at a time', view({ file: '/a.log', time: Date.UTC(2025, 11, 10, 7, 45, 12, 345) })],
     [
-      'a filter and a category',
-      view({
-        file: '/a.log',
-        filter: { pattern: '(\\w+)@(\\w+)\\.com', mode: 'hide' },
-        category: 'error',
-      }),
+      'a filter',
+      view({ file: '/a.log', filter: { pattern: '(\\w+)@(\\w+)\\.com', mode: 'hide' } }),
     ],
     [
       'selected lines',
@@ -339,6 +341,12 @@ describe('serializeViewState and parseViewState', () => {
 
   it('keeps a parameter it does not own', () => {
     expect(serializeViewState(view({ file: '/a.log' }), '?debug=1&line=4')).toBe(
+      '?debug=1&file=%2Fa.log',
+    );
+  });
+
+  it('leaves out category, which an earlier viewer wrote, and keeps the rest', () => {
+    expect(serializeViewState(view({ file: '/a.log' }), '?category=error&debug=1')).toBe(
       '?debug=1&file=%2Fa.log',
     );
   });
@@ -471,12 +479,6 @@ describe('historyModeFor', () => {
         name: 'applying a filter',
         previous: fileA,
         next: view({ file: '/a.log', filter: { pattern: 'x', mode: 'hide' } }),
-        mode: 'replace',
-      },
-      {
-        name: 'picking an anomaly category',
-        previous: fileA,
-        next: view({ file: '/a.log', category: 'error' }),
         mode: 'replace',
       },
       {
@@ -644,6 +646,13 @@ describe('readViewState and writeViewState', () => {
     const calls = setLocation('?regexp=a%20b&line=-5');
     writeViewState(view({ search: { ...plainSearch, patterns: ['a b'] }, tab: 'search' }), 'push');
     expect(calls).toEqual([{ mode: 'replace', url: '/?regexp=a+b' }]);
+  });
+
+  // The same view in a link that only drops a key no longer read is no step.
+  it('replaces a link that holds category with the same link without it', () => {
+    const calls = setLocation('?file=%2Fa.log&category=error');
+    writeViewState(readViewState(), 'push');
+    expect(calls).toEqual([{ mode: 'replace', url: '/?file=%2Fa.log' }]);
   });
 
   it('keeps the hash it finds', () => {

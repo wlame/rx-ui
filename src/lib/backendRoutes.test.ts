@@ -33,7 +33,7 @@ describe('devProxy', () => {
     const paths = recordRequests();
     await api.getHealth();
     await api.getTree();
-    await api.getDetectors();
+    await api.getIndex('/a.log');
 
     const prefixes = Object.keys(devProxy(TARGET));
     for (const path of paths) {

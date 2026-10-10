@@ -92,15 +92,13 @@ way.
   grammar for logs and unknown file types. It is off by default for files
   of 1 MB and more, and can be switched per file. Invisible characters and
   word wrap can be switched per file as well.
-- **Index and analysis.** The tree's context menu builds a file's index or
-  runs the analysis; the report lists line statistics and anomalies, and
-  the editor's chips step through the anomalies of a category. Detector
-  names, categories and severity levels come from `/v1/detectors`.
+- **Index.** The tree's context menu builds or rebuilds the line index of
+  a compressed file; a plain file gets its index on first use.
 - **Log chains.** On a backend that serves them, the rotated files of one
   log (`app.log`, `app.log.1`, `app.log.2.gz`, …) open as one text, in
   time order: see [Log chains](#log-chains).
 - **The URL holds the view.** A link or a reload reopens the file at its
-  line, with its highlighting, filter and anomaly category, the panel
+  line, with its highlighting, filter and selected lines, the panel
   the side panel shows, the files panel's chain mode, labels, value and
   order, and the search. Back and Forward step through the files opened,
   the searches run and the panels switched in the activity bar. See
@@ -160,7 +158,6 @@ Cmd/Ctrl+/ lists every shortcut in the app. They are:
 | In the open file                         | Shift+↑ or Shift+↓           | Extend the selection from the cursor, as whole lines                                |
 | In the open file                         | Esc                          | Clear the selected lines                                                            |
 | In the open file                         | Cmd/Ctrl+C                   | Copy the selected lines, when no text is selected in the editor                     |
-| In the open file                         | Cmd/Alt+click                | On a chip: next anomaly of the selected category; with Shift, the previous one      |
 | In the go-to-line box                    | Enter                        | Jump to the typed line                                                              |
 | In the go-to-line box                    | Esc                          | Close the go-to-line box                                                            |
 | In the editor filter field               | Enter                        | Apply the filter to the open file                                                   |
@@ -174,13 +171,13 @@ Cmd/Ctrl+/ lists every shortcut in the app. They are:
 | In the picker of a file's time zone      | ↓ or ↑                       | Move down or up through the listed zones and the filter field                       |
 | In the picker of a file's time zone      | Enter                        | In the filter field: read the file in the first listed zone or the typed offset     |
 | In the picker of a file's time zone      | Esc                          | Close the picker and keep the zone                                                  |
-| While a panel is open                    | Esc                          | Close the recent commands, the analysis dialog, or the list of a log chain's parts  |
+| While a panel is open                    | Esc                          | Close the recent commands or the list of a log chain's parts                        |
 | While a panel is open                    | Alt+Esc or Esc               | Close the list of recently used tabs and stay on the tab shown                      |
 
-While a dialog is open (the shortcut list, the analysis, the API token
-prompt, the notice of a backend the viewer cannot read), the keys that
-show a panel or the sidebar, Alt+1, Alt+2, Cmd/Ctrl+Shift+E or F,
-Cmd/Ctrl+K and Cmd/Ctrl+B, do nothing: the keyboard stays with the
+While a dialog is open (the shortcut list, the API token prompt, the
+notice of a backend the viewer cannot read), the keys that show a panel
+or the sidebar, Alt+1, Alt+2, Cmd/Ctrl+Shift+E or F, Cmd/Ctrl+K and
+Cmd/Ctrl+B, do nothing: the keyboard stays with the
 dialog, so Cmd/Ctrl+K does not close the shortcut list; Esc or
 Cmd/Ctrl+/ does. Alt+G, Alt+L, Alt+V, Alt+N and Alt+S act only while the
 files panel is shown and no dialog is open; otherwise the key is left to
@@ -308,7 +305,8 @@ when the file holds other text at the line, or no longer reaches it.
 ## Link parameters
 
 The address bar holds the view; a link or a reload opens the same view.
-An unknown or invalid value is read as absent.
+An unknown or invalid value is read as absent. `category`, which viewers
+before contract 2 wrote, is ignored, and the address bar drops it.
 
 | Parameter                                     | What it holds                                                                                                        |
 | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
@@ -321,7 +319,6 @@ An unknown or invalid value is read as absent.
 | `sel`                                         | The selected lines as `rx samples --lines=` writes them, `120-134,200`; in a chain, `syslog.3.gz:120-134`            |
 | `highlight`                                   | `1` or `0`: syntax highlighting on or off; absent, the file's size decides                                           |
 | `filter`, `filter_mode`                       | The editor's regex filter and what it does: `highlight` (default), `hide` or `show`                                  |
-| `category`                                    | The anomaly category marked in the file                                                                              |
 | `tab`                                         | The panel the side panel shows: `files` or `search`; absent, Search for a link that holds a search, else Files       |
 | `chains`                                      | `1`: chain mode on; absent, off, whatever mode was chosen before                                                     |
 | `labels`                                      | `0`: the files panel hides the labels of its rows; absent, it shows them                                             |
@@ -390,18 +387,18 @@ than when the entry was made.
 | `GET /v1/samples`     | A window of a file's lines, by line range or byte offset |
 | `GET /v1/time-range`  | A file's first and last time                             |
 | `GET /v1/trace`       | Search                                                   |
-| `GET /v1/index`       | A file's stored index: line count and anomalies          |
-| `POST /v1/index`      | Build an index, or run the analysis                      |
-| `GET /v1/tasks/{id}`  | Follow an index or analysis task                         |
-| `GET /v1/detectors`   | Detector names, categories and severity levels           |
+| `GET /v1/index`       | A file's stored index: its line count and kind           |
+| `POST /v1/index`      | Build an index                                           |
+| `GET /v1/tasks/{id}`  | Follow an index task                                     |
 | `GET /v1/logs/*`      | Log chains: list, describe, samples and search           |
 | `POST /v1/logs/index` | Build the line indexes of a chain's parts                |
 | `GET /version.json`   | The viewer's own version, from its bundle                |
 
 `/health` reports `contract_version` (`MAJOR.MINOR`). The viewer reads
-contract major 1 (`src/lib/utils/contractVersion.ts`). A backend on
-another major is refused with a blocking message, and every `/v1` request
-waits until `/health` reports a major the viewer reads. The rx-go
+contract major 2 (`src/lib/utils/contractVersion.ts`), which rx-go serves
+from 0.8.0; rx-python speaks contract 1. A backend on another major is
+refused with a blocking message, and every `/v1` request waits until
+`/health` reports a major the viewer reads. The rx-go
 documentation describes each endpoint.
 
 ## Development
@@ -536,8 +533,7 @@ its floor at Chrome and Edge 92, Firefox 90 and Safari 15.4.
    contract rather than on one backend.
 2. Make the change with its tests, and run `just ci`.
 3. Check it in a browser against rx-go (`rx serve --port=8080`, then
-   `just dev`): tree, open file, search, jump to a result, index and
-   analysis.
+   `just dev`): tree, open file, search, jump to a result and index.
 4. Add an entry under `[Unreleased]` in `CHANGELOG.md`.
 
 ## License

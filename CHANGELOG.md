@@ -47,11 +47,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- A row picked in the analysis dialog selects the anomaly's lines: a
-  blue background across the line, a bar in the margin, bold line
-  numbers and marks on the minimap and the scrollbar, in place of the
-  red mark. The selection belongs to the tab and stays when an anomaly
-  category is chosen, which used to clear the mark.
+- The viewer speaks wire contract 2 and needs rx-go 0.8.0 or later. A
+  backend that reports contract 1 (rx-python, rx-go before 0.8.0) is
+  refused with the blocking message that names both versions, and no
+  request goes to it until it reports contract 2.
+- Index and Re-index in the file tree send only `path`, `force` and
+  `threshold`; a re-index no longer reads the stored index first.
+
+### Removed
+
+- The index analysis, which rx-go 0.8.0 no longer serves: the Analyze
+  item of the file tree's menu, the analysis dialog with its report of
+  line statistics and anomalies, the anomaly category chips in the
+  editor header with their marks in the editor and their Cmd/Alt+click
+  steps, and the `GET /v1/detectors` request. A plain text file's row in
+  the tree has no menu of its own now; a compressed file's keeps Index
+  or Re-index.
+- The `category` link parameter. A link that holds one opens as if it
+  did not, and the address bar drops it, with no new history entry.
 
 ### Fixed
 

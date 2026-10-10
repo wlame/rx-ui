@@ -35,9 +35,26 @@ describe('checkContractVersion', () => {
     expect(result.message).toContain('Update the backend');
   });
 
+  it('accepts a backend at contract 2.0', () => {
+    expect(checkContractVersion('2.0')).toEqual({ kind: 'ok', major: 2, minor: 0 });
+  });
+
+  // Contract 2 removed the index analysis and its routes; a contract 1
+  // backend (rx-python, rx-go before 0.8.0) would be misread.
+  it('refuses a backend at 1.7 with the message that names both versions', () => {
+    expect(checkContractVersion('1.7')).toEqual({
+      kind: 'incompatible',
+      major: 1,
+      minor: 7,
+      message:
+        'This viewer speaks rx API contract 2.x, but the backend reports 1.7. ' +
+        'Update the backend, or use a viewer release from its era.',
+    });
+  });
+
   it('treats a missing version as unknown, not incompatible', () => {
-    // A backend released before contract_version existed still speaks
-    // contract 1; refusing to load would be worse than proceeding.
+    // Nothing is known about such a backend's contract, as when /health
+    // cannot be read; the viewer proceeds rather than block on a guess.
     expect(checkContractVersion(undefined)).toEqual({ kind: 'unknown' });
     expect(checkContractVersion(null)).toEqual({ kind: 'unknown' });
     expect(checkContractVersion('')).toEqual({ kind: 'unknown' });

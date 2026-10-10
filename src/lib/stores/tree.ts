@@ -298,7 +298,7 @@ function createTreeStore() {
     update((s) => ({ ...s, selectedPath: path }));
   }
 
-  /** Show a file as indexed after an index or analysis task built its index. */
+  /** Show a file as indexed after an index task built its index. */
   function markIndexed(path: string, lineCount: number | null) {
     update((s) => ({
       ...s,

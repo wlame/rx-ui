@@ -34,25 +34,23 @@ interchangeable backends, no vendoring.
    stale. Never hand-edit a wire type; regenerate.
 2. **Never call an endpoint that only one backend has** without a capability
    check. Both backends implement `/health`, `/v1/tree`, `/v1/samples`,
-   `/v1/trace`, `/v1/index` (GET and POST), `/v1/tasks/{id}` and
-   `/v1/detectors`. `/v1/complexity` exists only in rx-python; this app does
-   not call it. An endpoint rx-go adds while rx-python is paused is
-   rx-go-only until rx-python catches up: check for it before calling it.
+   `/v1/trace`, `/v1/index` (GET and POST) and `/v1/tasks/{id}`.
+   `/v1/complexity` exists only in rx-python; this app does not call it. An
+   endpoint rx-go adds while rx-python is paused is rx-go-only until
+   rx-python catches up: check for it before calling it.
    The log chain routes (`/v1/logs/*`) are such: a chain feature acts only
    while `chainModeOn` (`src/lib/stores/chainMode.ts`) holds, which needs
    `backendHas('log_chains')`.
-3. **Never hardcode detector names, category names or ports.** Detector sets
-   differ between backends. Drive the UI from the live `/v1/detectors`
-   response (`src/lib/stores/detectors.ts`).
+3. **Never hardcode ports.** Take what a backend serves from its answers.
 4. **Respect `file_chunks`.** In a trace response `file_chunks` is a
    `{file_id: chunk_count}` map. `relative_line_number` is absolute only when
    the count is 1. `absolute_line_number` is `-1` when unknown. When it is
    unknown, resolve the position through `/v1/samples` by byte offset, which is
    always absolute.
 5. **Test against rx-go before a release.** Start it with `--port=8080`, run
-   the app, and exercise tree, open file, search, jump to result, index and
-   detectors. A viewer release changes behaviour for every installed backend
-   on its next cache refresh. rx-python is paused: test against it only when
+   the app, and exercise tree, open file, search, jump to result and index.
+   A viewer release changes behaviour for every installed backend on its
+   next cache refresh. rx-python is paused: test against it only when
    the owner asks, and record a difference you find in
    `../tickets/PARITY-DEBT.md`.
 6. **Release order:** a viewer change that needs a new backend field ships
@@ -75,29 +73,29 @@ interchangeable backends, no vendoring.
 
 ## Quick orientation
 
-| Where                                                     | What                                                                                                                                               |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/main.ts`, `src/App.svelte`                           | Entry point and root layout                                                                                                                        |
-| `src/lib/api.ts`                                          | The entire backend surface: one `api` object, `fetchJson`, `ApiError`                                                                              |
-| `src/lib/types.generated.ts`                              | Generated from rx-go's OpenAPI document — do not edit                                                                                              |
-| `src/lib/types.ts`                                        | Aliases of the generated wire types, plus the app's own types                                                                                      |
-| `src/lib/stores/`                                         | `files`, `tree`, `trace`, `health`, `detectors`, `settings`, `notifications`, `version`, `layout`; `paneMemory` keeps each file tab's editor state |
-| `src/lib/utils/processContent.ts`, `editorDecorations.ts` | The editor's regex filter: hide and show rewrite the text, highlight draws decorations                                                             |
-| `src/lib/stores/chainTabs.ts`, `src/lib/utils/chain*.ts`  | Log chains: a chain's tab, its pages, zones, gutter, timeline and search marks, the files panel's chain rows and the mode switch                   |
-| `src/lib/utils/urlState.ts`, `src/lib/viewState.ts`       | The view in the URL (no router): one parse/serialize table per key; URL written from stores                                                        |
-| `src/lib/utils/lineSelection.ts`, `copyFormat.ts`         | The selected lines as ranges, the URL's `sel`, and the text a copy of lines puts on the clipboard                                                  |
-| `src/lib/utils/monacoLanguage.ts`, `monacoLogLanguage.ts` | Monaco language registration and the log grammar                                                                                                   |
-| `src/components/editor/`                                  | `MonacoEditor.svelte`, `EditorPane.svelte` (paged large-file viewing), `EditorHeader.svelte` (name, line readout, chips, toolbar)                  |
-| `src/components/tree/`, `search/`, `layout/`, `common/`   | Tree, search form and results, chrome (the activity bar, `Sidebar.svelte`), shared widgets                                                         |
-| `src/lib/stores/filesView.ts`, `treeFocus.ts`             | The files panel's labels, value and sort; the file tree's current row and Tab stop                                                                 |
-| `src/lib/stores/searchDraft.ts`, `trace.ts`               | The search form as the user left it; the search the URL names                                                                                      |
-| `src/lib/utils/shortcuts.ts`, `panels.ts`                 | The one shortcut table with its scoped key handlers; the side panel's panels, which the activity bar draws                                         |
-| `src/lib/actions/`                                        | Svelte actions: `tooltip` (label and keys on hover and focus), `modal` (counts an open modal dialog), `takeFocus` (focus to a dialog, then back)   |
-| `src/lib/utils/icons.ts`                                  | The icon table (Lucide outlines); `src/components/common/Icon.svelte` draws it                                                                     |
-| `src/lib/utils/treeSort.ts`, `treeRows.ts`, `treeNav.ts`  | The files panel's sort, the rows the tree shows as one list, and the tree's key rules                                                              |
-| `src/lib/utils/tabOrder.ts`, `recentSwitch.ts`            | The open tabs' strip and recent orders; the recent-tab switcher's state machine                                                                    |
-| `vite.config.ts`                                          | Dev proxy `/v1`, `/health` → `localhost:8080`; Monaco manual chunk                                                                                 |
-| `.github/workflows/`                                      | `ci.yml` (build) and `release.yml` (tag → `dist.tar.gz` release)                                                                                   |
+| Where                                                     | What                                                                                                                                             |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/main.ts`, `src/App.svelte`                           | Entry point and root layout                                                                                                                      |
+| `src/lib/api.ts`                                          | The entire backend surface: one `api` object, `fetchJson`, `ApiError`                                                                            |
+| `src/lib/types.generated.ts`                              | Generated from rx-go's OpenAPI document — do not edit                                                                                            |
+| `src/lib/types.ts`                                        | Aliases of the generated wire types, plus the app's own types                                                                                    |
+| `src/lib/stores/`                                         | `files`, `tree`, `trace`, `health`, `settings`, `notifications`, `version`, `layout`; `paneMemory` keeps each file tab's editor state            |
+| `src/lib/utils/processContent.ts`, `editorDecorations.ts` | The editor's regex filter: hide and show rewrite the text, highlight draws decorations                                                           |
+| `src/lib/stores/chainTabs.ts`, `src/lib/utils/chain*.ts`  | Log chains: a chain's tab, its pages, zones, gutter, timeline and search marks, the files panel's chain rows and the mode switch                 |
+| `src/lib/utils/urlState.ts`, `src/lib/viewState.ts`       | The view in the URL (no router): one parse/serialize table per key; URL written from stores                                                      |
+| `src/lib/utils/lineSelection.ts`, `copyFormat.ts`         | The selected lines as ranges, the URL's `sel`, and the text a copy of lines puts on the clipboard                                                |
+| `src/lib/utils/monacoLanguage.ts`, `monacoLogLanguage.ts` | Monaco language registration and the log grammar                                                                                                 |
+| `src/components/editor/`                                  | `MonacoEditor.svelte`, `EditorPane.svelte` (paged large-file viewing), `EditorHeader.svelte` (name, line readout, chips, toolbar)                |
+| `src/components/tree/`, `search/`, `layout/`, `common/`   | Tree, search form and results, chrome (the activity bar, `Sidebar.svelte`), shared widgets                                                       |
+| `src/lib/stores/filesView.ts`, `treeFocus.ts`             | The files panel's labels, value and sort; the file tree's current row and Tab stop                                                               |
+| `src/lib/stores/searchDraft.ts`, `trace.ts`               | The search form as the user left it; the search the URL names                                                                                    |
+| `src/lib/utils/shortcuts.ts`, `panels.ts`                 | The one shortcut table with its scoped key handlers; the side panel's panels, which the activity bar draws                                       |
+| `src/lib/actions/`                                        | Svelte actions: `tooltip` (label and keys on hover and focus), `modal` (counts an open modal dialog), `takeFocus` (focus to a dialog, then back) |
+| `src/lib/utils/icons.ts`                                  | The icon table (Lucide outlines); `src/components/common/Icon.svelte` draws it                                                                   |
+| `src/lib/utils/treeSort.ts`, `treeRows.ts`, `treeNav.ts`  | The files panel's sort, the rows the tree shows as one list, and the tree's key rules                                                            |
+| `src/lib/utils/tabOrder.ts`, `recentSwitch.ts`            | The open tabs' strip and recent orders; the recent-tab switcher's state machine                                                                  |
+| `vite.config.ts`                                          | Dev proxy `/v1`, `/health` → `localhost:8080`; Monaco manual chunk                                                                               |
+| `.github/workflows/`                                      | `ci.yml` (build) and `release.yml` (tag → `dist.tar.gz` release)                                                                                 |
 
 ## Build, run, test
 
@@ -270,7 +268,7 @@ role="tab">` that also carries the drag handlers; its close button is a
   change or a link's `fp` is not the chain's.
 - The status bar's equivalent command comes from `stores/commands.ts`,
   which records the backend's `cli_command` of each answer to a user
-  action (search, file window, index, analysis). Record a new action's
+  action (search, file window, index). Record a new action's
   command there; never build a command in the viewer.
 - Every keyboard shortcut and mouse gesture is a row of one table,
   `src/lib/utils/shortcuts.ts`. The key handlers ask it whether a key is
@@ -317,10 +315,8 @@ role="tab">` that also carries the drag handlers; its close button is a
   unsent edits, and a link's search runs on load whichever panel is
   shown. A modal dialog is therefore never drawn inside a panel, where a
   panel switch or Back would hide it while `modalOpen` still counts it:
-  a tree row opens the analysis through `openAnalysis`
-  (`stores/analysisDialog.ts`) and `App.svelte` draws it
-  (`tree/AnalyzeDialogHost.svelte`). A component shows a panel through
-  `showPanel(id, focus)` or `clickPanelButton(id)` (`stores/layout.ts`);
+  a panel that opens one has `App.svelte` draw it. A component shows a
+  panel through `showPanel(id, focus)` or `clickPanelButton(id)` (`stores/layout.ts`);
   only `restoreView` sets `sidebarTab` itself, from a link.
   A focus request (`treeFocusRequested`, `searchFocusRequested`,
   `editorFocusRequested`, `tabStripFocusRequested`) is a flag that the
@@ -517,7 +513,7 @@ in this file; file a ticket.
 
 ## What NOT to do
 
-- Do not hardcode detector names, category names or ports.
+- Do not hardcode ports.
 - Do not call an endpoint one backend lacks without a capability check.
 - Do not hand-edit `types.generated.ts` or write a wire type by hand — run
   `just gen-types`.

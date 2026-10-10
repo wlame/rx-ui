@@ -42,7 +42,8 @@ export type BackendFeature =
   | 'line_timestamps'
   | 'time_range'
   | 'file_tz'
-  | 'log_chains';
+  | 'log_chains'
+  | 'signatures';
 
 /** The feature list of a `/health` answer; anything but a list of names is none. */
 function featuresOf(data: HealthResponse): readonly string[] {

@@ -44,8 +44,24 @@ describe('a backend on an unsupported contract major', () => {
     vi.unstubAllGlobals();
   });
 
+  it('accepts a backend at 2.0 and refuses one at 1.7 with the incompatible message', async () => {
+    const backend = stubBackend('1.7');
+
+    await health.check();
+    const refused = get(health).contract;
+    backend.contractVersion = '2.0';
+    await health.check();
+
+    expect(refused.kind).toBe('incompatible');
+    expect(refused.kind === 'incompatible' && refused.message).toBe(
+      'This viewer speaks rx API contract 2.x, but the backend reports 1.7. ' +
+        'Update the backend, or use a viewer release from its era.',
+    );
+    expect(get(health).contract).toEqual({ kind: 'ok', major: 2, minor: 0 });
+  });
+
   it('is refused: the health store says so and no /v1 request goes out', async () => {
-    const backend = stubBackend('2.0');
+    const backend = stubBackend('1.7');
 
     await health.check();
     const tree = api.getTree();
@@ -57,12 +73,12 @@ describe('a backend on an unsupported contract major', () => {
   });
 
   it('lets the held requests go once the backend reports a supported contract', async () => {
-    const backend = stubBackend('2.0');
+    const backend = stubBackend('1.7');
     await health.check();
     const tree = api.getTree();
     await settle();
 
-    backend.contractVersion = '1.3';
+    backend.contractVersion = '2.0';
     await health.check();
     await tree;
 
@@ -71,7 +87,7 @@ describe('a backend on an unsupported contract major', () => {
   });
 
   it('holds a request made before the first health answer until that answer', async () => {
-    const backend = stubBackend('2.0');
+    const backend = stubBackend('1.7');
     contractGate.hold();
 
     void api.getTree();
@@ -84,7 +100,7 @@ describe('a backend on an unsupported contract major', () => {
   });
 
   it('rejects a held request with an AbortError when its signal is aborted', async () => {
-    stubBackend('2.0');
+    stubBackend('1.7');
     await health.check();
     const controller = new AbortController();
 
@@ -97,12 +113,12 @@ describe('a backend on an unsupported contract major', () => {
   it('checks /health again soon while blocked, so the message clears on its own', async () => {
     vi.useFakeTimers();
     try {
-      const backend = stubBackend('2.0');
+      const backend = stubBackend('1.7');
       health.startPolling();
       await vi.advanceTimersByTimeAsync(0);
       const checksBefore = backend.paths.filter((p) => p === '/health').length;
 
-      backend.contractVersion = '1.3';
+      backend.contractVersion = '2.0';
       await vi.advanceTimersByTimeAsync(BLOCKED_RECHECK_MS);
 
       expect(backend.paths.filter((p) => p === '/health').length).toBeGreaterThan(checksBefore);
@@ -114,7 +130,7 @@ describe('a backend on an unsupported contract major', () => {
   });
 
   it('lets requests through when /health fails, since nothing is known', async () => {
-    const backend = stubBackend('1.3');
+    const backend = stubBackend('2.0');
     contractGate.hold();
     vi.stubGlobal(
       'fetch',

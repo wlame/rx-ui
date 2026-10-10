@@ -51,6 +51,8 @@ function status(progress: number | null): TaskStatus {
     completed_at: null,
     error: null,
     progress,
+    bytes_read: null,
+    bytes_total: null,
     result: null,
   };
 }

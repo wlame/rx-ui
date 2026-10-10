@@ -1,8 +1,6 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import type { components } from './types.generated';
 import type {
-  AnomalyRangeResult,
-  CategoryInfo,
   ChainEntry,
   ChainGap,
   ChainIndexTaskResult,
@@ -17,21 +15,26 @@ import type {
   ChainsResponse,
   ChainTraceResponse,
   CompressTaskResult,
-  DetectorInfo,
-  DetectorsResponse,
+  Finding,
+  FindingsResponse,
+  FindingsTicks,
+  GroupInfo,
   HealthResponse,
   IndexResponse,
   IndexTaskResponse,
   IndexTaskResult,
   LineIndexEntry,
   LineLengthStats,
+  LoadErrorInfo,
   LongestLine,
   SamplesResponse,
-  SeverityLevel,
-  SeverityRange,
+  SignatureInfo,
+  SignaturesResponse,
   TaskConflictError,
+  TaskState,
   TaskStatus,
   TreeEntry,
+  TreeFindings,
   TreeResponse,
 } from './types';
 
@@ -50,11 +53,28 @@ describe('wire types', () => {
     expectTypeOf<TreeResponse>().toEqualTypeOf<Schemas['TreeResponse']>();
     expectTypeOf<SamplesResponse>().toEqualTypeOf<Schemas['SamplesResponse']>();
     expectTypeOf<IndexTaskResponse>().toEqualTypeOf<Schemas['TaskResponse']>();
-    expectTypeOf<DetectorsResponse>().toEqualTypeOf<Schemas['DetectorsResponse']>();
-    expectTypeOf<DetectorInfo>().toEqualTypeOf<Schemas['DetectorInfo']>();
-    expectTypeOf<CategoryInfo>().toEqualTypeOf<Schemas['CategoryInfo']>();
-    expectTypeOf<SeverityRange>().toEqualTypeOf<Schemas['SeverityRange']>();
-    expectTypeOf<SeverityLevel>().toEqualTypeOf<Schemas['SeverityScaleLevel']>();
+  });
+
+  it('type the signature catalogue and the findings with their named schemas', () => {
+    expectTypeOf<SignaturesResponse>().toEqualTypeOf<Schemas['SignaturesResponse']>();
+    expectTypeOf<SignatureInfo>().toEqualTypeOf<Schemas['SignatureInfo']>();
+    expectTypeOf<GroupInfo>().toEqualTypeOf<Schemas['GroupInfo']>();
+    expectTypeOf<LoadErrorInfo>().toEqualTypeOf<Schemas['LoadErrorInfo']>();
+    expectTypeOf<FindingsResponse>().toEqualTypeOf<Schemas['FindingsResponse']>();
+    expectTypeOf<Finding>().toEqualTypeOf<Schemas['Finding']>();
+    expectTypeOf<FindingsTicks>().toEqualTypeOf<Schemas['FindingsTicks']>();
+    expectTypeOf<TreeFindings>().toEqualTypeOf<Schemas['TreeFindings']>();
+  });
+
+  // A tree entry without findings in the cache has none; a file's time
+  // and a tick column's span are null when the file has no timestamps.
+  it('keep the tree findings, a finding time and the ticks nullable', () => {
+    expectTypeOf<TreeEntry['findings']>().toEqualTypeOf<TreeFindings>();
+    expectTypeOf<null>().toMatchTypeOf<TreeFindings>();
+    expectTypeOf<NonNullable<TreeFindings>['state']>().toEqualTypeOf<'full' | 'partial'>();
+    expectTypeOf<Finding['time_ms']>().toEqualTypeOf<number | null>();
+    expectTypeOf<FindingsResponse['ticks']>().toEqualTypeOf<FindingsTicks>();
+    expectTypeOf<null>().toMatchTypeOf<FindingsTicks>();
   });
 
   it('type the index answers with their named schemas', () => {
@@ -64,15 +84,21 @@ describe('wire types', () => {
     expectTypeOf<LineIndexEntry>().toEqualTypeOf<Schemas['LineIndexEntry']>();
     expectTypeOf<LineLengthStats>().toEqualTypeOf<Schemas['LineLengthStats']>();
     expectTypeOf<LongestLine>().toEqualTypeOf<Schemas['LongestLine']>();
-    expectTypeOf<AnomalyRangeResult>().toEqualTypeOf<Schemas['AnomalyRangeResult']>();
     expectTypeOf<TaskConflictError>().toEqualTypeOf<Schemas['TaskConflictError']>();
   });
 
   it('type a task result as the contract union, null until the task completes', () => {
     expectTypeOf<TaskStatus>().toEqualTypeOf<Schemas['TaskStatusResponse']>();
     expectTypeOf<TaskStatus['result']>().toEqualTypeOf<
-      IndexTaskResult | CompressTaskResult | ChainIndexTaskResult | null
+      IndexTaskResult | CompressTaskResult | ChainIndexTaskResult | FindingsResponse | null
     >();
+  });
+
+  // The contract types the status as a string; a findings scan stopped by
+  // DELETE /v1/tasks/{task_id} ends `cancelled`.
+  it('name every task status, cancelled included', () => {
+    expectTypeOf<TaskState>().toMatchTypeOf<TaskStatus['status']>();
+    expectTypeOf<'cancelled'>().toMatchTypeOf<TaskState>();
   });
 
   it('type the log chain answers with their named schemas', () => {
@@ -116,7 +142,7 @@ describe('wire types', () => {
     expectTypeOf<[number, number, number]>().toMatchTypeOf<LineIndexEntry>();
   });
 
-  // Both are null when the index was built without an analysis.
+  // Both are null for a seekable zstd file, whose index has no statistics.
   it('keep the line statistics nullable, and every one but max', () => {
     expectTypeOf<IndexResponse['line_length']>().toEqualTypeOf<LineLengthStats>();
     expectTypeOf<null>().toMatchTypeOf<LineLengthStats>();

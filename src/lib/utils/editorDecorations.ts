@@ -11,8 +11,7 @@
  * The class names here are styled in components/editor/editorDecorations.css.
  */
 import type * as Monaco from 'monaco-editor';
-import type { AnomalyRangeResult, RegexFilter } from '../types';
-import type { CategoryStyle } from './categoryStyle';
+import type { RegexFilter } from '../types';
 import type { GutterRun } from './chainZones';
 import type { LineRange } from './lineSelection';
 import { HIDDEN_MARKER } from './processContent';
@@ -130,39 +129,6 @@ export function selectionDecorations(
 }
 
 /**
- * Marks every line of every anomaly in the selected category, with the
- * anomaly's details on the glyph, and the category's classes and color
- * (see categoryStyle.ts) on the line and in the minimap.
- */
-export function anomalyCategoryDecorations(
-  anomalies: readonly AnomalyRangeResult[],
-  category: string,
-  style: Pick<CategoryStyle, 'color' | 'decorationClass'>,
-  editorWindow: EditorWindow,
-): Decoration[] {
-  return anomalies
-    .filter((anomaly) => anomaly.category === category)
-    .flatMap((anomaly) =>
-      fileLineRange(anomaly.start_line, anomaly.end_line, editorWindow, {
-        isWholeLine: true,
-        className: `monaco-anomaly-category-line monaco-anomaly-${style.decorationClass}`,
-        glyphMarginClassName: `monaco-anomaly-category-glyph monaco-anomaly-${style.decorationClass}-glyph`,
-        glyphMarginHoverMessage: {
-          value: [
-            `**${anomaly.category.toUpperCase()}** | Severity: ${anomaly.severity}`,
-            ``,
-            `**Detector:** ${anomaly.detector}`,
-            ``,
-            anomaly.description || '_No description_',
-          ].join('\n'),
-          isTrusted: true,
-        },
-        minimap: { color: style.color, position: MINIMAP_INLINE },
-      }),
-    );
-}
-
-/**
  * Highlight-mode filter: the captured groups when the pattern has any,
  * the whole match otherwise. A pattern that does not compile yields
  * nothing; the filter bar reports the error.
@@ -227,9 +193,6 @@ export interface PaneView {
   matchedFileLines: readonly number[];
   /** The selected file lines (`utils/lineSelection.ts`). */
   selection: readonly LineRange[];
-  anomalies: readonly AnomalyRangeResult[] | null;
-  /** The anomaly category whose lines are marked, with its look. */
-  selectedCategory: { name: string; style: CategoryStyle } | null;
   filter: Pick<RegexFilter, 'enabled' | 'pattern' | 'mode' | 'compiledRegex'> | null;
   /** The editor's text, or null before the editor has a model. */
   text: LineSource | null;
@@ -246,21 +209,13 @@ const isSameObject = <T>(a: T, b: T): boolean => a === b;
 
 /**
  * How each field of two pane views is compared: as the same object,
- * except the window and the selected category, which a tab's update
- * builds anew from numbers and names that say the same.
+ * except the window, which a tab's update builds anew from numbers that
+ * say the same.
  */
 const SAME_PANE_FIELDS: { [K in keyof Required<PaneView>]: SameField<PaneView[K]> } = {
   editorWindow: (a, b) => a.startLine === b.startLine && a.lineCount === b.lineCount,
   matchedFileLines: isSameObject,
   selection: isSameObject,
-  anomalies: isSameObject,
-  selectedCategory: (a, b) =>
-    a === b ||
-    (a !== null &&
-      b !== null &&
-      a.name === b.name &&
-      a.style.color === b.style.color &&
-      a.style.decorationClass === b.style.decorationClass),
   filter: isSameObject,
   text: isSameObject,
   hiddenContent: isSameObject,
@@ -302,25 +257,16 @@ const FILTER_DECORATIONS: Record<
 };
 
 /**
- * Every decoration of the pane: matched lines, the selected lines, the
- * selected category's anomalies, what an active filter does, and a
- * log chain's gutter classes. A filter is active when it is enabled and
- * its pattern compiled.
+ * Every decoration of the pane: matched lines, the selected lines, what
+ * an active filter does, and a log chain's gutter classes. A filter is
+ * active when it is enabled and its pattern compiled.
  */
 export function paneDecorations(view: PaneView): Decoration[] {
-  const { editorWindow, filter, text, selectedCategory } = view;
+  const { editorWindow, filter, text } = view;
   const isFilterActive = Boolean(filter?.enabled && filter.compiledRegex);
   return [
     ...matchLineDecorations(view.matchedFileLines, editorWindow),
     ...selectionDecorations(view.selection, editorWindow),
-    ...(selectedCategory && view.anomalies
-      ? anomalyCategoryDecorations(
-          view.anomalies,
-          selectedCategory.name,
-          selectedCategory.style,
-          editorWindow,
-        )
-      : []),
     ...(filter && isFilterActive && text
       ? FILTER_DECORATIONS[filter.mode](filter.pattern, text, view.hiddenContent)
       : []),

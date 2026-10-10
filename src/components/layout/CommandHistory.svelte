@@ -18,7 +18,6 @@
     search: 'Search',
     file: 'File',
     index: 'Index',
-    analysis: 'Analysis',
   };
 
   function timeOf(at: number): string {

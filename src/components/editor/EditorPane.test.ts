@@ -73,9 +73,6 @@ function openFile(overrides: Partial<OpenFile> = {}): OpenFile {
     // A selected line, so the pane has decorations to draw.
     selectedLines: [{ start: 2, end: 2 }],
     isIndexed: false,
-    anomalies: null,
-    anomalySummary: null,
-    selectedAnomalyCategory: null,
     anchorLine: 1,
     indexBuild: null,
     fileType: null,

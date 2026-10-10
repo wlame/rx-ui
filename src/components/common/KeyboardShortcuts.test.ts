@@ -15,19 +15,12 @@ import {
   treeFocusRequested,
 } from '$lib/stores/layout';
 import { TAB_PANEL_ID } from '$lib/stores/tabFocus';
+import ModalDialogHarness from '$lib/testing/ModalDialogHarness.svelte';
 import TabStrip from '../layout/TabStrip.svelte';
-import AnalyzeDialog from '../tree/AnalyzeDialog.svelte';
 import KeyboardShortcuts from './KeyboardShortcuts.svelte';
 
-// The analysis dialog waits on the backend; here it never answers, so the
-// dialog stays open until a test closes it.
-vi.mock('$lib/indexTasks', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('$lib/indexTasks')>()),
-  analyzeFile: () => new Promise(() => {}),
-}));
-
 let shortcuts: KeyboardShortcuts | null = null;
-let analysis: AnalyzeDialog | null = null;
+let dialog: ModalDialogHarness | null = null;
 
 function mount(): HTMLElement {
   const target = document.createElement('div');
@@ -79,19 +72,19 @@ const PANEL_AND_SIDEBAR_KEYS: [string, KeyboardEventInit][] = [
   ['Ctrl+B', { key: 'b', code: 'KeyB', ctrlKey: true }],
 ];
 
-/** Open the analysis dialog, with the focus on its Close button as a keyboard user has it. */
-function openAnalysis() {
+/** Open a modal dialog, with the focus on its Close button as a keyboard user has it. */
+function openDialog() {
   const target = document.body.appendChild(document.createElement('div'));
-  analysis = new AnalyzeDialog({ target, props: { path: '/logs/app.log', name: 'app.log' } });
+  dialog = new ModalDialogHarness({ target });
   const closeButton = target.querySelector<HTMLButtonElement>('button[aria-label="Close"]');
-  if (!closeButton) throw new Error('the analysis dialog is not rendered');
+  if (!closeButton) throw new Error('the dialog is not rendered');
   closeButton.focus();
   return { target, closeButton };
 }
 
 afterEach(() => {
-  analysis?.$destroy();
-  analysis = null;
+  dialog?.$destroy();
+  dialog = null;
   shortcuts?.$destroy();
   shortcuts = null;
   shortcutsHelpOpen.set(false);
@@ -294,10 +287,10 @@ describe('the panel keys while something else owns the keyboard', () => {
   );
 
   it.each(PANEL_AND_SIDEBAR_KEYS)(
-    '%s does nothing while the analysis dialog is open, is not cancelled and leaves the focus in it',
+    '%s does nothing while another modal dialog is open, is not cancelled and leaves the focus in it',
     async (_name, init) => {
       mount();
-      const { target, closeButton } = openAnalysis();
+      const { target, closeButton } = openDialog();
 
       const event = await keyDown(closeButton, init);
 
@@ -311,11 +304,11 @@ describe('the panel keys while something else owns the keyboard', () => {
     },
   );
 
-  it('lets the panel keys act again once the analysis dialog closes', async () => {
+  it('lets the panel keys act again once the other dialog closes', async () => {
     mount();
-    openAnalysis();
-    analysis?.$destroy();
-    analysis = null;
+    openDialog();
+    dialog?.$destroy();
+    dialog = null;
 
     const event = await pressAnywhere(SHOW_SEARCH_KEYS[0][1]);
 
@@ -323,9 +316,9 @@ describe('the panel keys while something else owns the keyboard', () => {
     expect(get(sidebarTab)).toBe('search');
   });
 
-  it('opens the shortcut list over the analysis dialog', async () => {
+  it('opens the shortcut list over another modal dialog', async () => {
     const target = mount();
-    const { closeButton } = openAnalysis();
+    const { closeButton } = openDialog();
 
     const event = await keyDown(closeButton, { key: '/', metaKey: true });
 
@@ -333,11 +326,11 @@ describe('the panel keys while something else owns the keyboard', () => {
     expect(target.querySelector('[aria-labelledby="shortcuts-title"]')).not.toBeNull();
   });
 
-  it('closes only the shortcut list on one Esc over the analysis dialog', async () => {
+  it('closes only the shortcut list on one Esc over another modal dialog', async () => {
     const target = mount();
-    const { closeButton } = openAnalysis();
-    const analysisClosed = vi.fn();
-    analysis?.$on('close', analysisClosed);
+    const { closeButton } = openDialog();
+    const dialogClosed = vi.fn();
+    dialog?.$on('close', dialogClosed);
     await keyDown(closeButton, { key: '/', metaKey: true });
     const backdrop = target.querySelector<HTMLElement>('[aria-label="Close dialog"]');
     if (!backdrop) throw new Error('the shortcut list is not open');
@@ -350,7 +343,7 @@ describe('the panel keys while something else owns the keyboard', () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(target.querySelector('[aria-labelledby="shortcuts-title"]')).toBeNull();
-    expect(analysisClosed).not.toHaveBeenCalled();
+    expect(dialogClosed).not.toHaveBeenCalled();
   });
 
   it('takes no key press of an input method that composes as a panel key', async () => {

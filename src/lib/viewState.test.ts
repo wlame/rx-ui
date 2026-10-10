@@ -52,9 +52,6 @@ function openFile(overrides: Partial<OpenFile>): OpenFile {
     showInvisibleChars: false,
     wordWrap: false,
     isIndexed: false,
-    anomalies: null,
-    anomalySummary: null,
-    selectedAnomalyCategory: null,
     selectedLines: [],
     anchorLine: 1,
     indexBuild: null,
@@ -75,7 +72,6 @@ describe('fileViewOf', () => {
       line: null,
       highlight: null,
       filter: null,
-      category: null,
       time: null,
       sel: [],
     });
@@ -93,7 +89,7 @@ describe('fileViewOf', () => {
     expect(fileViewOf(openFile({ anchorLine: 1 })).line).toBeNull();
   });
 
-  // An anomaly click that highlights line 169 used to write line=168.
+  // A jump that selects line 169 used to write line=168.
   it('writes the anchor line', () => {
     expect(fileViewOf(openFile({ anchorLine: 169 })).line).toBe(169);
   });
@@ -125,10 +121,6 @@ describe('fileViewOf', () => {
     });
     expect(fileViewOf(openFile({ regexFilter: { ...filter, enabled: false } })).filter).toBeNull();
     expect(fileViewOf(openFile({ regexFilter: { ...filter, pattern: '' } })).filter).toBeNull();
-  });
-
-  it('writes the selected anomaly category', () => {
-    expect(fileViewOf(openFile({ selectedAnomalyCategory: 'error' })).category).toBe('error');
   });
 
   it("writes the selected lines as the file's ranges", () => {
@@ -177,7 +169,7 @@ function serveBackend(features: string[] = []) {
           ? json({ path, entries })
           : json({ entries: [{ type: 'directory', path: '/logs', name: 'logs' }] });
       }
-      if (parsed.pathname === '/health') return json({ contract_version: '1.5', features });
+      if (parsed.pathname === '/health') return json({ contract_version: '2.0', features });
       if (parsed.pathname === '/v1/time-range') {
         return json({
           path,
@@ -341,13 +333,35 @@ describe('the URL follows the view', () => {
     expect(calls.filter((call) => call.mode === 'push')).toEqual([]);
   });
 
-  it('names the filter and the anomaly category of the active file', async () => {
+  it('names the filter of the active file', async () => {
     await files.openFile('/logs/small.log', { fileSize: 1000, isIndexed: false });
     files.setRegexFilter('/logs/small.log', { pattern: 'LINE 1\\d', mode: 'show' });
-    files.setSelectedAnomalyCategory('/logs/small.log', 'error');
     expect(urlParams().get('filter')).toBe('LINE 1\\d');
     expect(urlParams().get('filter_mode')).toBe('show');
-    expect(urlParams().get('category')).toBe('error');
+  });
+});
+
+describe('a link that holds a key an earlier viewer wrote', () => {
+  let stopSync: () => void = () => {};
+
+  beforeEach(() => serveBackend());
+
+  afterEach(() => {
+    resetStores();
+    stopSync();
+    vi.unstubAllGlobals();
+  });
+
+  // The anomaly category left the viewer with the index analysis.
+  it('opens a link with category=x without an error and rewrites the URL without it', async () => {
+    const calls = stubWindow('?file=%2Flogs%2Fsmall.log&line=42&category=x');
+
+    await expect(loadView(readViewState())).resolves.toBeUndefined();
+    stopSync = startViewSync();
+
+    expect(get(files).activeFilePath).toBe('/logs/small.log');
+    expect(window.location.search).toBe('?file=%2Flogs%2Fsmall.log&line=42');
+    expect(calls).toEqual([{ mode: 'replace', url: '/?file=%2Flogs%2Fsmall.log&line=42' }]);
   });
 });
 
@@ -382,7 +396,7 @@ describe('restoreView', () => {
     },
   );
 
-  it('rebuilds the file, its line, filter and category, the tab, the files panel, the search and the switch', async () => {
+  it('rebuilds the file, its line and filter, the tab, the files panel, the search and the switch', async () => {
     const view: ViewState = {
       file: '/logs/small.log',
       chain: null,
@@ -393,7 +407,6 @@ describe('restoreView', () => {
       sel: [],
       highlight: null,
       filter: { pattern: 'LINE 42', mode: 'hide' },
-      category: 'error',
       tab: 'search',
       chains: false,
       labels: false,
@@ -413,7 +426,6 @@ describe('restoreView', () => {
     expect(file.lines[0].lineNumber).toBeLessThanOrEqual(4_200);
     expect(file.regexFilter?.pattern).toBe('LINE 42');
     expect(file.regexFilter?.mode).toBe('hide');
-    expect(file.selectedAnomalyCategory).toBe('error');
     expect(get(sidebarTab)).toBe('search');
     expect(get(filesView)).toEqual({ labels: false, show: 'date', sort: DATE_ASC });
     expect(get(searchShowsOffsets)).toBe(true);

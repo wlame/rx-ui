@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HIDDEN_MARKER } from './processContent';
 import {
-  anomalyCategoryDecorations,
   hiddenMarkerDecorations,
   isSamePaneView,
   matchLineDecorations,
@@ -84,39 +83,6 @@ describe('selectionDecorations', () => {
   });
 });
 
-describe('anomalyCategoryDecorations', () => {
-  const anomaly = {
-    start_line: 103,
-    end_line: 104,
-    start_offset: 0,
-    end_offset: 0,
-    severity: 0.9,
-    description: 'Python traceback',
-    detector: 'traceback-python',
-  };
-
-  it('marks the lines of anomalies in the selected category only', () => {
-    const anomalies = [
-      { ...anomaly, category: 'log-traceback' },
-      { ...anomaly, category: 'secrets', start_line: 106, end_line: 106 },
-    ];
-
-    const decorations = anomalyCategoryDecorations(
-      anomalies,
-      'log-traceback',
-      { color: '#14b8a6', decorationClass: 'palette-4' },
-      editorWindow,
-    );
-
-    expect(decorations.map((d) => d.range.startLineNumber)).toEqual([3, 4]);
-    expect(decorations[0].options.className).toContain('monaco-anomaly-palette-4');
-    expect(decorations[0].options.glyphMarginClassName).toContain('monaco-anomaly-palette-4-glyph');
-    expect(decorations[0].options.glyphMarginHoverMessage).toMatchObject({
-      value: expect.stringContaining('traceback-python'),
-    });
-  });
-});
-
 describe('regexHighlightDecorations', () => {
   it('highlights the whole match when the pattern has no group', () => {
     expect(spans(regexHighlightDecorations('ab', lines('xab ab')))).toEqual([
@@ -183,41 +149,24 @@ describe('hiddenMarkerDecorations', () => {
 });
 
 describe('paneDecorations', () => {
-  const anomaly = {
-    start_line: 105,
-    end_line: 105,
-    start_offset: 0,
-    end_offset: 0,
-    severity: 0.5,
-    description: '',
-    detector: 'secrets-scan',
-    category: 'secrets',
-  };
   const filter = { enabled: true, pattern: 'b', mode: 'highlight' as const, compiledRegex: /b/ };
   const nothingShown = {
     editorWindow,
     matchedFileLines: [],
     selection: [],
-    anomalies: null,
-    selectedCategory: null,
     filter: null,
     text: lines('abc', `a${HIDDEN_MARKER}c`),
     hiddenContent: new Map([['2:0', 'b']]),
   };
 
-  it('marks the matched lines, the selected lines and the selected category together', () => {
+  it('marks the matched lines and the selected lines together', () => {
     const decorations = paneDecorations({
       ...nothingShown,
       matchedFileLines: [102],
       selection: [{ start: 103, end: 103 }],
-      anomalies: [anomaly, { ...anomaly, category: 'format', start_line: 106, end_line: 106 }],
-      selectedCategory: {
-        name: 'secrets',
-        style: { color: '#0ea5e9', decorationClass: 'palette-0' },
-      },
     });
 
-    expect(decorations.map((d) => d.range.startLineNumber)).toEqual([2, 3, 5]);
+    expect(decorations.map((d) => d.range.startLineNumber)).toEqual([2, 3]);
   });
 
   it('gives a log chain run of gutter lines its line number class', () => {
@@ -232,10 +181,6 @@ describe('paneDecorations', () => {
         options: { isWholeLine: true, lineNumberClassName: 'chain-gutter-alt' },
       },
     ]);
-  });
-
-  it('marks no anomaly while no category is selected', () => {
-    expect(paneDecorations({ ...nothingShown, anomalies: [anomaly] })).toEqual([]);
   });
 
   it.each([
@@ -263,29 +208,20 @@ describe('paneDecorations', () => {
 });
 
 describe('isSamePaneView', () => {
-  const style = { color: '#0ea5e9', decorationClass: 'palette-0' };
   const view = {
     editorWindow,
     matchedFileLines: [102],
     selection: [],
-    anomalies: null,
-    selectedCategory: { name: 'secrets', style },
     filter: null,
     text: lines('abc'),
     hiddenContent: new Map<string, string>(),
     gutterRuns: [],
   };
 
-  // A tab's update builds the view anew: the window and the category
-  // are new objects that say the same.
-  it('is the same view when the window and the category say the same in new objects', () => {
-    expect(
-      isSamePaneView(view, {
-        ...view,
-        editorWindow: { ...editorWindow },
-        selectedCategory: { name: 'secrets', style: { ...style } },
-      }),
-    ).toBe(true);
+  // A tab's update builds the view anew: the window is a new object that
+  // says the same.
+  it('is the same view when the window says the same in a new object', () => {
+    expect(isSamePaneView(view, { ...view, editorWindow: { ...editorWindow } })).toBe(true);
   });
 
   it.each([
@@ -293,9 +229,6 @@ describe('isSamePaneView', () => {
     ['a window of other length', { editorWindow: { ...editorWindow, lineCount: 11 } }],
     ['other matched lines, the same numbers in a new list', { matchedFileLines: [102] }],
     ['another selection, the same lines in a new list', { selection: [] }],
-    ['anomalies', { anomalies: [] }],
-    ['another category', { selectedCategory: { name: 'format', style } }],
-    ['no category', { selectedCategory: null }],
     [
       'a filter',
       { filter: { enabled: true, pattern: 'b', mode: 'highlight' as const, compiledRegex: /b/ } },

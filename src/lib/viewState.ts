@@ -45,17 +45,13 @@ import type { ChainTab, OpenFile, TreeNode } from './types';
  */
 
 /** The part of the view that belongs to the active file. */
-type FileView = Pick<
-  ViewState,
-  'file' | 'line' | 'time' | 'highlight' | 'filter' | 'category' | 'sel'
->;
+type FileView = Pick<ViewState, 'file' | 'line' | 'time' | 'highlight' | 'filter' | 'sel'>;
 
 /**
  * What the URL says about a file: its path, its anchor line (left out at
  * line 1) or, while a jump by time put it there, that time instead, the
  * lines selected in it, its highlighting when it differs from the
- * size-based default, its filter when one is applied, and its anomaly
- * category.
+ * size-based default, and its filter when one is applied.
  */
 export function fileViewOf(file: OpenFile | undefined): FileView {
   if (!file) {
@@ -65,7 +61,6 @@ export function fileViewOf(file: OpenFile | undefined): FileView {
       time: null,
       highlight: null,
       filter: null,
-      category: null,
       sel: [],
     };
   }
@@ -80,7 +75,6 @@ export function fileViewOf(file: OpenFile | undefined): FileView {
     time: file.timeJump,
     highlight: isDefaultHighlighting ? null : file.syntaxHighlighting,
     filter: filter && isFilterApplied ? { pattern: filter.pattern, mode: filter.mode } : null,
-    category: file.selectedAnomalyCategory,
     sel: file.selectedLines.map((range) => ({ ...range, part: null })),
   };
 }
@@ -421,8 +415,8 @@ function partSelection(path: string, view: ViewState): SelEntry[] {
 }
 
 /**
- * Bring the open files to the view: its file active, with its filter,
- * category and selected lines. A time in the view (and no line) jumps
+ * Bring the open files to the view: its file active, with its filter
+ * and selected lines. A time in the view (and no line) jumps
  * that file there and sets the time cursor; no other file moves. A view
  * that names a chain opens that chain's tab at its part and line, with
  * its selected lines in their parts; so does a view in chain mode that
@@ -451,7 +445,6 @@ async function restoreFile(view: ViewState, isCurrent: () => boolean): Promise<v
   const shown = await showFile(path, view, isCurrent);
   if (!shown) return;
   files.setRegexFilter(path, view.filter);
-  files.setSelectedAnomalyCategory(path, view.category);
   files.setSelection(path, fileRanges(view));
   await shown.loaded;
 }

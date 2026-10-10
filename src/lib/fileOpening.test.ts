@@ -29,6 +29,7 @@ function treeFile(path: string, fields: Partial<TreeNode> = {}): TreeNode {
     is_indexed: false,
     is_text: true,
     line_count: null,
+    findings: null,
     modified_at: null,
     size: 100,
     size_human: null,

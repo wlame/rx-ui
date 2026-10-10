@@ -3,7 +3,6 @@ import { api, ApiError } from '../api';
 import { contractGate } from '../contractGate';
 import { IndexBuildFollows } from '../indexBuildFollows';
 import { loadSamples, loadSamplesByTime } from '../samplesWait';
-import { countAnomaliesByCategory } from '../utils/anomalyCategories';
 import { LatestRequestMap, SUPERSEDED, isAbortError } from '../utils/latestRequest';
 import { clampAnchor } from '../utils/anchorLine';
 import { MAX_SEL_RANGES, clampSelection, normalize, type LineRange } from '../utils/lineSelection';
@@ -281,7 +280,7 @@ function createFilesStore() {
 
   /**
    * Fetch file index in the background and update file metadata
-   * Uses GET /v1/index to get cached index data including anomalies
+   * Uses GET /v1/index to get cached index data: the line count and the file's kind
    */
   function fetchFileIndex(path: string, isIndexed?: boolean) {
     // If we know the file is not indexed, skip the fetch
@@ -427,7 +426,7 @@ function createFilesStore() {
   }
 
   /**
-   * Take a file's line count and anomalies from its index. A file that is
+   * Take a file's line count and kind from its index. A file that is
    * not open is left alone. The file waits for no index any more: a build
    * it followed in the background is no longer followed.
    */
@@ -444,8 +443,6 @@ function createFilesStore() {
           fileType: indexData.file_type ?? f.fileType,
           pendingIndex: null,
           backgroundIndexBuild: null,
-          anomalies: indexData.anomalies ?? null,
-          anomalySummary: countAnomaliesByCategory(indexData.anomalies),
         };
       }),
     }));
@@ -505,11 +502,7 @@ function createFilesStore() {
       regexFilter: null, // Disabled by default
       showInvisibleChars: false, // Disabled by default
       wordWrap: false, // Disabled by default (horizontal scroll)
-      // Anomaly data - will be populated from index fetch
       isIndexed: isIndexed ?? false,
-      anomalies: null,
-      anomalySummary: null,
-      selectedAnomalyCategory: null,
       selectedLines: [],
       anchorLine: scrollToLine ?? 1,
       indexBuild: null,
@@ -527,7 +520,7 @@ function createFilesStore() {
       activeFilePath: path,
     }));
 
-    // Fetch file index in background to get total line count and anomalies
+    // Fetch file index in background to get total line count
     fetchFileIndex(path, isIndexed);
     // The time range loads beside the window and never holds it up.
     void loadTimeRange(path);
@@ -621,7 +614,7 @@ function createFilesStore() {
   /**
    * The options of a window load of `path`: its signal, the build it may
    * wait for, and the index that build leaves, which gives the file its
-   * line count and anomalies as an Index from the tree's menu does. A
+   * line count as an Index from the tree's menu does. A
    * load that waits for a build marks the file as waiting for its index.
    */
   function loadOptions(path: string, signal: AbortSignal) {
@@ -1316,33 +1309,6 @@ function createFilesStore() {
     setFileFields(key, { selectedLines: normalize(ranges).slice(0, MAX_SEL_RANGES) });
   }
 
-  /**
-   * Set the selected anomaly category for highlighting
-   * @param key - The tab's key
-   * @param category - Category name to highlight, or null to clear
-   */
-  function setSelectedAnomalyCategory(key: TabKey, category: string | null) {
-    update((s) => ({
-      ...s,
-      openFiles: s.openFiles.map((f) =>
-        f.path === key ? { ...f, selectedAnomalyCategory: category } : f,
-      ),
-    }));
-  }
-
-  /**
-   * Toggle an anomaly category for highlighting (radio button behavior)
-   * If the category is already selected, it will be deselected
-   */
-  function toggleAnomalyCategory(key: TabKey, category: string) {
-    const state = get({ subscribe });
-    const file = state.openFiles.find((f) => f.path === key);
-    if (!file) return;
-
-    const newCategory = file.selectedAnomalyCategory === category ? null : category;
-    setSelectedAnomalyCategory(key, newCategory);
-  }
-
   return {
     subscribe,
     openFile,
@@ -1376,8 +1342,6 @@ function createFilesStore() {
     setActiveFile,
     setRecentOrder,
     setSelection,
-    setSelectedAnomalyCategory,
-    toggleAnomalyCategory,
   };
 }
 

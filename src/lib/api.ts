@@ -7,7 +7,6 @@ import type {
   TaskStatus,
   IndexResponse,
   IndexTaskResponse,
-  DetectorsResponse,
   TimeRangeResponse,
   ChainsResponse,
   ChainResponse,
@@ -464,15 +463,14 @@ export const api = {
    * @param path - File path to index
    * @param options - Indexing options
    * @param options.force - Force rebuild even if valid index exists
-   * @param options.analyze - Run full analysis with anomaly detection
    * @param options.threshold - Minimum file size in MB to index (default 50)
    */
   async startIndex(
     path: string,
-    options: { force?: boolean; analyze?: boolean; threshold?: number } = {},
+    options: { force?: boolean; threshold?: number } = {},
   ): Promise<IndexTaskResponse> {
-    const { force = false, analyze = false, threshold } = options;
-    const body: Record<string, unknown> = { path, force, analyze };
+    const { force = false, threshold } = options;
+    const body: Record<string, unknown> = { path, force };
     if (threshold !== undefined) {
       body.threshold = threshold;
     }
@@ -488,14 +486,6 @@ export const api = {
    */
   async getTaskStatus(taskId: string, options?: RequestOptions): Promise<TaskStatus> {
     return fetchJson<TaskStatus>(`${API_BASE}/tasks/${encodeURIComponent(taskId)}`, options);
-  },
-
-  /**
-   * Get available anomaly detectors metadata
-   * @returns Detectors, categories, and severity scale information
-   */
-  async getDetectors(): Promise<DetectorsResponse> {
-    return fetchJson<DetectorsResponse>(`${API_BASE}/detectors`);
   },
 
   /**

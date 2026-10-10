@@ -18,6 +18,8 @@ import FileTree from './FileTree.svelte';
 const FONTS = `${LOG_DIR}/fonts.log`;
 /** A part of the chain `pkg.log`, and the chain's row. */
 const PART = `${LOG_DIR}/pkg.log.1`;
+/** A gzip part of `pkg.log`: a compressed file's row has a menu (Index). */
+const GZIP_PART = `${LOG_DIR}/pkg.log.2.gz`;
 const PKG_CHAIN = chainKey(`${LOG_DIR}/pkg.log`);
 
 let mounted: FileTree | null = null;
@@ -348,7 +350,7 @@ describe('the keys the tree leaves alone', () => {
   it("leaves the keys of a row's menu to the menu", async () => {
     const { target } = await mountTree();
     await openLogDir();
-    const row = focusRow(target, FONTS);
+    const row = focusRow(target, GZIP_PART);
     row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     await tick();
     const item = target.querySelector<HTMLButtonElement>('[role="menuitem"]');
@@ -359,7 +361,7 @@ describe('the keys the tree leaves alone', () => {
 
     expect(event.defaultPrevented).toBe(false);
     expect(document.activeElement).toBe(item);
-    expect(get(treeFocus)).toBe(FONTS);
+    expect(get(treeFocus)).toBe(GZIP_PART);
   });
 });
 

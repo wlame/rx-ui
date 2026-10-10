@@ -2,7 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { get } from 'svelte/store';
   import type { FileLine, FileMatch, OpenFile, RegexFilter } from '$lib/types';
-  import { detectors, files, settings, resolvedTheme } from '$lib/stores';
+  import { files, settings, resolvedTheme } from '$lib/stores';
   import { editorFocusRequested } from '$lib/stores/layout';
   import { recallPane, rememberPane, scrollOnShow } from '$lib/stores/paneMemory';
   import Spinner from '../common/Spinner.svelte';
@@ -17,17 +17,10 @@
   import { anchorAfterScroll, type VisibleLines } from '$lib/utils/anchorLine';
   import { pagingDirection, watchUserInput } from '$lib/utils/paging';
   import { processContent } from '$lib/utils/processContent';
-  import {
-    isSamePaneView,
-    paneDecorations,
-    toMonacoLine,
-    type PaneView,
-  } from '$lib/utils/editorDecorations';
-  import { pickAnomalyTarget } from '$lib/utils/anomalyCategories';
+  import { isSamePaneView, paneDecorations, type PaneView } from '$lib/utils/editorDecorations';
   import { acceptsTyping } from '$lib/utils/keyTargets';
   import { isShortcut } from '$lib/utils/shortcuts';
   import { indexBuildLabel } from '$lib/samplesWait';
-  import { categoryStyle, installPaletteStyles } from '$lib/utils/categoryStyle';
   import { chainGutterRuns, chainZonesMemo, type GutterRun } from '$lib/utils/chainZones';
   import { chainLineLabels, topLineOf } from '$lib/utils/chainPane';
   import { matchedTabLines } from '$lib/utils/chainSearch';
@@ -125,22 +118,11 @@
     file.chain && (chainDescription?.state === 'invalid' || file.chain.invalidDetail),
   );
 
-  // The selected category's color is its place in the detector list,
-  // which can arrive after the anomalies.
-  $: selectedCategoryStyle = file.selectedAnomalyCategory
-    ? categoryStyle(file.selectedAnomalyCategory, $detectors.categories)
-    : null;
-
   // Everything the decorations mark; any change to it repaints them.
   $: paneView = {
     editorWindow: { startLine: file.startLine, lineCount: file.lines.length },
     matchedFileLines: matchedLinesOf(file.lines, file.chain !== undefined, fileMatches),
     selection: file.selectedLines,
-    anomalies: file.anomalies,
-    selectedCategory:
-      file.selectedAnomalyCategory && selectedCategoryStyle
-        ? { name: file.selectedAnomalyCategory, style: selectedCategoryStyle }
-        : null,
     filter: file.regexFilter,
     text: monacoEditor?.getModel() ?? null,
     hiddenContent: hiddenContentMap,
@@ -193,29 +175,6 @@
     filterPanelVisible = !filterPanelVisible;
     if (filterPanelVisible && !file.regexFilter) {
       files.toggleRegexFilter(file.path);
-    }
-  }
-
-  // Step to the next or previous anomaly of a category, relative to the
-  // line at the center of the view, loading the window around it when
-  // the editor does not hold that line yet.
-  function navigateToAnomaly(category: string, direction: 'next' | 'previous') {
-    const target = pickAnomalyTarget(
-      file.anomalies,
-      category,
-      getCurrentViewportCenterLine(),
-      direction,
-    );
-    if (!target) return;
-
-    const monacoLine = toMonacoLine(target.start_line, {
-      startLine: file.startLine,
-      lineCount: file.lines.length,
-    });
-    if (monacoLine !== null && monacoEditor) {
-      monacoEditor.revealLineInCenter(monacoLine);
-    } else {
-      files.jumpToLine(file.path, target.start_line);
     }
   }
 
@@ -275,11 +234,6 @@
       first: file.startLine + visibleRanges[0].startLineNumber - 1,
       last: file.startLine + visibleRanges[visibleRanges.length - 1].endLineNumber - 1,
     };
-  }
-
-  function getCurrentViewportCenterLine(): number {
-    const visible = visibleFileLines();
-    return visible ? Math.floor((visible.first + visible.last) / 2) : file.startLine;
   }
 
   /**
@@ -444,7 +398,6 @@
   }
 
   onMount(() => {
-    installPaletteStyles();
     paneEl?.addEventListener('keydown', handleKeyDown, true);
     if (paneEl) stopWatchingUserInput = watchUserInput(paneEl, noteUserScroll);
   });
@@ -475,7 +428,6 @@
       {monacoTheme}
       bind:lineRangeNav
       on:jump={(e) => jumpToLineNumber(e.detail.line)}
-      on:navigateAnomaly={(e) => navigateToAnomaly(e.detail.category, e.detail.direction)}
       on:toggleFilter={toggleFilterPanel}
     />
   {/if}

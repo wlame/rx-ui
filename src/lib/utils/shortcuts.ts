@@ -128,7 +128,6 @@ export type ShortcutId =
   | 'gotoClose'
   | 'findInEditor'
   | SelectionShortcutId
-  | 'nextAnomaly'
   | 'applyFilter'
   | 'closeFilter'
   | TreeShortcutId
@@ -142,7 +141,6 @@ export type ShortcutId =
   | 'zoneChoose'
   | 'zoneClose'
   | 'closeHistory'
-  | 'closeAnalysis'
   | 'closeChainParts';
 
 export interface Shortcut {
@@ -552,12 +550,6 @@ export const SHORTCUTS: readonly Shortcut[] = [
     chord: { key: 'c', mod: true },
   },
   {
-    id: 'nextAnomaly',
-    scope: 'filePane',
-    description: 'On the selected anomaly chip: next anomaly (add Shift for the previous one)',
-    gesture: '⌘/Alt+click',
-  },
-  {
     id: 'gotoJump',
     scope: 'gotoField',
     description: 'Jump to the typed line',
@@ -643,12 +635,6 @@ export const SHORTCUTS: readonly Shortcut[] = [
     id: 'closeHistory',
     scope: 'openPanel',
     description: 'Close the recent commands',
-    chord: { key: 'Escape' },
-  },
-  {
-    id: 'closeAnalysis',
-    scope: 'openPanel',
-    description: 'Close the analysis dialog',
     chord: { key: 'Escape' },
   },
   {

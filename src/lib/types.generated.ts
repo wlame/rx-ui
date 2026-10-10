@@ -44,7 +44,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/detectors": {
+    "/v1/findings": {
         parameters: {
             query?: never;
             header?: never;
@@ -52,12 +52,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List all available anomaly detectors
-         * @description Returns metadata about every registered detector, plus the severity-scale legend.
+         * Get the cached findings of one file
+         * @description The findings the findings cache holds for one file; it never scans. Every answer has the summary of the requested selection (state, checked, missing, counts, series), total (the findings that pass the filters) and cli_command; findings is one page of the filtered list, and ticks, with ticks=W, places the filtered findings on a timeline. Filters: signature, group, q, lines, after_line, before_line (descending). A missing signature is scanned by POST /v1/findings.
          */
-        get: operations["list-detectors"];
+        get: operations["findings"];
         put?: never;
-        post?: never;
+        /**
+         * Scan one file for signatures (background task)
+         * @description Starts a task (operation findings) that scans the file for the selected signatures the findings cache does not hold (with force, for all of them) and caches what it finds; a scan of the same file already running is returned instead, and it scans what it was started for. Poll GET /v1/tasks/{task_id}: bytes_read and bytes_total say how far it read; its result is the answer GET /v1/findings gives without filters, with the first page. DELETE /v1/tasks/{task_id} cancels it. At most RX_MAX_SIGNATURE_SCANS scans read files at once; later ones wait, queued.
+         */
+        post: operations["findings-scan"];
         delete?: never;
         options?: never;
         head?: never;
@@ -208,6 +212,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/signatures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the signatures the server loaded
+         * @description The signature catalogue loaded when the server started (built-in signatures and the user's files from RX_SIGNATURES_PATH or the configuration directory), as rx signatures --json prints it: every signature with every field of its definition, its kind, source, keyword clauses and line pass; the groups with their order and count; the levels; the load errors; the search path and the files read.
+         */
+        get: operations["signatures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/tasks/{task_id}": {
         parameters: {
             query?: never;
@@ -222,7 +246,11 @@ export interface paths {
         get: operations["task-status"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Cancel a findings scan
+         * @description Cancels a queued or running findings task (POST /v1/findings): the scan stops and caches nothing, and the task ends at once with status cancelled, which this answer shows. A client that joined the same scan sees it cancelled and may start it again. 409 for a task of another operation, for a task that has already ended, and for one whose scan has finished reading and is writing its answer (a task never ends cancelled with findings written).
+         */
+        delete: operations["task-cancel"];
         options?: never;
         head?: never;
         patch?: never;
@@ -257,7 +285,7 @@ export interface paths {
         };
         /**
          * Search file for regex patterns (supports multiple patterns)
-         * @description Uses ripgrep to scan one or more paths for one or more regex patterns, returning match offsets.
+         * @description Uses ripgrep to scan one or more paths for one or more regex patterns, returning match offsets. With signatures, every file the search covers is also scanned for those signatures (through the findings cache), as rx trace --signatures does, and the patterns may be left out.
          */
         get: operations["trace"];
         put?: never;
@@ -292,32 +320,32 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        AnomalyRangeResult: {
-            category: string;
-            description: string;
-            detector: string;
-            /** Format: int64 */
-            end_line: number;
-            /** Format: int64 */
-            end_offset: number;
-            /** Format: double */
-            severity: number;
-            /** Format: int64 */
-            start_line: number;
-            /** Format: int64 */
-            start_offset: number;
-        };
         ApiError: {
             detail: string;
         };
-        CategoryInfo: {
-            /** @description One sentence describing what this category covers. */
-            description: string;
-            /** @description Names of the detectors that report under this category. */
-            detectors: string[] | null;
-            /** @description Stable category identifier, kebab-case. Used as the category field of an anomaly. */
-            name: string;
-        };
+        BlockDefinition: {
+            /**
+             * Format: int64
+             * @description For a lines block, the lines after the anchor it holds; 0 otherwise.
+             */
+            lines: number;
+            /**
+             * Format: int64
+             * @description The most lines a block holds.
+             */
+            max_lines: number;
+            /**
+             * Format: int64
+             * @description The fewest lines a block must have to be a finding.
+             */
+            min_lines: number;
+            /** @description A regex the anchor line must not match; null for none. */
+            not: string | null;
+            /** @description The anchor: the regex that opens a block. */
+            start: string;
+            /** @description The rules that join the following lines to the block; empty for a lines block. */
+            states: components["schemas"]["StateRuleInfo"][];
+        } | null;
         ChainEntry: {
             /** @description The distinct compression formats of the parts, sorted: gzip, bz2, xz, zstd (seekable zstd included). A plain part adds none. */
             compression_formats: string[];
@@ -708,25 +736,182 @@ export interface components {
             /** Format: int64 */
             relative_line_number: number;
         };
-        DetectorInfo: {
-            /** @description The category this detector reports anomalies under. Categories are backend-defined; read them from this response rather than hardcoding a list. */
-            category: string;
-            /** @description One sentence describing what the detector looks for, suitable for a tooltip. */
-            description: string;
-            /** @description Short lines that would trigger this detector. May be empty. */
-            examples: string[] | null;
-            /** @description Stable identifier, kebab-case (e.g. "traceback-python"). Never display-formatted; use it as a key. */
-            name: string;
-            /** @description The severity band this detector can emit. Use it to scale a UI indicator without waiting for real anomalies. */
-            severity_range: components["schemas"]["SeverityRange"];
+        DisabledBy: {
+            /** @description The user file whose disable entry switched the built-in off. */
+            file?: string;
+            /**
+             * Format: int64
+             * @description The line of that entry.
+             */
+            line?: number;
+        } | null;
+        FileFindingSummary: {
+            /** @description Findings counts of each selected signature, by id. */
+            signatures: {
+                [key: string]: components["schemas"]["FindingCount"];
+            };
+            /** @description full: every signature of the default set has an answer for the file; partial: some signatures have one; none: no signature has one. */
+            state: string;
         };
-        DetectorsResponse: {
-            /** @description The categories the registered detectors report under. */
-            categories: components["schemas"]["CategoryInfo"][] | null;
-            /** @description Every detector this backend has registered. The two backends ship different sets, so a client must render whatever it is given. */
-            detectors: components["schemas"]["DetectorInfo"][] | null;
-            /** @description The severity bands, always populated regardless of how many detectors are registered. */
-            severity_scale: components["schemas"]["SeverityScaleLevel"][] | null;
+        Finding: {
+            /** @description Lines just after the last line, as many as were asked for and the file has. */
+            after?: string[];
+            /** @description Lines just before the first line, as many as were asked for and the file has. */
+            before?: string[];
+            /**
+             * Format: int64
+             * @description Last line of the finding, 1-based, inclusive.
+             */
+            end_line: number;
+            /**
+             * Format: int64
+             * @description Byte offset in the text just past the last line and its line ending (exclusive).
+             */
+            end_offset: number;
+            /** @description The first line, with redacted values masked, cut to 200 bytes on a character boundary. */
+            excerpt: string;
+            /** @description Id of the file in the answer's files map; left out where an answer holds one file. */
+            file?: string;
+            /** @description The finding's lines, first to last, each without its line ending; left out once the answer's text budget (RX_FINDINGS_TEXT_MAX_BYTES) is spent. */
+            lines?: string[];
+            /** @description True when the answer's text budget ran out at or before this finding, so lines, before and after are left out. */
+            lines_truncated?: boolean;
+            /** @description True when a value in the excerpt or the lines was masked, or the signature redacts. */
+            masked?: boolean;
+            /** @description Id of the signature that matched. */
+            signature: string;
+            /**
+             * Format: int64
+             * @description First line of the finding, 1-based.
+             */
+            start_line: number;
+            /**
+             * Format: int64
+             * @description Byte offset in the text where the first line starts.
+             */
+            start_offset: number;
+            /**
+             * Format: int64
+             * @description Time of the first line in milliseconds since the Unix epoch (its own timestamp, or that of the nearest earlier stamped line within RX_TIMESTAMP_LOOKBACK_KB); null when there is none.
+             */
+            time_ms: number | null;
+            /**
+             * Format: int64
+             * @description End of the finding's value (exclusive), in bytes from the first line's first byte.
+             */
+            value_end?: number;
+            /**
+             * Format: int64
+             * @description Start of the finding's value, in bytes from the first line's first byte.
+             */
+            value_start?: number;
+        };
+        FindingCount: {
+            /**
+             * Format: int64
+             * @description Findings of the signature in the file, those past RX_FINDINGS_MAX_PER_SIGNATURE included.
+             */
+            count: number;
+            /**
+             * Format: int64
+             * @description How many of them are kept: the first ones by line, at most RX_FINDINGS_MAX_PER_SIGNATURE.
+             */
+            stored: number;
+        };
+        FindingSeries: {
+            /**
+             * Format: int64
+             * @description Length of each bucket in milliseconds.
+             */
+            bucket_ms: number;
+            /** @description Lines in each bucket, in time order. */
+            counts: number[];
+            /**
+             * Format: int64
+             * @description Start of the first bucket, in milliseconds since the Unix epoch, as an instant read the way the answer reads the file's times.
+             */
+            start_ms: number;
+        };
+        FindingsResponse: {
+            /** @description The signatures of the selection the cache answers, in catalogue order. */
+            checked: string[];
+            /** @description The rx command that gives the same findings. */
+            cli_command: string;
+            /** @description The findings counts of every checked signature, by id. */
+            counts: {
+                [key: string]: components["schemas"]["FindingCount"];
+            };
+            /** @description One page of the stored findings that pass the filters: from offset, at most limit. In the one order (first line, last line, signature id), or the reverse with before_line. */
+            findings: components["schemas"]["Finding"][];
+            /** @description The signatures of the selection the cache does not answer (never scanned, or stale), in catalogue order. A scan (POST /v1/findings) fills them. */
+            missing: string[];
+            /** @description The bucket series of every checked density signature, by id; a series whose start cannot be read in the request's file_tz is left out. */
+            series: {
+                [key: string]: components["schemas"]["FindingSeries"];
+            };
+            /**
+             * @description full: every signature of the default set has a current cache entry for the file; partial: at least one signature has one (an opt-in one included), and not full; none: none has.
+             * @enum {string}
+             */
+            state: "full" | "partial" | "none";
+            /** @description The filtered findings placed on a timeline, with ticks=W; null without it. */
+            ticks: components["schemas"]["FindingsTicks"];
+            /**
+             * Format: int64
+             * @description How many stored findings of the checked signatures pass the filters: the length of the list the page is cut from.
+             */
+            total: number;
+        };
+        FindingsScanRequest: {
+            /**
+             * @description Scan every selected signature again, those with a current cache entry too.
+             * @default false
+             */
+            force: boolean;
+            /** @description The file to scan. Must be inside a configured --search-root. */
+            path: string;
+            /**
+             * @description The selection, as rx trace --signatures= takes it: comma-separated ids, groups and tags, all, default, -word to remove (traceback,sql; all,-pii). Default: the default set.
+             * @default default
+             */
+            signatures: string;
+        };
+        FindingsTicks: {
+            /** @description Each column that holds at least one filtered finding with a time, in column order. Empty when start_ms or end_ms is null. A finding without a time, or with a time outside start_ms to end_ms, is in no column. */
+            columns: components["schemas"]["TickColumn"][];
+            /**
+             * Format: int64
+             * @description The file's last timestamp as GET /v1/time-range gives it (last_ms) for the same file_tz; null when it gives none.
+             */
+            end_ms: number | null;
+            /**
+             * Format: int64
+             * @description The file's first timestamp as GET /v1/time-range gives it (first_ms) for the same file_tz; null when it gives none.
+             */
+            start_ms: number | null;
+            /**
+             * Format: int64
+             * @description The number of columns asked for (ticks=W).
+             */
+            width: number;
+        } | null;
+        GroupInfo: {
+            /** @description A built-in group; false for one a user file declares. */
+            builtin: boolean;
+            /**
+             * Format: int64
+             * @description How many active signatures the group has.
+             */
+            count: number;
+            /** @description What the group holds. */
+            description: string;
+            /** @description The group's kebab-case name. */
+            name: string;
+            /**
+             * Format: int64
+             * @description The group's 1-based place: the built-in groups first. The order sets a group's color.
+             */
+            order: number;
         };
         HealthResponse: {
             app_version: string;
@@ -759,23 +944,12 @@ export interface components {
             };
         };
         IndexRequest: {
-            analyze?: boolean;
-            /** Format: int64 */
-            analyze_window_lines?: number;
             force?: boolean;
             path: string;
             /** Format: int64 */
             threshold?: number;
         };
         IndexResponse: {
-            /** @description Whether the line statistics and anomalies were computed. */
-            analysis_performed: boolean;
-            anomalies: components["schemas"]["AnomalyRangeResult"][] | null;
-            /** Format: int64 */
-            anomaly_count: number;
-            anomaly_summary: {
-                [key: string]: number;
-            } | null;
             /** Format: double */
             build_time_seconds: number;
             /** @description The rx command that gives this answer. */
@@ -798,12 +972,12 @@ export interface components {
             index_entries: number;
             /** Format: int64 */
             line_count: number | null;
-            /** @description LF, CRLF, CR or mixed; null without analysis. */
+            /** @description LF, CRLF, CR or mixed; null for a seekable zstd file. */
             line_ending: string | null;
             line_index: components["schemas"]["LineIndexEntry"][];
-            /** @description Line-length statistics; null without analysis. */
+            /** @description Line-length statistics; null for a seekable zstd file. */
             line_length: components["schemas"]["LineLengthStats"];
-            /** @description Where the longest line is; null without analysis. */
+            /** @description Where the longest line is; null for a seekable zstd file. */
             longest_line: components["schemas"]["LongestLine"];
             /** @description The indexed file. */
             path: string;
@@ -816,14 +990,6 @@ export interface components {
             time_summary: components["schemas"]["TimeSummary"];
         };
         IndexTaskResult: {
-            /** @description Whether the line statistics and anomalies were computed. */
-            analysis_performed: boolean;
-            anomalies: components["schemas"]["AnomalyRangeResult"][] | null;
-            /** Format: int64 */
-            anomaly_count: number;
-            anomaly_summary: {
-                [key: string]: number;
-            } | null;
             /** Format: double */
             build_time_seconds: number;
             /** @description The rx command that gives this answer. */
@@ -848,12 +1014,12 @@ export interface components {
             index_path: string;
             /** Format: int64 */
             line_count: number | null;
-            /** @description LF, CRLF, CR or mixed; null without analysis. */
+            /** @description LF, CRLF, CR or mixed; null for a seekable zstd file. */
             line_ending: string | null;
             line_index: components["schemas"]["LineIndexEntry"][];
-            /** @description Line-length statistics; null without analysis. */
+            /** @description Line-length statistics; null for a seekable zstd file. */
             line_length: components["schemas"]["LineLengthStats"];
-            /** @description Where the longest line is; null without analysis. */
+            /** @description Where the longest line is; null for a seekable zstd file. */
             longest_line: components["schemas"]["LongestLine"];
             /** @description The indexed file. */
             path: string;
@@ -889,6 +1055,19 @@ export interface components {
             /** Format: double */
             stddev: number | null;
         } | null;
+        LoadErrorInfo: {
+            /** @description The file the problem is in (a built-in's embedded name, or a user file). */
+            file: string;
+            /** @description The id of the signature it refused; empty for a problem of the whole file, a group or a disable entry. */
+            id: string;
+            /**
+             * Format: int64
+             * @description The line of the problem.
+             */
+            line: number;
+            /** @description What is wrong. */
+            message: string;
+        };
         LongestLine: {
             /** Format: int64 */
             byte_offset: number;
@@ -911,6 +1090,47 @@ export interface components {
             /** @description True when submatches may leave some of the line's submatches out: the line had more than RX_MAX_SUBMATCHES_PER_LINE, or line_text is cut and the list covers only the text it holds. */
             submatches_truncated: boolean;
         };
+        MeasureDefinition: {
+            /** @description The measure: long-line, binary, entropy, json-block, unprefixed, base64-run, density, time-gap or time-backwards. */
+            name: string;
+            /** @description The measure's parameters, defaults applied. */
+            params: {
+                [key: string]: unknown;
+            };
+        } | null;
+        RegexDefinition: {
+            /**
+             * Format: int64
+             * @description Which group of the anchor is the finding's value; 0 is the whole match.
+             */
+            capture: number;
+            /**
+             * Format: double
+             * @description The least Shannon entropy (bits per byte) of the value; null for none.
+             */
+            entropy: number | null;
+            /** @description A regex the line must not match; null for none. */
+            not: string | null;
+            /** @description The anchor, a Go RE2 regex matched against each line. */
+            regex: string;
+            /** @description A check of the value: luhn, iban, ipv4 or ipv6; null for none. */
+            validate: string | null;
+        } | null;
+        RunDefinition: {
+            /** @description A run of blank lines. */
+            blank: boolean;
+            /** @description The regex every line of a run matches; null for a blank or same run. */
+            match: string | null;
+            /**
+             * Format: int64
+             * @description The fewest lines a run must have to be a finding.
+             */
+            min: number;
+            /** @description A regex a line of the run must not match; null for none. */
+            not: string | null;
+            /** @description A run of identical lines. */
+            same: boolean;
+        } | null;
         SamplesIndexBuild: {
             /** @description What the task does, in words. */
             message: string;
@@ -977,37 +1197,114 @@ export interface components {
             /** @description The configured search roots, sorted. */
             roots: string[] | null;
         };
-        SeverityRange: {
-            /**
-             * Format: double
-             * @description Highest severity this detector emits, 0.0 to 1.0
-             */
-            max: number;
-            /**
-             * Format: double
-             * @description Lowest severity this detector emits, 0.0 to 1.0
-             */
-            min: number;
+        SignatureExamples: {
+            /** @description Texts the signature must find. */
+            match: string[];
+            /** @description Texts the signature must not find. */
+            no_match: string[];
         };
-        SeverityScaleLevel: {
-            /** @description One sentence on what this level means for a reader */
+        SignatureInfo: {
+            /** @description The definition of a block signature; null for another kind. */
+            block: components["schemas"]["BlockDefinition"];
+            /** @description In the default set: false for an opt-in signature, which runs only when a selection names it. */
+            default: boolean;
+            /** @description Free text, possibly several lines. */
             description: string;
-            /** @description Display name for the level (e.g. "high") */
-            label: string;
+            /** @description For a built-in a user file switched off: where. Null otherwise. */
+            disabled_by: components["schemas"]["DisabledBy"];
+            /** @description Texts the signature must find and must not find. */
+            examples: components["schemas"]["SignatureExamples"];
+            /** @description The signature's one group. */
+            group: string;
+            /** @description Unique kebab-case id. */
+            id: string;
+            /** @description The keyword clauses of its anchor, lowered: a line is tested only when every clause has a member on it. Empty when the signature runs on every line (line_pass). */
+            keywords: (string[] | null)[];
+            /** @description The clauses come from the signature's own keywords field rather than from its anchor. */
+            keywords_declared: boolean;
             /**
-             * Format: double
-             * @description Inclusive upper bound of this level, 0.0 to 1.0
+             * @description Which of regex, block, run and measure defines it; the member of that name holds the definition.
+             * @enum {string}
              */
-            max: number;
+            kind: "regex" | "block" | "run" | "measure";
             /**
-             * Format: double
-             * @description Inclusive lower bound of this level, 0.0 to 1.0
+             * @description How much a finding matters.
+             * @enum {string}
              */
-            min: number;
+            level: "info" | "low" | "medium" | "high" | "critical";
+            /** @description No keyword gate: the signature is tested on every line of a scan. */
+            line_pass: boolean;
+            /** @description URLs about the signature, shown, never fetched. */
+            links: string[];
+            /** @description The definition of a measure signature; null for another kind. */
+            measure: components["schemas"]["MeasureDefinition"];
+            /** @description Free key-value pairs, shown, never interpreted. */
+            metadata: {
+                [key: string]: string;
+            };
+            /** @description Short title for lists. */
+            name: string;
+            /** @description A user signature that replaced the built-in of the same id. */
+            overrides: boolean;
+            /** @description The values it finds are masked in every output and in the cache. */
+            redact: boolean;
+            /** @description The definition of a regex signature; null for another kind. */
+            regex: components["schemas"]["RegexDefinition"];
+            /** @description The definition of a run signature; null for another kind. */
+            run: components["schemas"]["RunDefinition"];
+            /** @description Where the signature was defined: {"builtin": true}, or the user file and the line. */
+            source: components["schemas"]["SignatureSource"];
+            /** @description Extra words for selection. */
+            tags: string[];
+        };
+        SignatureRef: {
+            /** @description The signature's group. */
+            group: string;
+            /** @description regex, block, run or measure. */
+            kind: string;
+            /** @description info, low, medium, high or critical. */
+            level: string;
+            /** @description Short title of the signature. */
+            name: string;
+        };
+        SignatureSource: {
+            /** @description True for a built-in signature. */
+            builtin?: boolean;
+            /** @description The user file that defines the signature. */
+            file?: string;
+            /**
+             * Format: int64
+             * @description The line of the definition in that file.
+             */
+            line?: number;
+        };
+        SignaturesResponse: {
+            /** @description Every problem the load found, by file, then line. A refused signature is not in signatures; a selection that names it is refused with its errors. */
+            errors: components["schemas"]["LoadErrorInfo"][];
+            /** @description The user signature files found on the search path, in load order, whether they loaded or were refused. */
+            files: string[];
+            /** @description The groups in their order: the built-in ones, then those user files declare. */
+            groups: components["schemas"]["GroupInfo"][];
+            /** @description The levels from the lowest to the highest: info, low, medium, high, critical. */
+            levels: string[];
+            /** @description Where the user signature files were looked for: RX_SIGNATURES_PATH, or the configuration directory. */
+            search_path: string[];
+            /** @description Every loaded signature, group by group in group order, then in load order; the built-ins a user file disabled are listed too, with disabled_by set. */
+            signatures: components["schemas"]["SignatureInfo"][];
         };
         SkippedFile: {
             path: string;
             reason: string;
+        };
+        StateRuleInfo: {
+            /** @description A matching line is the block's last. */
+            end: boolean;
+            /** @description The state after a matching line; null when the rule ends the block. */
+            next: string | null;
+            /** @description The regex a line must match. */
+            regex: string;
+            /** @description The state the rule applies in. */
+            state: string;
         };
         Submatch: {
             /** Format: int64 */
@@ -1030,8 +1327,19 @@ export interface components {
             task_id: string;
         };
         TaskStatusResponse: {
+            /**
+             * Format: int64
+             * @description Bytes of the file a findings task has read so far, as stored on disk. Null for a task of another operation, and for a findings task that has not started reading.
+             */
+            bytes_read: number | null;
+            /**
+             * Format: int64
+             * @description The size of the file a findings task reads, as stored on disk. Null when bytes_read is.
+             */
+            bytes_total: number | null;
             completed_at: string | null;
             error: string | null;
+            /** @description index, compress, chain_index or findings. */
             operation: string;
             path: string;
             /**
@@ -1039,11 +1347,35 @@ export interface components {
              * @description Share of the task's input read so far, from 0 to 1. Null for a task that does not report it: a compress task, an index task that reused a stored index, or one that has not started reading.
              */
             progress: number | null;
-            /** @description The task's result once it completes: IndexTaskResult for an index task, CompressTaskResult for a compress task, ChainIndexTaskResult for a chain_index task. Null until then. */
-            result: components["schemas"]["IndexTaskResult"] | components["schemas"]["CompressTaskResult"] | components["schemas"]["ChainIndexTaskResult"] | null;
+            /** @description The task's result once it completes: IndexTaskResult for an index task, CompressTaskResult for a compress task, ChainIndexTaskResult for a chain_index task, FindingsResponse for a findings task. Null until then. */
+            result: components["schemas"]["IndexTaskResult"] | components["schemas"]["CompressTaskResult"] | components["schemas"]["ChainIndexTaskResult"] | components["schemas"]["FindingsResponse"] | null;
             started_at: string | null;
+            /** @description queued, running, completed, failed, or cancelled (a findings task stopped by DELETE /v1/tasks/{task_id}). */
             status: string;
             task_id: string;
+        };
+        TickColumn: {
+            /**
+             * Format: int64
+             * @description The column, from 0 to width - 1.
+             */
+            column: number;
+            /** @description The findings of the column, by signature id. */
+            signatures: {
+                [key: string]: components["schemas"]["TickCount"];
+            };
+        };
+        TickCount: {
+            /**
+             * Format: int64
+             * @description How many findings of the signature fall in the column.
+             */
+            count: number;
+            /**
+             * Format: int64
+             * @description The first line of the first of them, in line order.
+             */
+            first_line: number;
         };
         TimeRangeResponse: {
             /** @description The rx command that gives this answer. */
@@ -1125,6 +1457,12 @@ export interface components {
             files: {
                 [key: string]: string;
             };
+            /** @description What the signature scan of each file found, by file id (rx trace --signatures only). */
+            finding_summary?: {
+                [key: string]: components["schemas"]["FileFindingSummary"];
+            };
+            /** @description The findings of every scanned file, ordered by file id, first line, last line, then signature id (rx trace --signatures only). */
+            findings?: components["schemas"]["Finding"][];
             matches: components["schemas"]["Match"][];
             /** Format: int64 */
             max_results: number | null;
@@ -1134,6 +1472,10 @@ export interface components {
             };
             request_id: string;
             scanned_files: string[];
+            /** @description Every signature of the selection, by id (rx trace --signatures only). */
+            signatures?: {
+                [key: string]: components["schemas"]["SignatureRef"];
+            };
             /** @description Why each path of skipped_files was passed over or not searched in full, one entry per path in the same order. */
             skip_reasons: components["schemas"]["SkippedFile"][];
             skipped_files: string[];
@@ -1144,6 +1486,8 @@ export interface components {
             /** Format: int64 */
             children_count: number | null;
             compression_format: string | null;
+            /** @description What the findings cache holds for the file: its state and its findings count. Null for a directory, a file that is not text, and a file the cache holds nothing current for. */
+            findings: components["schemas"]["TreeFindings"];
             is_compressed: boolean | null;
             is_indexed: boolean | null;
             is_text: boolean | null;
@@ -1158,6 +1502,18 @@ export interface components {
             size_human: string | null;
             type: string;
         };
+        TreeFindings: {
+            /**
+             * Format: int64
+             * @description The findings of every current entry together, opt-in signatures included.
+             */
+            count: number;
+            /**
+             * @description full: every signature of the default set has a current cache entry; partial: some signature has one, an opt-in one included.
+             * @enum {string}
+             */
+            state: "full" | "partial";
+        } | null;
         TreeResponse: {
             entries: components["schemas"]["TreeEntry"][] | null;
             is_search_root: boolean;
@@ -1294,9 +1650,40 @@ export interface operations {
             };
         };
     };
-    "list-detectors": {
+    findings: {
         parameters: {
-            query?: never;
+            query: {
+                /** @description The file whose findings to give. Must be inside a configured --search-root. */
+                path: string;
+                /** @description The selection the summary describes (state, checked, missing), as rx trace --signatures= takes it: comma-separated ids, groups and tags, all, default, -word to remove. Empty or absent: the default set. A selection that names an unknown or refused signature is refused with 400 and the load error. */
+                signatures?: string;
+                /** @description Only the findings of these signatures (repeatable, at most 256: each costs a comparison per finding). */
+                signature?: string[] | null;
+                /** @description Only the findings of signatures of these groups (repeatable, at most 256). */
+                group?: string[] | null;
+                /** @description Only the findings whose excerpt or signature name holds this text, compared without case. The excerpt is masked already, so a masked value is never matched. */
+                q?: string;
+                /** @description Only the findings that overlap lines A-B (1-based, inclusive); one number N means N-N. */
+                lines?: string;
+                /** @description Only the findings whose first line is after line N (the next finding). 0 or absent: no bound. */
+                after_line?: number;
+                /** @description Only the findings whose first line is before line N, listed from the nearest down, in the reverse order (the previous finding). 0 or absent: no bound. */
+                before_line?: number;
+                /** @description How many filtered findings to pass over before the page. */
+                offset?: number;
+                /** @description The most findings in the page. */
+                limit?: number;
+                /** @description Fill lines (and before) of the page's findings, read from the file and masked as every output of findings is: a value a redacting signature matches is masked, a body line of a redacting block or run shows as [masked, N bytes], and no line past the text the scan read is shown. */
+                text?: boolean;
+                /** @description With text: how many lines before each finding to give in before. */
+                before?: number;
+                /** @description With text: the most bytes of text the page holds, taken in line order; the finding at which it runs out and every later one lose their lines and are marked lines_truncated. 0 or absent: RX_FINDINGS_TEXT_MAX_BYTES, which also bounds a larger value. */
+                max_bytes?: number;
+                /** @description Place the filtered findings on a timeline of this many columns over the file's time range (ticks). 0 or absent: no ticks. */
+                ticks?: number;
+                /** @description Read the file's timestamps as the wall clock each line writes, in this zone: UTC, an IANA zone name or ±HH:MM, as GET /v1/samples and GET /v1/time-range take it. It moves time_ms, series and ticks as it moves their times; a file whose timestamps carry zones needs its line index to record where their offset changes, and its findings have no time without it. Another value is refused with 400. */
+                file_tz?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1309,12 +1696,146 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DetectorsResponse"];
+                    "application/json": components["schemas"]["FindingsResponse"];
+                };
+            };
+            /** @description The request cannot be served as asked: a value rx cannot use (an uncompilable pattern, a malformed line or offset list, a file below the index threshold, an output file that exists), or a body that is not valid JSON */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
                 };
             };
             /** @description The server requires an API token and the request did not carry it */
             401: {
                 headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Refused: the path is outside every configured --search-root (SandboxError body), or it is hidden or cannot be read (ApiError body) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SandboxError"] | components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The file, directory, index or task does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The request does not match the schema: a required parameter or field is missing, or a value has the wrong type or is out of range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description rx failed while serving the request */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Any other error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "findings-scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FindingsScanRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            /** @description The request cannot be served as asked: a value rx cannot use (an uncompilable pattern, a malformed line or offset list, a file below the index threshold, an output file that exists), or a body that is not valid JSON */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The server requires an API token and the request did not carry it */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Refused: the path is outside every configured --search-root (SandboxError body), or it is hidden or cannot be read (ApiError body) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SandboxError"] | components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The file, directory, index or task does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The request does not match the schema: a required parameter or field is missing, or a value has the wrong type or is out of range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No task started: 256 signature scans are queued or running, as many as the server holds. Ask again once one has ended. */
+            503: {
+                headers: {
+                    /** @description 5: the seconds to wait before asking again (RFC 9110). */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2161,6 +2682,44 @@ export interface operations {
             };
         };
     };
+    signatures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignaturesResponse"];
+                };
+            };
+            /** @description The server requires an API token and the request did not carry it */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "task-status": {
         parameters: {
             query?: never;
@@ -2198,6 +2757,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Any other error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "task-cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Task UUID */
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskStatusResponse"];
+                };
+            };
+            /** @description The server requires an API token and the request did not carry it */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The file, directory, index or task does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The task cannot be cancelled: it is not a findings scan, it has already ended, or its scan has finished reading and is writing its answer; task_id names it. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskConflictError"];
                 };
             };
             /** @description Any other error */
@@ -2304,8 +2922,8 @@ export interface operations {
             query: {
                 /** @description File or directory path(s) to search */
                 path: string[] | null;
-                /** @description Regex pattern(s) to search for */
-                regexp: string[] | null;
+                /** @description Regex pattern(s) to search for. Required unless signatures is given. */
+                regexp?: string[] | null;
                 /** @description Maximum results to return. 0 = unlimited. */
                 max_results?: number;
                 /** @description Custom UUID v7 request ID */
@@ -2338,6 +2956,8 @@ export interface operations {
                 no_index?: boolean;
                 /** @description Search only the files directly inside a directory path, not its subdirectories (rx trace --no-recursive) */
                 no_recursive?: boolean;
+                /** @description Scan every file the search covers for these signatures too, as rx trace --signatures= does: comma-separated ids, groups and tags, all, default, -word to remove (default for the default set). The answer gains signatures, findings and finding_summary; each finding carries its lines and the context lines asked for, within RX_FINDINGS_TEXT_MAX_BYTES. With it regexp may be left out. Absent or empty: no scan. A selection that names an unknown or refused signature is refused with 400. */
+                signatures?: string;
             };
             header?: never;
             path?: never;

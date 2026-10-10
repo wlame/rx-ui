@@ -20,8 +20,8 @@ const openModalCount = writable(0);
 
 /**
  * Whether a modal dialog owns the keyboard: the shortcut list, the
- * analysis, the API token prompt or the refused-contract cover (each
- * carries `use:modal`). While it holds, the window-wide keys that show a
+ * recent-tab switcher, the API token prompt or the refused-contract
+ * cover (each carries `use:modal`). While it holds, the window-wide keys that show a
  * panel, move the focus or hide the side panel do nothing, and leave the
  * key to the dialog.
  */

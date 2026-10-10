@@ -663,6 +663,8 @@ export class FakeChain {
       completed_at: null,
       error: null,
       progress,
+      bytes_read: null,
+      bytes_total: null,
       result:
         status === 'completed'
           ? { path: this.handle, built: [], cli_command: `rx logs index ${this.handle}` }
@@ -783,7 +785,7 @@ export class FakeChain {
     switch (parsed.pathname) {
       case '/health':
         return answer(200, {
-          contract_version: '1.7',
+          contract_version: '2.0',
           features: this.options.features ?? ['log_chains', 'samples_index_build'],
         });
       case '/v1/logs/chain': {
