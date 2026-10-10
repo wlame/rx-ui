@@ -42,8 +42,12 @@
   $: groups = pickerGroups(filterSignatures($signatures.list, filterText), $signatures.groups);
   $: if (isOpen) void readCurrent(path);
 
-  /** Ask which signatures are current for the file; an answer for another file is dropped. */
+  /**
+   * Ask which signatures are current for the file. The marks of the file
+   * shown before go at once; an answer for another file is dropped.
+   */
   async function readCurrent(forPath: string) {
+    current = new Set();
     const ids = await currentSignatures(forPath);
     if (forPath === path) current = new Set(ids);
   }

@@ -2,10 +2,11 @@
 import '$lib/testing/matchMediaStub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
-import { settings } from '$lib/stores';
+import { files, settings } from '$lib/stores';
 import { FindingsBackend, finding } from '$lib/testing/fakeFindings';
 import {
   APP_LOG,
+  WORKER_LOG,
   buttonNamed,
   click,
   finishScans,
@@ -160,6 +161,25 @@ describe('the signature picker', () => {
     expect(get(settings).findingsPicker).toContain('email-address');
     expect(window.location.search).toBe(before);
     expect(window.location.search).not.toContain('email');
+  });
+
+  it("drops the marks of the file shown before while the next file's are read", async () => {
+    const backend = new FindingsBackend();
+    backend.addFile(APP_LOG, [finding('python-traceback', 5)], ['python-traceback']);
+    backend.addFile(WORKER_LOG, [], ['sql-statement']);
+    const target = await mountFindingsPanel(backend, [WORKER_LOG, APP_LOG]);
+    await click(pickerButton(target));
+    expect(picker(target)?.querySelectorAll('[data-current]')).toHaveLength(1);
+
+    backend.holdFindings();
+    files.setActiveFile(WORKER_LOG);
+    await settle();
+
+    expect(picker(target)?.querySelectorAll('[data-current]')).toHaveLength(0);
+    backend.release();
+    await settle();
+    const marked = signatureBox(target, 'sql-statement').closest('label');
+    expect(marked?.querySelector('[data-current]')).not.toBeNull();
   });
 
   it('closes on Esc and gives the focus back to its button', async () => {
