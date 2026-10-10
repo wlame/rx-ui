@@ -19,6 +19,7 @@
 
 <script lang="ts">
   import { tick } from 'svelte';
+  import { measureHeight } from '$lib/actions/measureHeight';
   import {
     FINDINGS_PAGE_SIZE,
     LINE_LIST,
@@ -163,7 +164,11 @@
 
   function handleScroll() {
     scrollTop = scroller.scrollTop;
-    viewport = scroller.clientHeight;
+  }
+
+  /** The list's height, as laid out: when it is drawn and whenever it changes. */
+  function noteHeight(px: number) {
+    viewport = px;
   }
 
   /** Scroll just enough to show the row at `index`. */
@@ -261,6 +266,7 @@
   bind:this={scroller}
   class="flex-1 overflow-auto"
   data-findings-scroller
+  use:measureHeight={noteHeight}
   on:scroll={handleScroll}
 >
   <!-- The rows hold the focus, one of them the Tab stop; the list takes

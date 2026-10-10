@@ -63,15 +63,33 @@ async function scrollToRow(target: HTMLElement, rows: number) {
   await settle();
 }
 
-/** The `offset` of each findings request after the first. */
+/** The `offset` of each page request: a summary request carries none. */
 function pageOffsets(backend: FindingsBackend): (string | null)[] {
   return backend
     .requestsTo('GET', '/v1/findings')
-    .slice(1)
+    .filter((r) => r.query.has('offset'))
     .map((r) => r.query.get('offset'));
 }
 
 let dialogs: ModalDialogHarness[] = [];
+
+/** The height the list's scroller is laid out with; jsdom does no layout, so the test gives it. */
+let scrollerHeight = 0;
+
+/** Give every list scroller `scrollerHeight` as its height, as a browser's layout would. */
+function stubScrollerHeight() {
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.hasAttribute('data-findings-scroller') ? scrollerHeight : 0;
+    },
+  });
+}
+
+/** Whether the list draws the row at `index`. */
+function drawsRow(target: HTMLElement, index: number): boolean {
+  return target.querySelector(`[data-index="${index}"]`) !== null;
+}
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -79,6 +97,8 @@ beforeEach(() => {
 
 afterEach(async () => {
   await finishScans();
+  delete (HTMLElement.prototype as { clientHeight?: number }).clientHeight;
+  scrollerHeight = 0;
   for (const dialog of dialogs) dialog.$destroy();
   dialogs = [];
   unmountFindingsPanels();
@@ -96,6 +116,31 @@ describe('the findings list', () => {
     expect(rows.length).toBeLessThan(60);
     expect(list?.getAttribute('style')).toContain(`height: ${100_000 * ROW_HEIGHT_PX}px`);
     expect(rows[0].getAttribute('aria-setsize')).toBe('100000');
+  });
+
+  // 1,000 px of rows of 24 px: rows 0 to 41 on screen, 8 more below.
+  it('draws the rows of a list taller than its first guess as soon as it is drawn', async () => {
+    scrollerHeight = 1000;
+    stubScrollerHeight();
+
+    const { target } = await mountScanned(manyFindings(FINDINGS_PAGE_SIZE));
+
+    expect(drawsRow(target, 49)).toBe(true);
+    expect(drawsRow(target, 50)).toBe(false);
+  });
+
+  it('draws more rows when the list grows taller', async () => {
+    vi.stubGlobal('ResizeObserver', undefined);
+    scrollerHeight = 480;
+    stubScrollerHeight();
+    const { target } = await mountScanned(manyFindings(FINDINGS_PAGE_SIZE));
+    expect(drawsRow(target, 40)).toBe(false);
+
+    scrollerHeight = 2000;
+    window.dispatchEvent(new Event('resize'));
+    await settle();
+
+    expect(drawsRow(target, 90)).toBe(true);
   });
 
   it('loads the page a scroll reaches, once', async () => {
