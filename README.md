@@ -390,6 +390,7 @@ than when the entry was made.
 | `GET /v1/index`       | A file's stored index: its line count and kind           |
 | `POST /v1/index`      | Build an index                                           |
 | `GET /v1/tasks/{id}`  | Follow an index task                                     |
+| `GET /v1/signatures`  | The signature catalogue, once, on a backend that has it  |
 | `GET /v1/logs/*`      | Log chains: list, describe, samples and search           |
 | `POST /v1/logs/index` | Build the line indexes of a chain's parts                |
 | `GET /version.json`   | The viewer's own version, from its bundle                |

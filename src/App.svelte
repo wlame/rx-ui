@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { health, settings } from '$lib/stores';
-  import { contractRefused } from '$lib/stores/health';
+  import { backendHas, contractRefused } from '$lib/stores/health';
+  import { loadSignatures } from '$lib/stores/signatures';
   import { readViewState } from '$lib/utils/urlState';
   import { loadView, startViewSync } from '$lib/viewState';
   import Header from './components/layout/Header.svelte';
@@ -35,6 +36,10 @@
       stopViewSync?.();
     };
   });
+
+  // The signature catalogue is asked once the backend's /health lists
+  // signatures; it has not answered yet when the app mounts.
+  $: if (backendHas('signatures', $health)) void loadSignatures();
 </script>
 
 <!-- While the contract is refused the app behind the cover takes no

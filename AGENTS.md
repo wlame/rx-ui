@@ -73,29 +73,29 @@ interchangeable backends, no vendoring.
 
 ## Quick orientation
 
-| Where                                                     | What                                                                                                                                             |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/main.ts`, `src/App.svelte`                           | Entry point and root layout                                                                                                                      |
-| `src/lib/api.ts`                                          | The entire backend surface: one `api` object, `fetchJson`, `ApiError`                                                                            |
-| `src/lib/types.generated.ts`                              | Generated from rx-go's OpenAPI document — do not edit                                                                                            |
-| `src/lib/types.ts`                                        | Aliases of the generated wire types, plus the app's own types                                                                                    |
-| `src/lib/stores/`                                         | `files`, `tree`, `trace`, `health`, `settings`, `notifications`, `version`, `layout`; `paneMemory` keeps each file tab's editor state            |
-| `src/lib/utils/processContent.ts`, `editorDecorations.ts` | The editor's regex filter: hide and show rewrite the text, highlight draws decorations                                                           |
-| `src/lib/stores/chainTabs.ts`, `src/lib/utils/chain*.ts`  | Log chains: a chain's tab, its pages, zones, gutter, timeline and search marks, the files panel's chain rows and the mode switch                 |
-| `src/lib/utils/urlState.ts`, `src/lib/viewState.ts`       | The view in the URL (no router): one parse/serialize table per key; URL written from stores                                                      |
-| `src/lib/utils/lineSelection.ts`, `copyFormat.ts`         | The selected lines as ranges, the URL's `sel`, and the text a copy of lines puts on the clipboard                                                |
-| `src/lib/utils/monacoLanguage.ts`, `monacoLogLanguage.ts` | Monaco language registration and the log grammar                                                                                                 |
-| `src/components/editor/`                                  | `MonacoEditor.svelte`, `EditorPane.svelte` (paged large-file viewing), `EditorHeader.svelte` (name, line readout, chips, toolbar)                |
-| `src/components/tree/`, `search/`, `layout/`, `common/`   | Tree, search form and results, chrome (the activity bar, `Sidebar.svelte`), shared widgets                                                       |
-| `src/lib/stores/filesView.ts`, `treeFocus.ts`             | The files panel's labels, value and sort; the file tree's current row and Tab stop                                                               |
-| `src/lib/stores/searchDraft.ts`, `trace.ts`               | The search form as the user left it; the search the URL names                                                                                    |
-| `src/lib/utils/shortcuts.ts`, `panels.ts`                 | The one shortcut table with its scoped key handlers; the side panel's panels, which the activity bar draws                                       |
-| `src/lib/actions/`                                        | Svelte actions: `tooltip` (label and keys on hover and focus), `modal` (counts an open modal dialog), `takeFocus` (focus to a dialog, then back) |
-| `src/lib/utils/icons.ts`                                  | The icon table (Lucide outlines); `src/components/common/Icon.svelte` draws it                                                                   |
-| `src/lib/utils/treeSort.ts`, `treeRows.ts`, `treeNav.ts`  | The files panel's sort, the rows the tree shows as one list, and the tree's key rules                                                            |
-| `src/lib/utils/tabOrder.ts`, `recentSwitch.ts`            | The open tabs' strip and recent orders; the recent-tab switcher's state machine                                                                  |
-| `vite.config.ts`                                          | Dev proxy `/v1`, `/health` → `localhost:8080`; Monaco manual chunk                                                                               |
-| `.github/workflows/`                                      | `ci.yml` (build) and `release.yml` (tag → `dist.tar.gz` release)                                                                                 |
+| Where                                                     | What                                                                                                                                                |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/main.ts`, `src/App.svelte`                           | Entry point and root layout                                                                                                                         |
+| `src/lib/api.ts`                                          | The entire backend surface: one `api` object, `fetchJson`, `ApiError`                                                                               |
+| `src/lib/types.generated.ts`                              | Generated from rx-go's OpenAPI document — do not edit                                                                                               |
+| `src/lib/types.ts`                                        | Aliases of the generated wire types, plus the app's own types                                                                                       |
+| `src/lib/stores/`                                         | `files`, `tree`, `trace`, `health`, `signatures`, `settings`, `notifications`, `version`, `layout`; `paneMemory` keeps each file tab's editor state |
+| `src/lib/utils/processContent.ts`, `editorDecorations.ts` | The editor's regex filter: hide and show rewrite the text, highlight draws decorations                                                              |
+| `src/lib/stores/chainTabs.ts`, `src/lib/utils/chain*.ts`  | Log chains: a chain's tab, its pages, zones, gutter, timeline and search marks, the files panel's chain rows and the mode switch                    |
+| `src/lib/utils/urlState.ts`, `src/lib/viewState.ts`       | The view in the URL (no router): one parse/serialize table per key; URL written from stores                                                         |
+| `src/lib/utils/lineSelection.ts`, `copyFormat.ts`         | The selected lines as ranges, the URL's `sel`, and the text a copy of lines puts on the clipboard                                                   |
+| `src/lib/utils/monacoLanguage.ts`, `monacoLogLanguage.ts` | Monaco language registration and the log grammar                                                                                                    |
+| `src/components/editor/`                                  | `MonacoEditor.svelte`, `EditorPane.svelte` (paged large-file viewing), `EditorHeader.svelte` (name, line readout, chips, toolbar)                   |
+| `src/components/tree/`, `search/`, `layout/`, `common/`   | Tree, search form and results, chrome (the activity bar, `Sidebar.svelte`), shared widgets                                                          |
+| `src/lib/stores/filesView.ts`, `treeFocus.ts`             | The files panel's labels, value and sort; the file tree's current row and Tab stop                                                                  |
+| `src/lib/stores/searchDraft.ts`, `trace.ts`               | The search form as the user left it; the search the URL names                                                                                       |
+| `src/lib/utils/shortcuts.ts`, `panels.ts`                 | The one shortcut table with its scoped key handlers; the side panel's panels, which the activity bar draws                                          |
+| `src/lib/actions/`                                        | Svelte actions: `tooltip` (label and keys on hover and focus), `modal` (counts an open modal dialog), `takeFocus` (focus to a dialog, then back)    |
+| `src/lib/utils/icons.ts`                                  | The icon table (Lucide outlines); `src/components/common/Icon.svelte` draws it                                                                      |
+| `src/lib/utils/treeSort.ts`, `treeRows.ts`, `treeNav.ts`  | The files panel's sort, the rows the tree shows as one list, and the tree's key rules                                                               |
+| `src/lib/utils/tabOrder.ts`, `recentSwitch.ts`            | The open tabs' strip and recent orders; the recent-tab switcher's state machine                                                                     |
+| `vite.config.ts`                                          | Dev proxy `/v1`, `/health` → `localhost:8080`; Monaco manual chunk                                                                                  |
+| `.github/workflows/`                                      | `ci.yml` (build) and `release.yml` (tag → `dist.tar.gz` release)                                                                                    |
 
 ## Build, run, test
 

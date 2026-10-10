@@ -44,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   numbers, `sel=syslog.3.gz:120-134`, a range across a part edge is
   written as two, and the ranges of a link whose `fp` is not the
   chain's are dropped, as its line is.
+- The signature catalogue: on a backend whose `/health` lists
+  `signatures`, the viewer asks `GET /v1/signatures` once, after the
+  first `/health` answer, and keeps the signatures, their groups and the
+  load errors. A failed ask is tried again at the next `/health` answer.
 
 ### Changed
 

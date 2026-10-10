@@ -5,3 +5,4 @@ export { trace } from './trace';
 export { settings, resolvedTheme, systemTheme } from './settings';
 export { notifications } from './notifications';
 export { version } from './version';
+export { signatures } from './signatures';
