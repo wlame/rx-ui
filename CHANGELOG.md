@@ -52,7 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a backend that serves signatures. It lists the findings of the file in
   the active tab from the backend's findings cache, and never scans on
   its own: its state line says "full · 42 findings", "partial · 3 of 58
-  signatures" or "not scanned". The list is in line order or, with By
+  default signatures · 45 findings" or "not scanned", for every
+  signature the cache holds, as the file's label in the tree does. The list is in line order or, with By
   group, under each group and signature with their counts ("showing
   10,000 of 48,210" for a capped signature); a filter box narrows it by
   excerpt or signature name. Only the rows on screen are drawn and

@@ -182,6 +182,9 @@ export class FindingsBackend {
   private taskCount = 0;
   /** Answer the next DELETE with a 409, as for a task that ended meanwhile. */
   cancelConflict = false;
+  /** Whether `GET /v1/findings` answers wait for `release`. */
+  private isHoldingFindings = false;
+  private waiting: (() => void)[] = [];
 
   constructor(private readonly options: FindingsBackendOptions = {}) {}
 
@@ -198,6 +201,17 @@ export class FindingsBackend {
   /** The requests made with `method` to `pathname`. */
   requestsTo(method: string, pathname: string): FakeRequest[] {
     return this.requests.filter((r) => r.method === method && r.pathname === pathname);
+  }
+
+  /** Keep the answers of `GET /v1/findings` waiting until `release`. */
+  holdFindings(): void {
+    this.isHoldingFindings = true;
+  }
+
+  /** Answer every held request, and hold no more. */
+  release(): void {
+    this.isHoldingFindings = false;
+    for (const answerNow of this.waiting.splice(0)) answerNow();
   }
 
   /** The task started or joined last. */
@@ -420,6 +434,9 @@ export class FindingsBackend {
     };
     this.requests.push(request);
     if (request.pathname.startsWith('/v1/logs/')) return new Promise<Answer>(() => {});
+    if (this.isHoldingFindings && request.method === 'GET' && request.pathname === '/v1/findings') {
+      await new Promise<void>((resolve) => this.waiting.push(resolve));
+    }
     return this.answerFor(request);
   }
 }

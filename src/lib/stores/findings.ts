@@ -3,7 +3,13 @@ import { api, ApiError, type FindingsQuery } from '../api';
 import type { Finding, FindingsResponse, TaskStatus } from '../types';
 import { findingId } from '../utils/findingRows';
 import { selectionOf } from '../utils/findingsPicker';
-import { findingsCount, isCovered, stillMissing } from '../utils/findingsSummary';
+import {
+  fileSummaryOf,
+  isCovered,
+  isJoinedScan,
+  stillMissing,
+  type FileSummary,
+} from '../utils/findingsSummary';
 import { LatestRequestMap, SUPERSEDED, isAbortError } from '../utils/latestRequest';
 import { watchTask, type TaskEnd } from '../utils/taskPolling';
 import { commandLog } from './commands';
@@ -11,7 +17,7 @@ import { files } from './files';
 import { backendHas } from './health';
 import { notifications } from './notifications';
 import { settings } from './settings';
-import { loadSignatures, signatures } from './signatures';
+import { defaultSetIds, loadSignatures, signatures } from './signatures';
 import { tree } from './tree';
 
 /**
@@ -52,6 +58,13 @@ export type ScanEnd = { kind: 'cancelled' } | { kind: 'failed'; message: string 
 export interface FindingsTabState {
   /** The last summary of the picker's selection, or null before one arrived. */
   summary: FindingsResponse | null;
+  /**
+   * What the cache holds for the file, whatever is picked: its state, the
+   * default signatures current (K of M) and the findings of every current
+   * entry (N). The state line and the file's tree label say these
+   * numbers. Null before the first summary arrived.
+   */
+  fileSummary: FileSummary | null;
   scan: ScanState | null;
   /** The finding opened last (`findingId`), the list's current row. */
   currentId: string | null;
@@ -68,6 +81,7 @@ export interface FindingsTabState {
 
 const EMPTY: FindingsTabState = {
   summary: null,
+  fileSummary: null,
   scan: null,
   currentId: null,
   error: null,
@@ -117,9 +131,11 @@ const summaries = new LatestRequestMap();
 interface PageRound {
   controller: AbortController;
   asked: Set<string>;
+  /** Whether its summary arrived: until then no page is asked, or it would fill the old list. */
+  isReady: boolean;
 }
 
-/** The page requests of each file since its last summary; a new summary starts a new round. */
+/** The page requests of each file for its last summary; a summary request starts a new round. */
 const pageRounds = new Map<string, PageRound>();
 
 /** The poll of each file's running scan; aborting it stops following the scan. */
@@ -141,7 +157,11 @@ function pageKey(list: string, page: number): string {
 /** Start a new round of page requests for `path`, cancelling the requests of the last one. */
 function newPageRound(path: string): PageRound {
   pageRounds.get(path)?.controller.abort();
-  const round = { controller: new AbortController(), asked: new Set([pageKey(LINE_LIST, 0)]) };
+  const round = {
+    controller: new AbortController(),
+    asked: new Set([pageKey(LINE_LIST, 0)]),
+    isReady: false,
+  };
   pageRounds.set(path, round);
   return round;
 }
@@ -162,28 +182,56 @@ function withPage(
   return new Map(pages).set(list, placed);
 }
 
+/** The query of a summary of every signature: which have a current entry, and their counts. */
+const EVERY_SIGNATURE: FindingsQuery = { signatures: ['all'], limit: 1 };
+
+/** Label `path` in the tree with what its summary says, when the label says something else. */
+function labelInTree(path: string, file: FileSummary): void {
+  const shown = tree.nodeAt(path)?.findings;
+  if (shown === undefined) return;
+  const isSame =
+    file.state === 'none' ? shown === null : shown?.state === file.state && shown.count === file.n;
+  if (!isSame) tree.markFindings(path, file.state, file.n);
+}
+
 /**
- * Read the summary of `path` and the first page of its line list from
- * the cache, for the picker's selection and the filter, and drop the
- * pages loaded before. Does nothing on a backend without `signatures`.
+ * Read from the cache the summary of `path` for the picker's selection
+ * and the filter, with the first page of its line list, and the summary
+ * of every signature, which says what the file holds (`fileSummary`) and
+ * labels it in the tree. The pages loaded before are dropped; pages asked
+ * meanwhile wait for the new summary. Does nothing on a backend without
+ * `signatures`.
  */
 export async function refreshFindings(path: string): Promise<void> {
   if (!backendHas('signatures')) return;
+  const round = newPageRound(path);
   await loadSignatures();
   const query: FindingsQuery = { ...listQuery(), limit: FINDINGS_PAGE_SIZE };
-  let summary: FindingsResponse | typeof SUPERSEDED;
+  let answers: [FindingsResponse, FindingsResponse] | typeof SUPERSEDED;
   try {
-    summary = await summaries.run(path, (signal) => api.getFindings(path, query, { signal }));
+    answers = await summaries.run(path, (signal) =>
+      Promise.all([
+        api.getFindings(path, query, { signal }),
+        api.getFindings(path, EVERY_SIGNATURE, { signal }),
+      ]),
+    );
   } catch (error) {
-    if (isAbortError(error)) return;
-    newPageRound(path);
-    patch(path, () => ({ summary: null, pages: new Map(), error: messageOf(error) }));
+    if (isAbortError(error) || pageRounds.get(path) !== round) return;
+    patch(path, () => ({
+      summary: null,
+      fileSummary: null,
+      pages: new Map(),
+      error: messageOf(error),
+    }));
     return;
   }
-  if (summary === SUPERSEDED) return;
-  newPageRound(path);
+  if (answers === SUPERSEDED) return;
+  const [summary, everySignature] = answers;
+  const fileSummary = fileSummaryOf(everySignature, defaultSetIds(get(signatures)));
+  round.isReady = true;
   const pages = withPage(new Map(), LINE_LIST, summary.total, 0, summary.findings);
-  patch(path, () => ({ summary, pages, error: null }));
+  patch(path, () => ({ summary, fileSummary, pages, error: null }));
+  labelInTree(path, fileSummary);
 }
 
 /**
@@ -194,7 +242,7 @@ export async function refreshFindings(path: string): Promise<void> {
 export async function loadFindingsPage(path: string, list: string, page: number): Promise<void> {
   const round = pageRounds.get(path);
   const key = pageKey(list, page);
-  if (!round || round.asked.has(key)) return;
+  if (!round || !round.isReady || round.asked.has(key)) return;
   round.asked.add(key);
   const query: FindingsQuery = {
     ...listQuery(),
@@ -221,24 +269,6 @@ function scanResult(task: TaskStatus): FindingsResponse | null {
   return result !== null && 'checked' in result && 'cli_command' in result ? result : null;
 }
 
-/** The summary of every signature for `path`: which have a current cache entry, and their counts. */
-function readEverySignature(path: string): Promise<FindingsResponse> {
-  return api.getFindings(path, { signatures: ['all'], limit: 1 });
-}
-
-/**
- * Show in the tree what the cache now holds for `path`: the state and the
- * findings of every current signature, as `/v1/tree` counts them.
- */
-async function markTree(path: string): Promise<void> {
-  try {
-    const all = await readEverySignature(path);
-    tree.markFindings(path, all.state, findingsCount(all));
-  } catch (error) {
-    console.warn('Failed to read the findings of a scanned file for its label:', error);
-  }
-}
-
 /**
  * The signatures with a current cache entry for `path`, picked or not,
  * for the picker's marks; none when the backend does not answer.
@@ -246,7 +276,7 @@ async function markTree(path: string): Promise<void> {
 export async function currentSignatures(path: string): Promise<string[]> {
   if (!backendHas('signatures')) return [];
   try {
-    return (await readEverySignature(path)).checked;
+    return (await api.getFindings(path, EVERY_SIGNATURE)).checked;
   } catch (error) {
     console.warn('Failed to read which signatures are current for a file:', error);
     return [];
@@ -263,7 +293,7 @@ function noteProgress(path: string, task: TaskStatus): void {
 
 /**
  * Act on how a scan of `path` ended. A completed scan records its
- * command, reads the summary again and updates the tree label. When it
+ * command and reads the summaries again, which updates the tree label. When it
  * was another request's scan (its result left a requested signature
  * out) and the summary still lists one missing, the missing ones are
  * scanned once more, if `mayScanAgain`.
@@ -288,7 +318,6 @@ async function settleScan(
   if (result) commandLog.record(result.cli_command, 'findings');
   patch(path, () => ({ scan: null }));
   await refreshFindings(path);
-  await markTree(path);
   if (!mayScanAgain || (result && isCovered(requested, result))) return;
   const summary = findingsOf(get(state), path).summary;
   const left = summary ? stillMissing(requested, summary) : [];
@@ -309,9 +338,7 @@ async function runScan(
   let end: TaskEnd;
   try {
     const task = await api.startFindingsScan(path, [...ids], force);
-    // A task the backend made for this request is queued; the scan it
-    // already ran for the file is not.
-    const joined = task.status !== 'queued';
+    const joined = isJoinedScan(task);
     patch(path, () => ({ scan: { taskId: task.task_id, read: 0, total: 0, joined } }));
     end = await watchTask(task.task_id, {
       fetchStatus: (taskId, signal) => api.getTaskStatus(taskId, { signal }),

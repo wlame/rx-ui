@@ -51,9 +51,19 @@ async function settle(intervals = 2) {
   for (let i = 0; i < intervals; i++) await vi.advanceTimersByTimeAsync(POLL_INTERVAL);
 }
 
-/** The query parameters of the findings requests sent so far. */
-function findingsQueries(backend: FindingsBackend): URLSearchParams[] {
+/** Whether a findings request is the summary of every signature that each summary comes with. */
+function isEverySignatureRead(query: URLSearchParams): boolean {
+  return query.get('signatures') === 'all' && query.get('limit') === '1';
+}
+
+/** The query parameters of the findings requests sent so far, summaries of every signature included. */
+function allFindingsQueries(backend: FindingsBackend): URLSearchParams[] {
   return backend.requestsTo('GET', '/v1/findings').map((r) => r.query);
+}
+
+/** The query parameters of the summary and page requests sent so far. */
+function findingsQueries(backend: FindingsBackend): URLSearchParams[] {
+  return allFindingsQueries(backend).filter((query) => !isEverySignatureRead(query));
 }
 
 beforeEach(() => {
@@ -101,6 +111,24 @@ describe('refreshFindings', () => {
     expect(findingsOf(get(findingsByFile), APP_LOG).summary?.missing).toEqual(['email-address']);
   });
 
+  // The state line and the tree label speak of the file, whatever is picked.
+  it("keeps the file's own summary, from every signature, and labels the file in the tree", async () => {
+    const backend = await serve();
+    const found = [...manyFindings(4), finding('email-address', 90), finding('email-address', 91)];
+    backend.addFile(APP_LOG, found, [...TEST_DEFAULT_IDS, 'email-address']);
+    await tree.loadRoots();
+    await tree.toggleExpanded(FINDINGS_DIR);
+    settings.update((s) => ({ ...s, findingsPicker: ['sql-statement'] }));
+
+    await refreshFindings(APP_LOG);
+
+    const state = findingsOf(get(findingsByFile), APP_LOG);
+    expect(state.fileSummary).toEqual({ state: 'full', k: 4, m: 4, n: 6 });
+    expect(state.summary?.checked).toEqual(['sql-statement']);
+    expect(tree.nodeAt(APP_LOG)?.findings).toEqual({ state: 'full', count: 6 });
+    expect(allFindingsQueries(backend).filter(isEverySignatureRead)).toHaveLength(1);
+  });
+
   it('keeps the refusal of a file that is not text', async () => {
     const backend = await serve();
     backend.addFile(APP_LOG, [], [], true);
@@ -122,6 +150,32 @@ describe('refreshFindings', () => {
 });
 
 describe('loadFindingsPage', () => {
+  // A page asked while the summary of a new filter is on its way would
+  // land in the list of the old one.
+  it('asks no page while the summary of a new filter is on its way', async () => {
+    const backend = await serve();
+    backend.addFile(APP_LOG, manyFindings(FINDINGS_PAGE_SIZE * 3), TEST_DEFAULT_IDS);
+    await refreshFindings(APP_LOG);
+    const before = findingsQueries(backend).length;
+    findingsFilter.set('LINE 2');
+    backend.holdFindings();
+
+    const refreshed = refreshFindings(APP_LOG);
+    void loadFindingsPage(APP_LOG, LINE_LIST, 1);
+    await settle(1);
+
+    expect(
+      findingsQueries(backend)
+        .slice(before)
+        .filter((q) => q.has('offset')),
+    ).toEqual([]);
+    backend.release();
+    await refreshed;
+    await loadFindingsPage(APP_LOG, LINE_LIST, 1);
+    const pageQuery = findingsQueries(backend).find((q) => q.has('offset'));
+    expect(pageQuery?.get('q')).toBe('LINE 2');
+  });
+
   it('loads a page of the line list once, at its place in the list', async () => {
     const backend = await serve();
     const all = manyFindings(FINDINGS_PAGE_SIZE * 3);
@@ -313,6 +367,29 @@ describe('a scan that joined one already running', () => {
     expect(findingsOf(get(findingsByFile), APP_LOG).summary?.checked).toEqual(
       expect.arrayContaining(['python-traceback', 'sql-statement']),
     );
+  });
+
+  // rx-go answers a POST that joins a scan waiting for its turn with
+  // that task, still queued, and a "Joined …" message.
+  it('says it joined a scan that still waits for its turn', async () => {
+    const backend = await serve();
+    backend.addFile(APP_LOG, manyFindings(2));
+    await backend.fetch('/v1/findings', {
+      method: 'POST',
+      body: JSON.stringify({ path: APP_LOG, signatures: 'python-traceback', force: false }),
+    });
+    const other = backend.lastTask()?.id ?? '';
+
+    const done = startScan(APP_LOG, ['python-traceback'], false);
+    await settle(1);
+
+    expect(findingsOf(get(findingsByFile), APP_LOG).scan).toMatchObject({
+      taskId: other,
+      joined: true,
+    });
+    backend.complete(other);
+    await settle();
+    await done;
   });
 
   it('posts nothing more when the joined scan covered what was asked', async () => {

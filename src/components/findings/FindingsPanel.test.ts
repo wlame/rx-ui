@@ -2,7 +2,7 @@
 import '$lib/testing/matchMediaStub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
-import { files, tree } from '$lib/stores';
+import { files, settings, tree } from '$lib/stores';
 import { chainMode } from '$lib/stores/chainMode';
 import { findingsByFile, findingsOf } from '$lib/stores/findings';
 import { findingsBy, findingsFocusRequested, sidebarTab } from '$lib/stores/layout';
@@ -76,8 +76,34 @@ describe('the findings panel states', () => {
 
     const target = await mountFindingsPanel(backend, [APP_LOG]);
 
-    expect(stateText(target)).toBe('partial · 1 of 4 signatures');
+    expect(stateText(target)).toBe('partial · 1 of 4 default signatures · 2 findings');
     expect(target.querySelectorAll('[role="option"]')).toHaveLength(2);
+  });
+
+  // The state line and the tree label speak of the file: the label counts
+  // every current entry, opt-in ones included.
+  it('counts the findings of opt-in signatures in the cache, as the tree label does', async () => {
+    const backend = new FindingsBackend();
+    const found = [...APP_FINDINGS, finding('email-address', 500), finding('email-address', 501)];
+    backend.addFile(APP_LOG, found, [...TEST_DEFAULT_IDS, 'email-address']);
+
+    const target = await mountFindingsPanel(backend, [APP_LOG]);
+
+    expect(stateText(target)).toBe('full · 5 findings');
+    expect(tree.nodeAt(APP_LOG)?.findings).toEqual({ state: 'full', count: 5 });
+    expect(target.querySelectorAll('[role="option"]')).toHaveLength(3);
+  });
+
+  it('speaks of the default signatures when only opt-in ones are picked and scanned', async () => {
+    const backend = new FindingsBackend();
+    backend.addFile(APP_LOG, [finding('email-address', 7)], ['email-address', 'phone-number']);
+    settings.update((s) => ({ ...s, findingsPicker: ['email-address', 'phone-number'] }));
+
+    const target = await mountFindingsPanel(backend, [APP_LOG]);
+
+    expect(stateText(target)).toBe('partial · 0 of 4 default signatures · 1 finding');
+    expect(scanButton(target).textContent?.trim()).toBe('Up to date');
+    expect(target.textContent).not.toContain('2 of 2');
   });
 
   it('counts the findings of a fully scanned file and lists them by line', async () => {
@@ -150,7 +176,8 @@ describe('the findings panel states', () => {
 
     sidebarTab.set('findings');
     await settle();
-    expect(backend.requestsTo('GET', '/v1/findings')).toHaveLength(1);
+    const asked = backend.requestsTo('GET', '/v1/findings').map((r) => r.query.get('signatures'));
+    expect(asked).toEqual([null, 'all']);
   });
 });
 

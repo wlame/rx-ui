@@ -455,16 +455,22 @@ caches each file's findings per signature.
 - **The findings store** (`stores/findings.ts`) keys everything by the
   file's path: `findingsByFile` holds each file's summary (the last
   `GET /v1/findings` for the picker's selection and the filter `q`), its
-  scan, its current finding and its loaded pages. A scan is followed
-  there, not in a component, so it outlives a tab switch and the file's
-  tab; only `cancelScan` stops it, and its end reads the summary again,
-  records its `cli_command` and updates the tree label
-  (`tree.markFindings`, from a `signatures=all` summary, as `/v1/tree`
-  counts). When a POST joined another request's scan that left a
+  `fileSummary`, its scan, its current finding and its loaded pages.
+  Each summary request comes with a summary of every signature
+  (`signatures=all&limit=1`), from which `fileSummary` holds what the
+  file holds, whatever is picked: its state, K of the M default
+  signatures current, and N, the findings of every current entry
+  (`utils/findingsSummary.ts` `fileSummaryOf`); it also labels the file
+  in the tree (`tree.markFindings`), so the panel and the label never
+  show different numbers. A scan is followed there, not in a component,
+  so it outlives a tab switch and the file's tab; only `cancelScan`
+  stops it, and its end records its `cli_command` and reads the
+  summaries again. When a POST joined another request's scan that left a
   requested signature out, the store posts once more for what is still
   missing. Pages hold `FINDINGS_PAGE_SIZE` findings; each list (the line
   list `LINE_LIST`, or one signature's in the group view) is a sparse
-  array as long as the list, and each page is asked once per summary.
+  array as long as the list, and each page is asked once per summary,
+  never while a new summary is on its way.
   The panel drops the findings of closed tabs (`forgetFindings`), never
   those of a running scan.
 - **The Findings panel** (`components/findings/`) asks only while it is
@@ -473,7 +479,10 @@ caches each file's findings per signature.
   (`null`: the default set), parsed by `parseSettings`, never in the URL;
   `utils/findingsPicker.ts` turns it into the request's selection
   (`selectionOf`: none for the default set, `all`, or ids). Its state
-  line counts `checked` of the selection sent (`checked` + `missing`).
+  line says `fileSummary` ("partial · K of M default signatures · N
+  findings"); its scan button speaks of the selection sent ("Scan N
+  missing", from its `missing`). The list measures its own height
+  (`actions/measureHeight.ts`) to know which rows are on screen.
   `findings_by=group` is `ViewState.findingsBy` (`stores/layout.ts`
   `findingsBy`). The picker and the ⋯ menu are popovers, not dialogs:
   they carry no `use:modal`, and the panel opens no modal dialog. The

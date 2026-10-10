@@ -145,8 +145,8 @@
   {:else if filePath !== null && tab !== null}
     <p class="px-3 pt-2 text-xs truncate" title={filePath}>
       <span class="font-medium">{nameOf(filePath)}</span>
-      {#if tab.summary}
-        · <span data-findings-state>{stateLine(tab.summary)}</span>
+      {#if tab.fileSummary}
+        · <span data-findings-state>{stateLine(tab.fileSummary)}</span>
       {/if}
     </p>
     <div class="relative flex items-center gap-1.5 px-3 pt-1.5">

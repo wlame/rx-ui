@@ -1,45 +1,81 @@
 import { describe, expect, it } from 'vitest';
 import { findingsAnswer } from '../testing/fakeFindings';
-import { findingsCount, isCovered, scanLabel, stateLine, stillMissing } from './findingsSummary';
+import {
+  fileSummaryOf,
+  findingsCount,
+  isCovered,
+  isJoinedScan,
+  scanLabel,
+  stateLine,
+  stillMissing,
+} from './findingsSummary';
 
 const COUNTS = {
   'python-traceback': { count: 40, stored: 40 },
   'sql-statement': { count: 2, stored: 2 },
 };
 
-describe('stateLine', () => {
-  it('says not scanned when the cache holds nothing current for the file', () => {
-    expect(stateLine(findingsAnswer({ state: 'none', missing: ['sql-statement'] }))).toBe(
-      'not scanned',
-    );
+describe('fileSummaryOf', () => {
+  const DEFAULTS = ['python-traceback', 'java-exception', 'aws-access-key', 'sql-statement'];
+
+  it("counts the default signatures checked and every current entry's findings", () => {
+    const all = findingsAnswer({
+      state: 'partial',
+      checked: ['python-traceback', 'sql-statement', 'email-address'],
+      counts: {
+        'python-traceback': { count: 40, stored: 40 },
+        'sql-statement': { count: 2, stored: 2 },
+        'email-address': { count: 3, stored: 3 },
+      },
+    });
+
+    expect(fileSummaryOf(all, DEFAULTS)).toEqual({ state: 'partial', k: 2, m: 4, n: 45 });
   });
 
-  it('counts the findings of the checked signatures when the file is fully scanned', () => {
-    const summary = findingsAnswer({ state: 'full', checked: Object.keys(COUNTS), counts: COUNTS });
+  it('counts no default signature for a file scanned only with opt-in ones', () => {
+    const all = findingsAnswer({
+      state: 'partial',
+      checked: ['email-address'],
+      counts: { 'email-address': { count: 3, stored: 3 } },
+    });
 
-    expect(stateLine(summary)).toBe('full · 42 findings');
+    expect(fileSummaryOf(all, DEFAULTS)).toEqual({ state: 'partial', k: 0, m: 4, n: 3 });
+  });
+});
+
+describe('stateLine', () => {
+  it('says not scanned when the cache holds nothing current for the file', () => {
+    expect(stateLine({ state: 'none', k: 0, m: 4, n: 0 })).toBe('not scanned');
+  });
+
+  it('counts every finding of a fully scanned file', () => {
+    expect(stateLine({ state: 'full', k: 4, m: 4, n: 42 })).toBe('full · 42 findings');
   });
 
   it('says one finding, and writes large counts with separators', () => {
-    const one = { 'sql-statement': { count: 1, stored: 1 } };
-    const many = { 'sql-statement': { count: 48_210, stored: 10_000 } };
-
-    expect(
-      stateLine(findingsAnswer({ state: 'full', checked: ['sql-statement'], counts: one })),
-    ).toBe('full · 1 finding');
-    expect(
-      stateLine(findingsAnswer({ state: 'full', checked: ['sql-statement'], counts: many })),
-    ).toBe(`full · ${(48_210).toLocaleString()} findings`);
+    expect(stateLine({ state: 'full', k: 4, m: 4, n: 1 })).toBe('full · 1 finding');
+    expect(stateLine({ state: 'full', k: 4, m: 4, n: 48_210 })).toBe(
+      `full · ${(48_210).toLocaleString()} findings`,
+    );
   });
 
-  it('counts the checked signatures of the selection when the file is partly scanned', () => {
-    const summary = findingsAnswer({
-      state: 'partial',
-      checked: ['python-traceback', 'sql-statement', 'aws-access-key'],
-      missing: ['java-exception', 'email-address'],
-    });
+  it('counts the default signatures checked of a partly scanned file, and its findings', () => {
+    expect(stateLine({ state: 'partial', k: 3, m: 58, n: 45 })).toBe(
+      'partial · 3 of 58 default signatures · 45 findings',
+    );
+  });
+});
 
-    expect(stateLine(summary)).toBe('partial · 3 of 5 signatures');
+describe('isJoinedScan', () => {
+  it('is true for the task of a scan already running or waiting for the file', () => {
+    expect(isJoinedScan({ status: 'running', message: 'Joined the signature scan…' })).toBe(true);
+    expect(isJoinedScan({ status: 'queued', message: 'Joined the signature scan…' })).toBe(true);
+  });
+
+  it('is false for a task the request started', () => {
+    expect(
+      isJoinedScan({ status: 'queued', message: 'Scanning /logs/app.log for 4 signatures' }),
+    ).toBe(false);
   });
 });
 

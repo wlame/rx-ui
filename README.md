@@ -249,10 +249,13 @@ tab: the places where a signature of the backend's catalogue matched.
 The backend keeps them in a cache per file and signature, apart from the
 line index; the panel reads that cache and never scans unless asked.
 
-- **State line**: the file's name and how far it is scanned: "full · 42
+- **State line**: the file's name and how far it is scanned, whatever is
+  picked, in the same numbers as its label in the tree: "full · 42
   findings" when every signature of the default set has scanned it,
-  "partial · 3 of 58 signatures" (the picked signatures with a current
-  entry, of all picked), or "not scanned".
+  "partial · 3 of 58 default signatures · 45 findings" when only some
+  signatures have (opt-in ones count among the findings, not among the
+  default signatures), or "not scanned". The findings counted are those
+  of every signature the cache holds for the file, picked or not.
 - **Signatures picker**: the button "Signatures: Default (58)" opens a
   checklist of the signatures, group by group. A group's box picks or
   drops the whole group and shows a dash when the group is partly
