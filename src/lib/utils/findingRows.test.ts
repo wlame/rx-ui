@@ -163,6 +163,23 @@ describe('groupRows', () => {
     ]);
   });
 
+  // A signature may store up to RX_FINDINGS_MAX_PER_SIGNATURE findings,
+  // which can be 1,000,000: too many to pass as arguments of one call.
+  it('lists the places of an expanded signature that stores a million findings', () => {
+    const summary = summaryOf({ 'python-traceback': [1_000_000, 1_000_000] });
+    const pages = new Map([['python-traceback', sparse('python-traceback', 1_000_000, [0])]]);
+
+    const rows = groupRows(summary, pages, NONE_COLLAPSED, testCatalogue());
+
+    expect(rows).toHaveLength(1_000_002);
+    expect(rows[2]).toMatchObject({ kind: 'finding', index: 0 });
+    expect(rows.at(-1)).toEqual({
+      kind: 'placeholder',
+      signature: 'python-traceback',
+      index: 999_999,
+    });
+  });
+
   it('lists nothing for a summary that checked nothing', () => {
     expect(groupRows(findingsAnswer(), new Map(), NONE_COLLAPSED, testCatalogue())).toEqual([]);
   });

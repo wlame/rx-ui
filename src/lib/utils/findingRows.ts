@@ -45,12 +45,18 @@ export function lineRowAt(list: readonly Finding[] | undefined, index: number): 
     : { kind: 'placeholder', signature: null, index };
 }
 
-/** The rows of one expanded signature: its loaded findings, a placeholder for each other. */
-function findingRows(id: string, list: readonly Finding[] | undefined): FindingRow[] {
+/**
+ * Add the rows of one expanded signature to `rows`: its loaded findings,
+ * a placeholder for each other. One push per row: a signature may store a
+ * million findings, too many to pass as the arguments of one call.
+ */
+function addFindingRows(rows: FindingRow[], id: string, list: readonly Finding[] | undefined) {
   // Before its first page arrives the length of a filtered list is not
   // known: one placeholder stands for it.
-  if (list === undefined) return [{ kind: 'placeholder', signature: id, index: 0 }];
-  const rows: FindingRow[] = [];
+  if (list === undefined) {
+    rows.push({ kind: 'placeholder', signature: id, index: 0 });
+    return;
+  }
   for (let index = 0; index < list.length; index++) {
     const found = list[index];
     rows.push(
@@ -59,7 +65,6 @@ function findingRows(id: string, list: readonly Finding[] | undefined): FindingR
         : { kind: 'placeholder', signature: id, index },
     );
   }
-  return rows;
 }
 
 /** The place of a name in an order; a name the order lacks comes after every listed one. */
@@ -123,7 +128,7 @@ export function groupRows(
       const { count: found, stored } = summary.counts[id];
       const isCollapsed = collapsed.has(signatureKey(id));
       rows.push({ kind: 'signature', id, count: found, stored, collapsed: isCollapsed });
-      if (!isCollapsed) rows.push(...findingRows(id, pages.get(id)));
+      if (!isCollapsed) addFindingRows(rows, id, pages.get(id));
     }
   }
   return rows;
