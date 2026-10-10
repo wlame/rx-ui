@@ -92,10 +92,13 @@ describe('TreeNode of a file', () => {
     children: [],
   } as TreeNodeType;
 
-  function mountFile(props: { showLabels?: boolean; show?: ValueColumn } = {}) {
+  function mountFile(
+    props: { showLabels?: boolean; show?: ValueColumn } = {},
+    node: TreeNodeType = FILE,
+  ) {
     const target = document.createElement('div');
     document.body.appendChild(target);
-    row = new TreeNode({ target, props: { node: FILE, ...props } });
+    row = new TreeNode({ target, props: { node, ...props } });
     return {
       badges: () => [...target.querySelectorAll('.badge')].map((b) => b.textContent?.trim()),
       value: () => target.querySelector('[data-value-cell]')?.textContent?.trim(),
@@ -114,6 +117,14 @@ describe('TreeNode of a file', () => {
 
     expect(badges()).toEqual([]);
     expect(value()).toBe('3.0 KB');
+  });
+
+  it('shows its findings label after its other labels, and none with the labels off', () => {
+    const scanned = { ...FILE, findings: { state: 'partial', count: 12 } } as TreeNodeType;
+
+    expect(mountFile({}, scanned).badges()).toEqual(['gzip', 'idx', '12']);
+    row?.$destroy();
+    expect(mountFile({ showLabels: false }, scanned).badges()).toEqual([]);
   });
 
   it('shows its time when the date is shown', () => {

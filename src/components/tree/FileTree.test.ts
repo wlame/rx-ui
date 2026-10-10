@@ -7,8 +7,17 @@ import { TOOLTIP_DELAY_MS, TOOLTIP_ID } from '$lib/actions/tooltip';
 import { files, health, tree } from '$lib/stores';
 import { chainMode } from '$lib/stores/chainMode';
 import { DEFAULT_FILES_VIEW, filesView } from '$lib/stores/filesView';
+import { forgetFindings, startScan } from '$lib/stores/findings';
+import { loadSignatures } from '$lib/stores/signatures';
 import { treeFocusRequested } from '$lib/stores/layout';
 import { treeFocus } from '$lib/stores/treeFocus';
+import {
+  FINDINGS_DIR,
+  FindingsBackend,
+  TEST_DEFAULT_IDS,
+  finding,
+  serveFindings,
+} from '$lib/testing/fakeFindings';
 import type { TreeEntry } from '$lib/types';
 import {
   CHAIN_NAMES,
@@ -369,5 +378,43 @@ describe('the focus request of the files panel', () => {
 
     expect(document.activeElement).toBe(rowOf(target, LOG_ROOT));
     expect(get(treeFocusRequested)).toBe(false);
+  });
+});
+
+describe('the findings label of a file row', () => {
+  const APP_LOG = `${FINDINGS_DIR}/app.log`;
+
+  afterEach(() => {
+    forgetFindings([]);
+    vi.useRealTimers();
+  });
+
+  it('turns from partial to full when a scan of the file ends, with no new listing', async () => {
+    vi.useFakeTimers();
+    const backend = new FindingsBackend();
+    const found = [finding('sql-statement', 3), finding('python-traceback', 8)];
+    backend.addFile(APP_LOG, found, ['sql-statement']);
+    backend.listFindings(APP_LOG, { state: 'partial', count: 1 });
+    serveFindings(backend);
+    await health.check();
+    await loadSignatures();
+    const target = document.body.appendChild(document.createElement('div'));
+    mounted = new FileTree({ target });
+    await tree.loadRoots();
+    await tree.expand(FINDINGS_DIR);
+    await tick();
+    const label = () => rowOf(target, APP_LOG)?.querySelector<HTMLElement>('[data-findings-label]');
+    expect(label()?.dataset.findingsLabel).toBe('partial');
+    const listings = backend.requestsTo('GET', '/v1/tree').length;
+
+    void startScan(APP_LOG, TEST_DEFAULT_IDS, false);
+    await vi.advanceTimersByTimeAsync(0);
+    backend.complete(backend.lastTask()?.id ?? '');
+    await vi.advanceTimersByTimeAsync(2000);
+    await tick();
+
+    expect(label()?.dataset.findingsLabel).toBe('full');
+    expect(label()?.textContent?.trim()).toBe('2');
+    expect(backend.requestsTo('GET', '/v1/tree')).toHaveLength(listings);
   });
 });

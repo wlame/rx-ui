@@ -11,11 +11,13 @@
    */
   import { createEventDispatcher } from 'svelte';
   import type { MonacoTheme, OpenFile } from '$lib/types';
-  import { files } from '$lib/stores';
+  import { files, tree } from '$lib/stores';
+  import { findingsByFile, findingsOf } from '$lib/stores/findings';
   import { canCopySelection, copySelection } from '$lib/selectionCopy';
   import FileBadges from '../common/FileBadges.svelte';
   import { parseChainLineTarget } from '$lib/utils/chainParts';
   import { chainRangeLabels } from '$lib/utils/chainPane';
+  import { findingsLabelOf } from '$lib/utils/findingsLabel';
   import ChainSummary from './ChainSummary.svelte';
   import EditorToolbar from './EditorToolbar.svelte';
   import LineRangeNav from './LineRangeNav.svelte';
@@ -31,6 +33,25 @@
     ? (text: string) => parseChainLineTarget(text, chainDescription)
     : null;
   $: rangeLabels = file.chain ? chainRangeLabels(file.lines, file.chain.numbering) : null;
+
+  // The file's findings label: the tree's, else the one its summary in the
+  // findings store says (a file the tree has not listed). Findings are
+  // per file, so a chain's tab has none.
+  $: findingsLabel = file.chain
+    ? null
+    : findingsLabelOf(
+        listedFindings($tree.roots, file.path),
+        findingsOf($findingsByFile, file.path).fileSummary,
+      );
+
+  /**
+   * The tree's findings label of `path`: undefined when the tree does not
+   * list it. `roots` is the tree it reads, so the statement that asks
+   * runs again when it changes.
+   */
+  function listedFindings(_roots: unknown, path: string) {
+    return tree.nodeAt(path)?.findings;
+  }
 
   const dispatch = createEventDispatcher<{
     jump: { line: number };
@@ -54,6 +75,8 @@
         isCompressed={file.isCompressed}
         compressionFormat={file.compressionFormat}
         isIndexed={file.isIndexed}
+        findings={findingsLabel}
+        path={file.path}
       />
       {#if file.lines.length > 0}
         <LineRangeNav

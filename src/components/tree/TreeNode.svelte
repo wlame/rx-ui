@@ -22,7 +22,7 @@
   /** How many rows share the row's folder, and the row's place among them (from 1). */
   export let setSize = 1;
   export let posInSet = 1;
-  /** Whether the row shows its labels (compression, `idx`); its value and name stay either way. */
+  /** Whether the row shows its labels (compression, `idx`, findings); its value and name stay either way. */
   export let showLabels = true;
   /** The value the row shows right of its name. */
   export let show: ValueColumn = 'size';
@@ -165,6 +165,8 @@
         isCompressed={node.is_compressed}
         compressionFormat={node.compression_format}
         isIndexed={node.is_indexed}
+        findings={node.findings}
+        path={node.path}
       />
     {/if}
 
