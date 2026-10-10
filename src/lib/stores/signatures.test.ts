@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import type { GroupInfo, LoadErrorInfo, SignatureInfo, SignaturesResponse } from '../types';
+import type { SignaturesState } from './signatures';
 
 /** A catalogue signature with the fields the store reads; the rest minimal. */
 function signature(id: string, fields: Partial<SignatureInfo> = {}): SignatureInfo {
@@ -163,15 +164,16 @@ describe('defaultSetIds', () => {
       signature('python-traceback'),
     ];
 
-    expect(defaultSetIds({ loaded: true, list, groups: GROUPS, errors: [] })).toEqual([
-      'java-exception',
-      'python-traceback',
-    ]);
+    const loaded: SignaturesState = { loaded: true, list, groups: GROUPS, errors: [] };
+
+    expect(defaultSetIds(loaded)).toEqual(['java-exception', 'python-traceback']);
   });
 
   it('names nothing before the catalogue has loaded', async () => {
     const { defaultSetIds } = await import('./signatures');
 
-    expect(defaultSetIds({ loaded: false, list: [], groups: [], errors: [] })).toEqual([]);
+    const empty: SignaturesState = { loaded: false, list: [], groups: [], errors: [] };
+
+    expect(defaultSetIds(empty)).toEqual([]);
   });
 });

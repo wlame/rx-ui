@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   sidebarWidth: 280,
   monacoTheme: 'vs',
+  findingsPicker: null,
 };
 
 /** The other of the two looks. */
@@ -61,6 +62,8 @@ const IS_VALID: { [K in keyof AppSettings]: (value: unknown) => value is AppSett
   sidebarWidth: (value): value is number =>
     typeof value === 'number' && Number.isFinite(value) && value > 0,
   monacoTheme: (value): value is MonacoTheme => MONACO_THEMES.some((t) => t.id === value),
+  findingsPicker: (value): value is string[] | null =>
+    value === null || (Array.isArray(value) && value.every((id) => typeof id === 'string')),
 };
 
 /**

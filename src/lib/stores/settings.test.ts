@@ -41,6 +41,36 @@ describe('settings', () => {
     expect(get(settings)).not.toHaveProperty('chainMode');
   });
 
+  // The findings picker's choice is a viewer's own: kept in the browser,
+  // under the settings key, never in the link.
+  it("keeps the findings picker's choice across a reload", async () => {
+    const saved = new Map<string, string>();
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => saved.get(key) ?? null,
+        setItem: (key: string, value: string) => saved.set(key, value),
+      },
+    });
+    const before = await import('./settings');
+    before.settings.update((s) => ({ ...s, findingsPicker: ['sql-statement', 'email-address'] }));
+
+    vi.resetModules();
+    const after = await import('./settings');
+
+    expect([...saved.keys()]).toEqual(['rx-settings']);
+    expect(get(after.settings).findingsPicker).toEqual(['sql-statement', 'email-address']);
+  });
+
+  it("keeps the findings picker's choice for the page when storage is refused", async () => {
+    blockStorage();
+    const { settings } = await import('./settings');
+
+    settings.update((s) => ({ ...s, findingsPicker: ['sql-statement'] }));
+
+    expect(get(settings).findingsPicker).toEqual(['sql-statement']);
+  });
+
   it('keeps a change for the page when storage refuses to save it', async () => {
     blockStorage();
     const { settings } = await import('./settings');

@@ -77,9 +77,28 @@ describe('editorThemeFor', () => {
 
 describe('parseSettings', () => {
   it('keeps every known setting with a valid value', () => {
-    const stored = { theme: 'dark', sidebarWidth: 320, monacoTheme: 'monokai' };
+    const stored = {
+      theme: 'dark',
+      sidebarWidth: 320,
+      monacoTheme: 'monokai',
+      findingsPicker: ['sql-statement', 'email-address'],
+    };
     expect(parseSettings(stored)).toEqual(stored);
   });
+
+  // No choice is the default set of signatures, whatever the catalogue holds.
+  it('reads no picker choice as the default set', () => {
+    expect(DEFAULT_SETTINGS.findingsPicker).toBeNull();
+    expect(parseSettings({ findingsPicker: null }).findingsPicker).toBeNull();
+    expect(parseSettings({ findingsPicker: [] }).findingsPicker).toEqual([]);
+  });
+
+  it.each([[['sql-statement', 7]], ['sql-statement'], [{ 0: 'sql-statement' }], [42]])(
+    'reads a picker choice that is not a list of ids, %j, as the default set',
+    (findingsPicker) => {
+      expect(parseSettings({ findingsPicker }).findingsPicker).toBeNull();
+    },
+  );
 
   // An older viewer kept the chain mode chosen last; a link now names it.
   it('ignores the chain mode an older viewer stored', () => {
@@ -87,7 +106,12 @@ describe('parseSettings', () => {
 
     const parsed = parseSettings(stored);
 
-    expect(parsed).toEqual({ theme: 'dark', sidebarWidth: 320, monacoTheme: 'monokai' });
+    expect(parsed).toEqual({
+      theme: 'dark',
+      sidebarWidth: 320,
+      monacoTheme: 'monokai',
+      findingsPicker: null,
+    });
     expect(parsed).not.toHaveProperty('chainMode');
   });
 

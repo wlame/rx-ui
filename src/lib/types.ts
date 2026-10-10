@@ -482,6 +482,12 @@ export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   sidebarWidth: number;
   monacoTheme: MonacoTheme;
+  /**
+   * The signatures the findings panel lists and scans, by id, as the
+   * picker left them; null for the default set, which then follows the
+   * catalogue. A viewer's own choice: never in the URL.
+   */
+  findingsPicker: string[] | null;
 }
 
 export type Theme = 'light' | 'dark';

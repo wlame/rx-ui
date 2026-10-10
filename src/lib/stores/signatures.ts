@@ -68,7 +68,7 @@ export function loadSignatures(): Promise<void> {
  * `default` that no user file disabled. Opt-in signatures run only when a
  * selection names them.
  */
-export function defaultSetIds(catalogue: SignaturesState): string[] {
+export function defaultSetIds(catalogue: Pick<SignaturesState, 'list'>): string[] {
   return catalogue.list
     .filter((signature) => signature.default && !signature.disabled_by)
     .map((signature) => signature.id);
