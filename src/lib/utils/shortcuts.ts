@@ -534,7 +534,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   {
     id: 'extendByKeys',
     scope: 'filePane',
-    description: 'Select lines from the cursor, as whole lines',
+    description: 'Extend the selection from the cursor, as whole lines',
     gesture: 'Shift+↑ or Shift+↓',
   },
   {

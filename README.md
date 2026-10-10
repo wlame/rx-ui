@@ -157,7 +157,7 @@ Cmd/Ctrl+/ lists every shortcut in the app. They are:
 | In the open file                         | Shift+click a line number    | Extend the last selected range to that line                                         |
 | In the open file                         | Cmd/Ctrl+click a line number | Add that line to the selection, or take it out when it is selected                  |
 | In the open file                         | Cmd/Ctrl+drag                | Add the lines the drag touches to the selection                                     |
-| In the open file                         | Shift+↑ or Shift+↓           | Select lines from the cursor, as whole lines                                        |
+| In the open file                         | Shift+↑ or Shift+↓           | Extend the selection from the cursor, as whole lines                                |
 | In the open file                         | Esc                          | Clear the selected lines                                                            |
 | In the open file                         | Cmd/Alt+click                | On a chip: next anomaly of the selected category; with Shift, the previous one      |
 | In the go-to-line box                    | Enter                        | Jump to the typed line                                                              |

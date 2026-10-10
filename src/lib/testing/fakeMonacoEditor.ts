@@ -33,7 +33,11 @@ export interface FakeMonacoEditor {
   focusCount: number;
   /** The editor as the pane reads it. */
   editor: Monaco.editor.IStandaloneCodeEditor;
-  /** Monaco's selections as a test sets them; `getSelections` returns them. */
+  /**
+   * Monaco's selections as a test or the code under test sets them;
+   * `getSelections` returns them. Several model a multi-cursor selection
+   * that outlives a gesture, as Monaco keeps it.
+   */
   selections: MonacoSelectionLike[];
   /** Fire a mouse press at the listeners. */
   mouseDown(mouse: FakeMouse): void;
@@ -110,6 +114,15 @@ export function createFakeMonacoEditor(lines: readonly string[] = []): FakeMonac
     },
     getDomNode: () => domNode,
     getSelections: () => fake.selections,
+    // Monaco reports a selection set through the API with the source `api`.
+    setSelection: (selection: MonacoSelectionLike) => fake.changeSelections([selection], 'api'),
+    // The primary cursor: the end of the first selection.
+    getPosition: () => {
+      const first = fake.selections[0];
+      return first
+        ? { lineNumber: first.endLineNumber, column: first.endColumn }
+        : { lineNumber: 1, column: 1 };
+    },
     onMouseDown: event(listeners.mouseDown),
     onMouseUp: event(listeners.mouseUp),
     onDidChangeCursorSelection: event(listeners.selection),

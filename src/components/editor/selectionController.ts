@@ -4,8 +4,8 @@
  * The controller hears a Monaco editor and turns what the user does into
  * a selection of whole file lines (`utils/lineSelection.ts`), which it
  * hands to its host; the host keeps it in the tab and the editor draws it
- * as decorations. Monaco's own selection is only read, never set, so its
- * text highlight and its copy keep working.
+ * as decorations. Monaco's own selection is read while a gesture runs
+ * and collapsed to a cursor once the gesture is committed (below).
  *
  * | Gesture                              | Effect                                  |
  * | ------------------------------------ | --------------------------------------- |
@@ -14,7 +14,7 @@
  * | Cmd/Ctrl+click a line number         | add that line; on a selected line, take it out |
  * | drag in the text or the line numbers | replace with the lines touched          |
  * | Cmd/Ctrl+drag                        | add the lines touched                   |
- * | Shift+↑/↓ and the editor's other selection keys | replace with the lines selected |
+ * | Shift+↑/↓ and the editor's other selection keys | extend with the lines selected |
  * | Esc                                  | clear, when anything is selected        |
  *
  * The modifiers are read at mouse down, so a gesture keeps its meaning
@@ -22,6 +22,15 @@
  * once, on mouse up (or on the window's mouse up, for a release outside
  * the editor), and a key's selection on key up. A click that only places
  * the cursor changes nothing.
+ *
+ * Monaco's own selection is the gesture's working copy only. Once a
+ * gesture is committed it is collapsed to a cursor at the start of the
+ * line after the gesture, so only the selection's decorations show what
+ * is selected, and a line taken out is not painted or brought back by
+ * the next key. The selection keys then extend from that cursor: a run
+ * of them keeps the tab's selection from the run's first key and adds
+ * the lines Monaco's selection covers. A selection change Monaco makes
+ * itself (a page load, the API, its own Esc) is never committed.
  *
  * The controller uses Monaco's types only: the mouse target kinds are
  * spelled out as numbers, so it runs in tests without Monaco.
@@ -57,6 +66,8 @@ export type SelectionEditor = Pick<
   | 'onDidChangeCursorSelection'
   | 'onKeyUp'
   | 'getSelections'
+  | 'setSelection'
+  | 'getPosition'
   | 'getDomNode'
 >;
 
@@ -120,13 +131,40 @@ export function attachSelectionController(
   host: SelectionHost,
 ): { dispose(): void } {
   let gesture: Gesture | null = null;
+  /** The tab's selection when the current run of selection keys began; null outside a run. */
+  let keyRunBase: readonly LineRange[] | null = null;
+  /** A key changed Monaco's selection since the last key up. */
   let hasKeyboardSelection = false;
+  /** The last key pressed was Esc: Monaco's selection changes on it are its own, not the user's. */
+  let isAfterEscape = false;
 
   const monacoSelections = (): readonly MonacoSelectionLike[] => editor.getSelections() ?? [];
   const fileLine = (editorLine: number) => host.windowStart() + editorLine - 1;
 
+  function endKeyRun() {
+    keyRunBase = null;
+    hasKeyboardSelection = false;
+  }
+
+  /** Leave Monaco an empty selection at `column` of editor line `editorLine`; Monaco clamps it to its text. */
+  function collapseAt(editorLine: number, column = 1) {
+    editor.setSelection({
+      startLineNumber: editorLine,
+      startColumn: column,
+      endLineNumber: editorLine,
+      endColumn: column,
+    });
+  }
+
+  /** Commit `ranges` for a gesture whose last file line is `lastLine`, and leave Monaco a cursor after it. */
+  function commitAfter(ranges: LineRange[], lastLine: number) {
+    host.select(ranges);
+    collapseAt(lastLine - host.windowStart() + 2);
+  }
+
   function startGesture(e: Monaco.editor.IEditorMouseEvent) {
     gesture = null;
+    endKeyRun();
     const position = e.target.position;
     const isGutter = GUTTER_TARGETS.has(e.target.type);
     if (!e.event.leftButton || !position || !(isGutter || TEXT_TARGETS.has(e.target.type))) return;
@@ -152,30 +190,56 @@ export function attachSelectionController(
     if (done.isGutter) {
       const upLine = upEditorLine === null ? done.line : fileLine(upEditorLine);
       const pressed = { start: Math.min(done.line, upLine), end: Math.max(done.line, upLine) };
-      host.select(gutterResult(done, upLine, normalize([pressed, ...touched])));
+      const lines = normalize([pressed, ...touched]);
+      commitAfter(gutterResult(done, upLine, lines), lines[lines.length - 1].end);
       return;
     }
     if (touched.length === 0) return;
-    host.select(done.isAdding ? normalize([...done.base, ...touched]) : touched);
+    const ranges = done.isAdding ? normalize([...done.base, ...touched]) : touched;
+    commitAfter(ranges, touched[touched.length - 1].end);
   }
 
-  function commitKeyboardSelection() {
-    if (!hasKeyboardSelection) return;
-    hasKeyboardSelection = false;
-    const touched = fromMonacoSelections(monacoSelections(), host.windowStart());
-    if (touched.length > 0) host.select(touched);
+  /** A selection change: one a selection key made starts or goes on with a run of them. */
+  function noteSelectionChange(e: Monaco.editor.ICursorSelectionChangedEvent) {
+    if (e.source !== 'keyboard' || isAfterEscape) {
+      endKeyRun();
+      return;
+    }
+    keyRunBase ??= host.selection();
+    hasKeyboardSelection = true;
   }
 
   /**
-   * Esc in the editor's text clears a selection; with nothing selected,
-   * or in a field that takes typing (the find widget's box), the key is
-   * left alone.
+   * On key up, the run's first selection with the lines Monaco's
+   * selection covers. A key that leaves only a cursor ends the run and
+   * changes nothing.
+   */
+  function commitKeyboardSelection() {
+    if (!hasKeyboardSelection || keyRunBase === null) return;
+    hasKeyboardSelection = false;
+    const touched = fromMonacoSelections(monacoSelections(), host.windowStart());
+    if (touched.length === 0) {
+      keyRunBase = null;
+      return;
+    }
+    host.select(normalize([...keyRunBase, ...touched]));
+  }
+
+  /**
+   * Esc in the editor's text clears a selection and leaves Monaco a
+   * cursor; with nothing selected, or in a field that takes typing (the
+   * find widget's box), the key is left alone. Either way Monaco's own
+   * response to Esc, which collapses its selections, is not committed.
    */
   function handleKeyDown(e: KeyboardEvent) {
-    if (!isShortcut('clearSelection', e) || acceptsTyping(e.target as HTMLElement)) return;
-    if (host.selection().length === 0) return;
+    isAfterEscape = isShortcut('clearSelection', e);
+    if (!isAfterEscape) return;
+    endKeyRun();
+    if (acceptsTyping(e.target as HTMLElement) || host.selection().length === 0) return;
     e.preventDefault();
     host.select([]);
+    const cursor = editor.getPosition();
+    if (cursor) collapseAt(cursor.lineNumber, cursor.column);
   }
 
   const onWindowMouseUp = () => commitGesture(null);
@@ -184,12 +248,10 @@ export function attachSelectionController(
   const subscriptions = [
     editor.onMouseDown(startGesture),
     editor.onMouseUp((e) => commitGesture(e.target.position?.lineNumber ?? null)),
-    editor.onDidChangeCursorSelection((e) => {
-      if (e.source === 'keyboard') hasKeyboardSelection = true;
-    }),
+    editor.onDidChangeCursorSelection(noteSelectionChange),
     editor.onKeyUp(commitKeyboardSelection),
   ];
-  // Capture: the key reaches the controller before Monaco's own Esc.
+  // Capture: every key reaches the controller before Monaco handles it.
   domNode?.addEventListener('keydown', handleKeyDown, true);
   view?.addEventListener('mouseup', onWindowMouseUp);
 

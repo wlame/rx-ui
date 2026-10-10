@@ -50,6 +50,31 @@ function clickLineNumber(line: number, modifiers: { shiftKey?: boolean; metaKey?
   fake.mouseUp(mouse);
 }
 
+/** Whether a Monaco selection is a cursor that selects nothing. */
+function isEmpty(selection: MonacoSelectionLike): boolean {
+  return (
+    selection.startLineNumber === selection.endLineNumber &&
+    selection.startColumn === selection.endColumn
+  );
+}
+
+/** Shift+↓ as Monaco does it: every selection it holds ends one line lower, then the key is released. */
+function shiftDown() {
+  const extended = fake.selections.map((s) =>
+    sel(s.startLineNumber, s.startColumn, s.endLineNumber + 1, s.endColumn),
+  );
+  fake.changeSelections(extended, 'keyboard');
+  fake.keyUp('ArrowDown');
+}
+
+/** A Cmd+click on the number of editor line `line`, where Monaco adds that line to its selections. */
+function cmdClickLineNumber(line: number) {
+  const mouse = { type: MOUSE_TARGET.lineNumbers, line, metaKey: true };
+  fake.mouseDown(mouse);
+  fake.changeSelections([...fake.selections, sel(line, 1, line + 1, 1)], 'mouse');
+  fake.mouseUp(mouse);
+}
+
 /** Esc pressed on `target`, by default the editor's own node. */
 function pressEscape(target: Element | null = fake.editor.getDomNode()): KeyboardEvent {
   const event = new KeyboardEvent('keydown', {
@@ -183,7 +208,134 @@ describe('selectionController with the mouse', () => {
   });
 });
 
+describe('selectionController and the selection Monaco keeps', () => {
+  it('leaves only a cursor in Monaco after each gesture, and commits nothing for that', () => {
+    attach([{ start: 113, end: 113 }]);
+    fake.selections = [sel(13, 1, 14, 1)];
+
+    cmdClickLineNumber(20);
+    expect(fake.selections.every(isEmpty)).toBe(true);
+    clickLineNumber(25, { shiftKey: true });
+    expect(fake.selections.every(isEmpty)).toBe(true);
+    cmdClickLineNumber(13);
+
+    expect(selected).toEqual([{ start: 120, end: 125 }]);
+    expect(fake.selections.every(isEmpty)).toBe(true);
+    expect(commits).toHaveLength(3);
+  });
+
+  it('clears on Esc a selection made by Cmd+click, Shift+click and a Cmd+click that takes a line out', () => {
+    attach([{ start: 113, end: 113 }]);
+    fake.selections = [sel(13, 1, 14, 1)];
+    cmdClickLineNumber(20);
+    clickLineNumber(25, { shiftKey: true });
+    cmdClickLineNumber(13);
+    expect(selected).toEqual([{ start: 120, end: 125 }]);
+
+    pressEscape();
+    // Monaco's own Esc collapses whatever selections it holds to the first one.
+    fake.changeSelections(fake.selections.slice(0, 1), 'keyboard');
+    fake.keyUp('Escape');
+
+    expect(selected).toEqual([]);
+    expect(fake.selections.every(isEmpty)).toBe(true);
+  });
+
+  it('leaves the cursor at the start of the line after the gesture', () => {
+    attach();
+    fake.mouseDown({ type: MOUSE_TARGET.text, line: 2, column: 3 });
+    fake.changeSelections([sel(2, 3, 4, 5)], 'mouse');
+    fake.mouseUp({ type: MOUSE_TARGET.text, line: 4, column: 5 });
+    expect(fake.selections).toEqual([sel(5, 1, 5, 1)]);
+  });
+
+  it('does not bring back a line taken out with Cmd+click when Shift+↓ follows', () => {
+    attach([
+      { start: 113, end: 113 },
+      { start: 120, end: 125 },
+    ]);
+    fake.selections = [sel(13, 1, 14, 1), sel(20, 1, 26, 1)];
+
+    cmdClickLineNumber(13);
+    shiftDown();
+
+    expect(selected).not.toContainEqual(expect.objectContaining({ start: 113 }));
+    expect(selected).toContainEqual({ start: 120, end: 125 });
+  });
+
+  it('clears on Esc, and commits nothing when Monaco then collapses its own selections', () => {
+    attach([{ start: 120, end: 125 }]);
+    fake.selections = [sel(25, 1, 27, 1), sel(13, 1, 14, 1)];
+
+    const event = pressEscape();
+    fake.changeSelections([sel(25, 1, 27, 1)], 'keyboard');
+    fake.keyUp('Escape');
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(selected).toEqual([]);
+    expect(commits).toEqual([[]]);
+  });
+
+  it("commits nothing when Esc with nothing selected collapses Monaco's selections", () => {
+    attach();
+    fake.selections = [sel(25, 1, 27, 1), sel(13, 1, 14, 1)];
+
+    const event = pressEscape();
+    fake.changeSelections([sel(25, 1, 27, 1)], 'keyboard');
+    fake.keyUp('Escape');
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(commits).toEqual([]);
+  });
+
+  it('commits nothing when a page load changes the selection before the key is released', () => {
+    attach([{ start: 103, end: 103 }]);
+    fake.changeSelections([sel(3, 1, 5, 1)], 'keyboard');
+    fake.changeSelections([sel(1, 1, 2, 1)], 'model');
+    fake.keyUp('ArrowDown');
+    expect(commits).toEqual([]);
+  });
+});
+
 describe('selectionController with the keys', () => {
+  it('extends the selection with Shift+↓ and keeps the ranges Monaco does not cover', () => {
+    attach([
+      { start: 101, end: 102 },
+      { start: 110, end: 111 },
+    ]);
+    // A click that only places the cursor on line 20 changes nothing.
+    fake.mouseDown({ type: MOUSE_TARGET.text, line: 20, column: 4 });
+    fake.changeSelections([sel(20, 4, 20, 4)], 'mouse');
+    fake.mouseUp({ type: MOUSE_TARGET.text, line: 20, column: 4 });
+
+    shiftDown();
+
+    expect(selected).toEqual([
+      { start: 101, end: 102 },
+      { start: 110, end: 111 },
+      { start: 120, end: 121 },
+    ]);
+  });
+
+  it('shrinks back with Shift+↑ to the selection the keys started from, never below it', () => {
+    attach([{ start: 101, end: 101 }]);
+    fake.selections = [sel(20, 1, 20, 1)];
+
+    fake.changeSelections([sel(20, 1, 23, 1)], 'keyboard');
+    fake.keyUp('ArrowDown');
+    expect(selected).toEqual([
+      { start: 101, end: 101 },
+      { start: 120, end: 122 },
+    ]);
+
+    fake.changeSelections([sel(20, 1, 21, 1)], 'keyboard');
+    fake.keyUp('ArrowUp');
+    expect(selected).toEqual([
+      { start: 101, end: 101 },
+      { start: 120, end: 120 },
+    ]);
+  });
+
   it("follows Monaco's selection keys on key up, as whole lines", () => {
     attach([{ start: 103, end: 103 }]);
     fake.changeSelections([sel(3, 1, 5, 1)], 'keyboard');
