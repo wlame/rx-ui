@@ -41,11 +41,11 @@ way.
 ## Features
 
 - **Activity bar** at the window's left edge: a button for each panel of
-  the side panel (Files, Search) and one for the keyboard shortcuts. A
-  click on the shown panel's button hides the side panel. Alt+1 or
-  Cmd/Ctrl+Shift+E shows Files and Alt+2 or Cmd/Ctrl+Shift+F shows
-  Search, each with the focus in it. A panel keeps its state while
-  another is shown.
+  the side panel (Files, Search, Findings) and one for the keyboard
+  shortcuts. A click on the shown panel's button hides the side panel.
+  Alt+1 or Cmd/Ctrl+Shift+E shows Files, Alt+2 or Cmd/Ctrl+Shift+F shows
+  Search and Alt+3 shows Findings, each with the focus in it. A panel
+  keeps its state while another is shown.
 - **Tooltips with the keys.** A control of the activity bar, the files
   panel's toolbar and column header, or the search options line shows
   its name and its shortcut after half a second of hover, and at once
@@ -94,13 +94,17 @@ way.
   word wrap can be switched per file as well.
 - **Index.** The tree's context menu builds or rebuilds the line index of
   a compressed file; a plain file gets its index on first use.
+- **Findings.** On a backend that serves signatures (rx-go 0.8.0 and
+  later), the Findings panel lists the places in the open file that the
+  backend's signatures found: tracebacks, secrets, SQL statements and
+  more. See [Findings](#findings).
 - **Log chains.** On a backend that serves them, the rotated files of one
   log (`app.log`, `app.log.1`, `app.log.2.gz`, …) open as one text, in
   time order: see [Log chains](#log-chains).
 - **The URL holds the view.** A link or a reload reopens the file at its
   line, with its highlighting, filter and selected lines, the panel
   the side panel shows, the files panel's chain mode, labels, value and
-  order, and the search. Back and Forward step through the files opened,
+  order, the findings panel's order, and the search. Back and Forward step through the files opened,
   the searches run and the panels switched in the activity bar. See
   [Link parameters](#link-parameters).
 - **The equivalent command.** The status bar shows the `rx` command the
@@ -183,8 +187,8 @@ Cmd/Ctrl+/ lists every shortcut in the app. They are:
 
 While a dialog is open (the shortcut list, the API token prompt, the
 notice of a backend the viewer cannot read), the keys that show a panel
-or the sidebar, Alt+1, Alt+2, Cmd/Ctrl+Shift+E or F, Cmd/Ctrl+K and
-Cmd/Ctrl+B, do nothing: the keyboard stays with the
+or the sidebar, Alt+1, Alt+2, Alt+3, Cmd/Ctrl+Shift+E or F, Cmd/Ctrl+K
+and Cmd/Ctrl+B, do nothing: the keyboard stays with the
 dialog, so Cmd/Ctrl+K does not close the shortcut list; Esc or
 Cmd/Ctrl+/ does. Alt+G, Alt+L, Alt+V, Alt+N and Alt+S act only while the
 files panel is shown and no dialog is open; otherwise the key is left to
@@ -237,6 +241,60 @@ a Tab stop.
 
 The table in the app is generated from `src/lib/utils/shortcuts.ts`, and a
 test fails when this table lacks one of its keys or holds one it lacks.
+
+## Findings
+
+The Findings panel (Alt+3) lists the findings of the file in the active
+tab: the places where a signature of the backend's catalogue matched.
+The backend keeps them in a cache per file and signature, apart from the
+line index; the panel reads that cache and never scans unless asked.
+
+- **State line**: the file's name and how far it is scanned: "full · 42
+  findings" when every signature of the default set has scanned it,
+  "partial · 3 of 58 signatures" (the picked signatures with a current
+  entry, of all picked), or "not scanned".
+- **Signatures picker**: the button "Signatures: Default (58)" opens a
+  checklist of the signatures, group by group. A group's box picks or
+  drops the whole group and shows a dash when the group is partly
+  picked; the presets Default, All and None and a filter box sit above
+  it. Opt-in signatures (those outside the default set) are marked, and
+  so are the signatures the cache already holds for this file (✓). The
+  choice is the viewer's own, kept in the browser with the other
+  settings and never in the link; Default follows the catalogue. The
+  panel lists and scans only the picked signatures.
+- **Scan**: "Scan N missing" scans the picked signatures the cache does
+  not answer; "Up to date" when there are none. While a scan runs, a
+  bar shows the share of the file read, and Cancel stops it; a cancelled
+  scan writes nothing. The ⋯ menu holds Rescan (every picked signature
+  again), Copy all, and how many lines before each finding a copy holds
+  (0 to 3). A scan belongs to its file: it runs on while another tab is
+  shown, and also when its tab is closed; when it ends, the file's label
+  in the tree and the panel show what it found. When the backend already
+  ran a scan of the file (another request's), the panel joins it, and
+  afterwards scans what that scan left out. A file nothing picked has
+  scanned yet shows a large Scan button.
+- **List**: By line lists the findings in line order: the group's colour,
+  the line or lines, the signature's name and the start of the first
+  line, where secret values are masked by the backend. By group lists
+  them under each group and signature, with their counts; a signature's
+  findings load when it is opened, and a capped signature says "showing
+  10,000 of 48,210". The filter box narrows the list to the findings
+  whose text or signature name holds what is typed. Only the rows on
+  screen are drawn, and they load page by page as the list scrolls.
+- **Open a finding**: a click or Enter selects the finding's lines in the
+  editor and goes to its first line; the link then holds `sel` and
+  `line`.
+- **Keys**: the list is one Tab stop. ↑ and ↓ move, Home and End go to
+  the ends, Enter opens; By group, → opens a group or signature (or goes
+  into it) and ← closes it (or goes to the one above). Esc closes the
+  picker and the ⋯ menu.
+- The panel says why it lists nothing on a backend without signatures,
+  on a log chain's tab (findings are per file: open one of its parts), and
+  for a file that is not text.
+
+Alt+3 has no second key: the browsers keep most Cmd/Ctrl+Shift letters
+for themselves. Firefox on Linux takes Alt+1 to Alt+8 for its own tabs;
+there, the activity bar's button shows the panel.
 
 ## Log chains
 
@@ -315,28 +373,29 @@ The address bar holds the view; a link or a reload opens the same view.
 An unknown or invalid value is read as absent. `category`, which viewers
 before contract 2 wrote, is ignored, and the address bar drops it.
 
-| Parameter                                     | What it holds                                                                                                        |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `file`                                        | The active file's absolute path                                                                                      |
-| `chain`                                       | The active log chain's handle: its folder and name, `/var/log/syslog`                                                |
-| `part`                                        | With `chain`: the file name of the part that holds the line, `syslog.3.gz`                                           |
-| `line`                                        | The line the view is anchored on; with `part`, the line in that part                                                 |
-| `time`                                        | The time the file jumped to, or a chain's line time, `2026-10-03T14:00:00.123Z`                                      |
-| `fp`                                          | With `chain`: the fingerprint of the chain's files the line was read in, 16 hex digits                               |
-| `sel`                                         | The selected lines as `rx samples --lines=` writes them, `120-134,200`; in a chain, `syslog.3.gz:120-134`            |
-| `highlight`                                   | `1` or `0`: syntax highlighting on or off; absent, the file's size decides                                           |
-| `filter`, `filter_mode`                       | The editor's regex filter and what it does: `highlight` (default), `hide` or `show`                                  |
-| `tab`                                         | The panel the side panel shows: `files` or `search`; absent, Search for a link that holds a search, else Files       |
-| `chains`                                      | `1`: chain mode on; absent, off, whatever mode was chosen before                                                     |
-| `labels`                                      | `0`: the files panel hides the labels of its rows; absent, it shows them                                             |
-| `show`                                        | `date`: the files panel shows each row's modification time; absent, its size                                         |
-| `sort`                                        | The files panel's order: `name-desc`, `size-asc`, `size-desc`, `date-asc` or `date-desc`; absent, `name-asc`         |
-| `regexp`                                      | A search pattern, once per pattern                                                                                   |
-| `max_results`, `only_opened`                  | The search's cap (1 to 10,000, default 100) and "Only opened files"                                                  |
-| `ignore_case`, `word_regexp`, `fixed_strings` | The search's matching toggles                                                                                        |
-| `offsets`                                     | `1`: the search results show byte offsets                                                                            |
-| `stash`                                       | The timestamps stash: up to 7 instants, comma-separated                                                              |
-| `ftz`                                         | A zone chosen for a file, `ftz=UTC@/var/log/app.log`, or for a chain, `ftz=UTC@chain:/var/log/syslog`; once per file |
+| Parameter                                     | What it holds                                                                                                              |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `file`                                        | The active file's absolute path                                                                                            |
+| `chain`                                       | The active log chain's handle: its folder and name, `/var/log/syslog`                                                      |
+| `part`                                        | With `chain`: the file name of the part that holds the line, `syslog.3.gz`                                                 |
+| `line`                                        | The line the view is anchored on; with `part`, the line in that part                                                       |
+| `time`                                        | The time the file jumped to, or a chain's line time, `2026-10-03T14:00:00.123Z`                                            |
+| `fp`                                          | With `chain`: the fingerprint of the chain's files the line was read in, 16 hex digits                                     |
+| `sel`                                         | The selected lines as `rx samples --lines=` writes them, `120-134,200`; in a chain, `syslog.3.gz:120-134`                  |
+| `highlight`                                   | `1` or `0`: syntax highlighting on or off; absent, the file's size decides                                                 |
+| `filter`, `filter_mode`                       | The editor's regex filter and what it does: `highlight` (default), `hide` or `show`                                        |
+| `tab`                                         | The panel the side panel shows: `files`, `search` or `findings`; absent, Search for a link that holds a search, else Files |
+| `findings_by`                                 | `group`: the Findings panel lists by group; absent, by line                                                                |
+| `chains`                                      | `1`: chain mode on; absent, off, whatever mode was chosen before                                                           |
+| `labels`                                      | `0`: the files panel hides the labels of its rows; absent, it shows them                                                   |
+| `show`                                        | `date`: the files panel shows each row's modification time; absent, its size                                               |
+| `sort`                                        | The files panel's order: `name-desc`, `size-asc`, `size-desc`, `date-asc` or `date-desc`; absent, `name-asc`               |
+| `regexp`                                      | A search pattern, once per pattern                                                                                         |
+| `max_results`, `only_opened`                  | The search's cap (1 to 10,000, default 100) and "Only opened files"                                                        |
+| `ignore_case`, `word_regexp`, `fixed_strings` | The search's matching toggles                                                                                              |
+| `offsets`                                     | `1`: the search results show byte offsets                                                                                  |
+| `stash`                                       | The timestamps stash: up to 7 instants, comma-separated                                                                    |
+| `ftz`                                         | A zone chosen for a file, `ftz=UTC@/var/log/app.log`, or for a chain, `ftz=UTC@chain:/var/log/syslog`; once per file       |
 
 `sel` keeps the ranges that are a line `N` or a range `A-B` with whole
 numbers 1 ≤ A ≤ B, the first 100 of them, and the address bar is
@@ -387,20 +446,23 @@ than when the entry was made.
 
 ## The API it calls
 
-| Request               | What for                                                 |
-| --------------------- | -------------------------------------------------------- |
-| `GET /health`         | Connection status, backend version, contract version     |
-| `GET /v1/tree`        | The file tree, and a file's size when a search opens it  |
-| `GET /v1/samples`     | A window of a file's lines, by line range or byte offset |
-| `GET /v1/time-range`  | A file's first and last time                             |
-| `GET /v1/trace`       | Search                                                   |
-| `GET /v1/index`       | A file's stored index: its line count and kind           |
-| `POST /v1/index`      | Build an index                                           |
-| `GET /v1/tasks/{id}`  | Follow an index task                                     |
-| `GET /v1/signatures`  | The signature catalogue, once, on a backend that has it  |
-| `GET /v1/logs/*`      | Log chains: list, describe, samples and search           |
-| `POST /v1/logs/index` | Build the line indexes of a chain's parts                |
-| `GET /version.json`   | The viewer's own version, from its bundle                |
+| Request                 | What for                                                 |
+| ----------------------- | -------------------------------------------------------- |
+| `GET /health`           | Connection status, backend version, contract version     |
+| `GET /v1/tree`          | The file tree, and a file's size when a search opens it  |
+| `GET /v1/samples`       | A window of a file's lines, by line range or byte offset |
+| `GET /v1/time-range`    | A file's first and last time                             |
+| `GET /v1/trace`         | Search                                                   |
+| `GET /v1/index`         | A file's stored index: its line count and kind           |
+| `POST /v1/index`        | Build an index                                           |
+| `GET /v1/tasks/{id}`    | Follow an index task or a findings scan                  |
+| `GET /v1/signatures`    | The signature catalogue, once, on a backend that has it  |
+| `GET /v1/findings`      | A file's findings from the cache: summary and pages      |
+| `POST /v1/findings`     | Scan a file for the picked signatures                    |
+| `DELETE /v1/tasks/{id}` | Cancel a findings scan                                   |
+| `GET /v1/logs/*`        | Log chains: list, describe, samples and search           |
+| `POST /v1/logs/index`   | Build the line indexes of a chain's parts                |
+| `GET /version.json`     | The viewer's own version, from its bundle                |
 
 `/health` reports `contract_version` (`MAJOR.MINOR`). The viewer reads
 contract major 2 (`src/lib/utils/contractVersion.ts`), which rx-go serves

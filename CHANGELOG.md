@@ -48,6 +48,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `signatures`, the viewer asks `GET /v1/signatures` once, after the
   first `/health` answer, and keeps the signatures, their groups and the
   load errors. A failed ask is tried again at the next `/health` answer.
+- The Findings panel, the third button of the activity bar (Alt+3), on
+  a backend that serves signatures. It lists the findings of the file in
+  the active tab from the backend's findings cache, and never scans on
+  its own: its state line says "full · 42 findings", "partial · 3 of 58
+  signatures" or "not scanned". The list is in line order or, with By
+  group, under each group and signature with their counts ("showing
+  10,000 of 48,210" for a capped signature); a filter box narrows it by
+  excerpt or signature name. Only the rows on screen are drawn and
+  loaded, page by page, so a file with 100,000 findings scrolls like a
+  short one. A click or Enter on a finding selects its lines in the
+  editor and goes there; the list works from the keyboard as one Tab
+  stop (↑/↓, Home/End, ←/→ to close and open a group or signature).
+- The signature picker of the Findings panel: a checklist of the
+  signatures by group, with a three-state box per group, a filter, the
+  presets Default, All and None, a mark on opt-in signatures and on
+  those current for the file. The choice is kept in the browser with
+  the other settings, not in the link; Default follows the backend's
+  catalogue.
+- Scans from the Findings panel: "Scan N missing" scans only the picked
+  signatures the cache does not answer, and Rescan in the ⋯ menu scans
+  them all again. A progress bar shows the bytes read, and Cancel stops
+  the scan, which then writes nothing. A scan belongs to its file: it
+  goes on while another tab is shown or its tab is closed, and when it
+  ends the file's label in the tree and the panel show what it found.
+  A scan that joined one already running for the file scans, once more,
+  what that scan left out. The scan's `rx trace --signatures=…` command
+  goes to the recent commands.
+- `tab=findings` and `findings_by=group` in the link: the Findings panel
+  and its order by group.
 
 ### Changed
 

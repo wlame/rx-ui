@@ -79,30 +79,31 @@ older viewers.
 
 ## Quick orientation
 
-| Where                                                     | What                                                                                                                                                |
-| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/main.ts`, `src/App.svelte`                           | Entry point and root layout                                                                                                                         |
-| `src/lib/api.ts`                                          | The entire backend surface: one `api` object, `fetchJson`, `ApiError`                                                                               |
-| `src/lib/types.generated.ts`                              | Generated from rx-go's OpenAPI document — do not edit                                                                                               |
-| `src/lib/types.ts`                                        | Aliases of the generated wire types, plus the app's own types                                                                                       |
-| `src/lib/stores/`                                         | `files`, `tree`, `trace`, `health`, `signatures`, `settings`, `notifications`, `version`, `layout`; `paneMemory` keeps each file tab's editor state |
-| `src/lib/utils/processContent.ts`, `editorDecorations.ts` | The editor's regex filter: hide and show rewrite the text, highlight draws decorations                                                              |
-| `src/lib/stores/chainTabs.ts`, `src/lib/utils/chain*.ts`  | Log chains: a chain's tab, its pages, zones, gutter, timeline and search marks, the files panel's chain rows and the mode switch                    |
-| `src/lib/utils/urlState.ts`, `src/lib/viewState.ts`       | The view in the URL (no router): one parse/serialize table per key; URL written from stores                                                         |
-| `src/lib/utils/lineSelection.ts`, `copyFormat.ts`         | The selected lines as ranges, the URL's `sel`, and the text a copy of lines puts on the clipboard                                                   |
-| `src/lib/utils/monacoLanguage.ts`, `monacoLogLanguage.ts` | Monaco language registration and the log grammar                                                                                                    |
-| `src/components/editor/`                                  | `MonacoEditor.svelte`, `EditorPane.svelte` (paged large-file viewing), `EditorHeader.svelte` (name, line readout, chips, toolbar)                   |
-| `src/components/tree/`, `search/`, `layout/`, `common/`   | Tree, search form and results, chrome (the activity bar, `Sidebar.svelte`), shared widgets                                                          |
-| `src/lib/stores/filesView.ts`, `treeFocus.ts`             | The files panel's labels, value and sort; the file tree's current row and Tab stop                                                                  |
-| `src/lib/stores/searchDraft.ts`, `trace.ts`               | The search form as the user left it; the search the URL names                                                                                       |
-| `src/lib/utils/shortcuts.ts`, `panels.ts`                 | The one shortcut table with its scoped key handlers; the side panel's panels, which the activity bar draws                                          |
-| `src/lib/actions/`                                        | Svelte actions: `tooltip` (label and keys on hover and focus), `modal` (counts an open modal dialog), `takeFocus` (focus to a dialog, then back)    |
-| `src/lib/utils/icons.ts`                                  | The icon table (Lucide outlines); `src/components/common/Icon.svelte` draws it                                                                      |
-| `src/lib/utils/treeSort.ts`, `treeRows.ts`, `treeNav.ts`  | The files panel's sort, the rows the tree shows as one list, and the tree's key rules                                                               |
-| `src/lib/utils/tabOrder.ts`, `recentSwitch.ts`            | The open tabs' strip and recent orders; the recent-tab switcher's state machine                                                                     |
-| `src/lib/stores/signatures.ts`, `utils/groupStyle.ts`     | The signature catalogue and the colours of its groups (see "Signatures and findings")                                                               |
-| `vite.config.ts`                                          | Dev proxy `/v1`, `/health` → `localhost:8080`; Monaco manual chunk                                                                                  |
-| `.github/workflows/`                                      | `ci.yml` (build) and `release.yml` (tag → `dist.tar.gz` release)                                                                                    |
+| Where                                                     | What                                                                                                                                                     |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/main.ts`, `src/App.svelte`                           | Entry point and root layout                                                                                                                              |
+| `src/lib/api.ts`                                          | The entire backend surface: one `api` object, `fetchJson`, `ApiError`                                                                                    |
+| `src/lib/types.generated.ts`                              | Generated from rx-go's OpenAPI document — do not edit                                                                                                    |
+| `src/lib/types.ts`                                        | Aliases of the generated wire types, plus the app's own types                                                                                            |
+| `src/lib/stores/`                                         | `files`, `tree`, `trace`, `health`, `signatures`, `settings`, `notifications`, `version`, `layout`; `paneMemory` keeps each file tab's editor state      |
+| `src/lib/utils/processContent.ts`, `editorDecorations.ts` | The editor's regex filter: hide and show rewrite the text, highlight draws decorations                                                                   |
+| `src/lib/stores/chainTabs.ts`, `src/lib/utils/chain*.ts`  | Log chains: a chain's tab, its pages, zones, gutter, timeline and search marks, the files panel's chain rows and the mode switch                         |
+| `src/lib/utils/urlState.ts`, `src/lib/viewState.ts`       | The view in the URL (no router): one parse/serialize table per key; URL written from stores                                                              |
+| `src/lib/utils/lineSelection.ts`, `copyFormat.ts`         | The selected lines as ranges, the URL's `sel`, and the text a copy of lines puts on the clipboard                                                        |
+| `src/lib/utils/monacoLanguage.ts`, `monacoLogLanguage.ts` | Monaco language registration and the log grammar                                                                                                         |
+| `src/components/editor/`                                  | `MonacoEditor.svelte`, `EditorPane.svelte` (paged large-file viewing), `EditorHeader.svelte` (name, line readout, chips, toolbar)                        |
+| `src/components/tree/`, `search/`, `layout/`, `common/`   | Tree, search form and results, chrome (the activity bar, `Sidebar.svelte`), shared widgets                                                               |
+| `src/lib/stores/filesView.ts`, `treeFocus.ts`             | The files panel's labels, value and sort; the file tree's current row and Tab stop                                                                       |
+| `src/lib/stores/searchDraft.ts`, `trace.ts`               | The search form as the user left it; the search the URL names                                                                                            |
+| `src/lib/utils/shortcuts.ts`, `panels.ts`                 | The one shortcut table with its scoped key handlers; the side panel's panels, which the activity bar draws                                               |
+| `src/lib/actions/`                                        | Svelte actions: `tooltip` (label and keys on hover and focus), `modal` (counts an open modal dialog), `takeFocus` (focus to a dialog, then back)         |
+| `src/lib/utils/icons.ts`                                  | The icon table (Lucide outlines); `src/components/common/Icon.svelte` draws it                                                                           |
+| `src/lib/utils/treeSort.ts`, `treeRows.ts`, `treeNav.ts`  | The files panel's sort, the rows the tree shows as one list, and the tree's key rules                                                                    |
+| `src/lib/utils/tabOrder.ts`, `recentSwitch.ts`            | The open tabs' strip and recent orders; the recent-tab switcher's state machine                                                                          |
+| `src/lib/stores/signatures.ts`, `utils/groupStyle.ts`     | The signature catalogue and the colours of its groups (see "Signatures and findings")                                                                    |
+| `src/components/findings/`, `src/lib/stores/findings.ts`  | The Findings panel and each file's findings and scans; the pure rules in `utils/findingRows.ts`, `findingsNav.ts`, `findingsPicker.ts`, `virtualList.ts` |
+| `vite.config.ts`                                          | Dev proxy `/v1`, `/health` → `localhost:8080`; Monaco manual chunk                                                                                       |
+| `.github/workflows/`                                      | `ci.yml` (build) and `release.yml` (tag → `dist.tar.gz` release)                                                                                         |
 
 ## Build, run, test
 
@@ -284,7 +285,8 @@ role="tab">` that also carries the drag handlers; its close button is a
   `preventDefault` only when it acted. A row belongs to a scope
   (`SHORTCUT_SCOPES`, in the help's order: anywhere, panels, open file
   tabs, activity bar, files panel, Size/Date switch, file tree, search
-  panel, search field, tab strip, then the editor's and the dialogs');
+  panel, search field, findings panel, tab strip, then the editor's and
+  the dialogs');
   the help lists a scope
   only once it has a row. The README's table lists the same rows, and a
   test fails when the two differ: change both in one commit.
@@ -314,21 +316,24 @@ role="tab">` that also carries the drag handlers; its close button is a
     Esc does nothing else; it does not cancel the key, so a dialog around
     the trigger still closes on the same press.
 - The side panel is an activity bar (`components/layout/ActivityBar.svelte`)
-  and a host (`Sidebar.svelte`). `PANELS` (`utils/panels.ts`) has a row per
+  and a host (`Sidebar.svelte`) with three panels: Files (Alt+1), Search
+  (Alt+2) and Findings (Alt+3). `PANELS` (`utils/panels.ts`) has a row per
   panel (id, label, icon, the shortcut row that shows it) and
   `Sidebar.svelte` has its view in `PANEL_VIEWS`, so a further panel is
-  one row and one view. Every panel stays mounted and the one not shown
-  is `hidden`: the tree keeps its open folders, the search form its
-  unsent edits, and a link's search runs on load whichever panel is
-  shown. A modal dialog is therefore never drawn inside a panel, where a
+  one row and one view, plus its `SidebarTab` value, its `tab=` value in
+  `TAB_PARAM_VALUES` and its focus request in `FOCUS_REQUESTS`. Every
+  panel stays mounted and the ones not shown are `hidden`: the tree
+  keeps its open folders, the search form its unsent edits, the
+  findings list its loaded pages, and a link's search runs on load
+  whichever panel is shown. A modal dialog is therefore never drawn inside a panel, where a
   panel switch or Back would hide it while `modalOpen` still counts it:
   a panel that opens one has `App.svelte` draw it. A component shows a
   panel through `showPanel(id, focus)` or `clickPanelButton(id)` (`stores/layout.ts`);
   only `restoreView` sets `sidebarTab` itself, from a link.
   A focus request (`treeFocusRequested`, `searchFocusRequested`,
-  `editorFocusRequested`, `tabStripFocusRequested`) is a flag that the
-  target answers after the next update and resets, so a panel is drawn
-  before it takes the focus. An editor pane mounted with the request
+  `findingsFocusRequested`, `editorFocusRequested`,
+  `tabStripFocusRequested`) is a flag that the target answers after the
+  next update and resets, so a panel is drawn before it takes the focus. An editor pane mounted with the request
   raised answers once it is drawn, and while its Monaco editor is not
   ready it holds the focus and hands it on when the editor is.
   A switch of tabs by key (Alt+], Alt+[, Alt+X, an Alt+Q switch) goes
@@ -441,9 +446,42 @@ caches each file's findings per signature.
 - **Findings.** `GET /v1/findings` (`FindingsQuery`) reads the cache and
   never scans. A scan is `POST /v1/findings`, which answers a task to
   follow with `getTaskStatus`; `cancelTask` stops it (a 409 for one that
-  ended), and a poll ends on its `cancelled`. A finding's text comes only
-  from `GET /v1/findings` with `text`, masked and clipped by the backend;
-  never from `/v1/samples`, which gives the lines unmasked.
+  ended), and a poll ends on its `cancelled`. Follow a scan with
+  `watchTask` (`utils/taskPolling.ts`), never `taskPolls`, which is keyed
+  by tab and holds index tasks only (its result is a line index). A
+  finding's text comes only from `GET /v1/findings`: its `excerpt`, or
+  `lines` with `text`, masked and clipped by the backend; never from
+  `/v1/samples`, which gives the lines unmasked.
+- **The findings store** (`stores/findings.ts`) keys everything by the
+  file's path: `findingsByFile` holds each file's summary (the last
+  `GET /v1/findings` for the picker's selection and the filter `q`), its
+  scan, its current finding and its loaded pages. A scan is followed
+  there, not in a component, so it outlives a tab switch and the file's
+  tab; only `cancelScan` stops it, and its end reads the summary again,
+  records its `cli_command` and updates the tree label
+  (`tree.markFindings`, from a `signatures=all` summary, as `/v1/tree`
+  counts). When a POST joined another request's scan that left a
+  requested signature out, the store posts once more for what is still
+  missing. Pages hold `FINDINGS_PAGE_SIZE` findings; each list (the line
+  list `LINE_LIST`, or one signature's in the group view) is a sparse
+  array as long as the list, and each page is asked once per summary.
+  The panel drops the findings of closed tabs (`forgetFindings`), never
+  those of a running scan.
+- **The Findings panel** (`components/findings/`) asks only while it is
+  shown: when it shows a file, and again when the picker's choice or the
+  filter changes. The picker's choice is `AppSettings.findingsPicker`
+  (`null`: the default set), parsed by `parseSettings`, never in the URL;
+  `utils/findingsPicker.ts` turns it into the request's selection
+  (`selectionOf`: none for the default set, `all`, or ids). Its state
+  line counts `checked` of the selection sent (`checked` + `missing`).
+  `findings_by=group` is `ViewState.findingsBy` (`stores/layout.ts`
+  `findingsBy`). The picker and the ⋯ menu are popovers, not dialogs:
+  they carry no `use:modal`, and the panel opens no modal dialog. The
+  list is a virtual list of fixed-height rows (`ROW_HEIGHT_PX`,
+  `utils/virtualList.ts`) with one Tab stop that is always drawn; its key
+  rules are `utils/findingsNav.ts`, under the `findingsPanel` scope,
+  silenced by `modalOpen`. Group and signature headers have a
+  `header-actions` slot for actions on the whole header.
 - **The old analysis is gone.** `category`, its link key, is in
   `RETIRED_PARAMS` (`utils/urlState.ts`): a link that holds it opens
   without it, and the address bar drops it.
