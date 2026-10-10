@@ -154,7 +154,10 @@ export type TaskState = 'queued' | 'running' | 'completed' | 'failed' | 'cancell
  */
 export type ChainIndexTaskResult = Schemas['ChainIndexTaskResult'];
 
-/** `POST /v1/index`: the task that builds the index. */
+/**
+ * `POST /v1/index`: the task that builds the index. `POST /v1/findings`
+ * answers a findings scan's task in the same shape.
+ */
 export type IndexTaskResponse = Schemas['TaskResponse'];
 
 // Signatures and findings (/v1/signatures, /v1/findings). rx-go serves

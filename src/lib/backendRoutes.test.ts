@@ -34,6 +34,10 @@ describe('devProxy', () => {
     await api.getHealth();
     await api.getTree();
     await api.getIndex('/a.log');
+    await api.getSignatures();
+    await api.getFindings('/a.log', {});
+    await api.startFindingsScan('/a.log', [], false);
+    await api.cancelTask('t1');
 
     const prefixes = Object.keys(devProxy(TARGET));
     for (const path of paths) {

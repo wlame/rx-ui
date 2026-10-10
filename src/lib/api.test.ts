@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { get } from 'svelte/store';
-import { api, ApiError } from './api';
+import { api, ApiError, type FindingsQuery } from './api';
 import { clearApiToken, setApiToken, tokenRequired } from './utils/apiToken';
 
 /**
@@ -625,5 +625,160 @@ describe('log chain routes', () => {
     const controller = new AbortController();
     await call({ signal: controller.signal });
     expect(spy.mock.calls[0][1].signal).toBe(controller.signal);
+  });
+});
+
+describe('signature and findings routes', () => {
+  const path = '/logs/app 1+2.log';
+
+  /** The request's path and its query parameters, in order. */
+  function requestOf(spy: ReturnType<typeof stubFetch>) {
+    const url = new URL(spy.mock.calls[0][0], 'http://x');
+    return { pathname: url.pathname, params: [...url.searchParams.entries()] };
+  }
+
+  it('asks GET /v1/signatures for the catalogue', async () => {
+    const spy = stubFetch({ json: async () => ({ signatures: [], groups: [] }) });
+
+    await api.getSignatures();
+
+    expect(spy.mock.calls[0][0]).toBe('/v1/signatures');
+    expect(spy.mock.calls[0][1].method).toBeUndefined();
+  });
+
+  /**
+   * Every member of a findings query and the parameters it sends, under
+   * the names of GET /v1/findings. Keyed by the members, so a member
+   * without its row fails the type check.
+   */
+  const FINDINGS_PARAMS: Record<keyof FindingsQuery, [FindingsQuery, [string, string][]]> = {
+    signatures: [
+      { signatures: ['traceback', 'sql', '-pii'] },
+      [['signatures', 'traceback,sql,-pii']],
+    ],
+    signature: [
+      { signature: ['python-traceback', 'aws-access-key'] },
+      [
+        ['signature', 'python-traceback'],
+        ['signature', 'aws-access-key'],
+      ],
+    ],
+    group: [
+      { group: ['traceback', 'secret'] },
+      [
+        ['group', 'traceback'],
+        ['group', 'secret'],
+      ],
+    ],
+    q: [{ q: 'Traceback (most' }, [['q', 'Traceback (most']]],
+    lines: [{ lines: [1000, 1200] }, [['lines', '1000-1200']]],
+    afterLine: [{ afterLine: 120 }, [['after_line', '120']]],
+    beforeLine: [{ beforeLine: 120 }, [['before_line', '120']]],
+    offset: [{ offset: 2000 }, [['offset', '2000']]],
+    limit: [{ limit: 1 }, [['limit', '1']]],
+    text: [{ text: true }, [['text', 'true']]],
+    before: [{ before: 1 }, [['before', '1']]],
+    maxBytes: [{ maxBytes: 8_388_608 }, [['max_bytes', '8388608']]],
+    ticks: [{ ticks: 800 }, [['ticks', '800']]],
+    fileTz: [{ fileTz: 'Europe/Berlin' }, [['file_tz', 'Europe/Berlin']]],
+  };
+
+  it.each(Object.entries(FINDINGS_PARAMS))(
+    'sends %s of a findings query under its wire name',
+    async (_member, [query, expected]) => {
+      const spy = stubFetch({});
+
+      await api.getFindings(path, query);
+
+      expect(requestOf(spy)).toEqual({
+        pathname: '/v1/findings',
+        params: [['path', path], ...expected],
+      });
+    },
+  );
+
+  it('sends every member of a findings query together, after the path', async () => {
+    const spy = stubFetch({});
+    const query = Object.values(FINDINGS_PARAMS).reduce<FindingsQuery>(
+      (all, [member]) => ({ ...all, ...member }),
+      {},
+    );
+
+    await api.getFindings(path, query);
+
+    expect(requestOf(spy).params).toEqual([
+      ['path', path],
+      ...Object.values(FINDINGS_PARAMS).flatMap(([, expected]) => expected),
+    ]);
+  });
+
+  // The backend's defaults hold for what is left out: the default set,
+  // no filter, the first page of 1,000, no text.
+  it('sends only the path for an empty query, an empty selection, filter or text off', async () => {
+    const spy = stubFetch({});
+
+    await api.getFindings(path, {});
+    await api.getFindings(path, { signatures: [], signature: [], group: [], q: '', text: false });
+
+    for (const call of spy.mock.calls) {
+      expect([...new URL(call[0], 'http://x').searchParams.entries()]).toEqual([['path', path]]);
+    }
+  });
+
+  it('forwards the signal of a findings request', async () => {
+    const spy = stubFetch({});
+    const controller = new AbortController();
+
+    await api.getFindings(path, {}, { signal: controller.signal });
+
+    expect(spy.mock.calls[0][1].signal).toBe(controller.signal);
+  });
+
+  it('starts a scan with POST /v1/findings and the selection as one string', async () => {
+    const task = { task_id: 't1', status: 'queued', message: '', path, started_at: null };
+    const spy = stubFetch({ status: 202, statusText: 'Accepted', json: async () => task });
+
+    const answer = await api.startFindingsScan(path, ['python-traceback', 'group:sql'], true);
+
+    expect(answer).toEqual(task);
+    expect(spy.mock.calls[0][0]).toBe('/v1/findings');
+    expect(spy.mock.calls[0][1].method).toBe('POST');
+    expect(JSON.parse(spy.mock.calls[0][1].body)).toEqual({
+      path,
+      signatures: 'python-traceback,group:sql',
+      force: true,
+    });
+  });
+
+  // The backend reads an empty selection as the default set.
+  it('sends an empty selection as an empty string', async () => {
+    const spy = stubFetch({ status: 202 });
+
+    await api.startFindingsScan(path, [], false);
+
+    expect(JSON.parse(spy.mock.calls[0][1].body)).toEqual({ path, signatures: '', force: false });
+  });
+
+  it('cancels a task with DELETE /v1/tasks/{task_id}', async () => {
+    const spy = stubFetch({ json: async () => ({ task_id: 'a/b', status: 'cancelled' }) });
+
+    await expect(api.cancelTask('a/b')).resolves.toBeUndefined();
+
+    expect(spy.mock.calls[0][0]).toBe('/v1/tasks/a%2Fb');
+    expect(spy.mock.calls[0][1].method).toBe('DELETE');
+  });
+
+  it('rejects the cancel of a task that already ended with the 409', async () => {
+    stubFetch({
+      ok: false,
+      status: 409,
+      statusText: 'Conflict',
+      text: async () => '{"detail":"task t1 already completed","task_id":"t1"}',
+    });
+
+    await expect(api.cancelTask('t1')).rejects.toMatchObject({
+      status: 409,
+      message: 'task t1 already completed',
+    });
   });
 });

@@ -8,6 +8,8 @@ import type {
   IndexResponse,
   IndexTaskResponse,
   TimeRangeResponse,
+  SignaturesResponse,
+  FindingsResponse,
   ChainsResponse,
   ChainResponse,
   ChainSamplesResponse,
@@ -276,6 +278,100 @@ async function orChanged<T>(request: Promise<T>): Promise<T | ChainChanged> {
   }
 }
 
+/**
+ * The query of `GET /v1/findings`, which reads the findings cache and
+ * never scans. A member left out keeps the backend's default: the
+ * default set of signatures, no filter, the first page of 1,000 findings
+ * and no text. A finding's text (`text`) comes masked and clipped at the
+ * end the scan read by the backend; never build it from `/v1/samples`,
+ * which gives the lines unmasked.
+ */
+export interface FindingsQuery {
+  /**
+   * The selection the summary (`state`, `checked`, `missing`) describes,
+   * as `rx trace --signatures=` takes it: ids, groups, tags, `all`,
+   * `default`, `-word` to remove. Sent as one comma-separated string;
+   * empty, the default set.
+   */
+  signatures?: string[];
+  /** Only the findings of these signatures, by id. */
+  signature?: string[];
+  /** Only the findings of the signatures of these groups. */
+  group?: string[];
+  /** Only the findings whose excerpt or signature name holds this text, without case. */
+  q?: string;
+  /** Only the findings that overlap lines A to B, 1-based and inclusive (a loaded window). */
+  lines?: [number, number];
+  /** Only the findings whose first line is after this line: the next finding. */
+  afterLine?: number;
+  /** Only the findings whose first line is before this line, nearest first: the previous finding. */
+  beforeLine?: number;
+  /** How many filtered findings to pass over before the page. */
+  offset?: number;
+  /** The most findings in the page, 1 to 10,000. */
+  limit?: number;
+  /** Give each finding of the page its `lines` (and `before`). */
+  text?: boolean;
+  /** With `text`: how many lines before each finding, 0 to 5. */
+  before?: number;
+  /** With `text`: the most bytes of text the page holds. */
+  maxBytes?: number;
+  /** Place the filtered findings on a timeline of this many columns (`ticks`), up to 4,000. */
+  ticks?: number;
+  /** Read the file's times as wall clock in this zone; check `backendHas('file_tz')` first. */
+  fileTz?: string;
+}
+
+/** A member of a findings query. */
+type FindingsQueryMember = keyof FindingsQuery;
+
+/** What a member of a findings query sends: its query parameters, as name and value. */
+type FindingsParams<K extends FindingsQueryMember> = (
+  value: Required<FindingsQuery>[K],
+) => [string, string][];
+
+/**
+ * The query parameters each member of a findings query sends, under the
+ * names `GET /v1/findings` reads; none for an empty selection, list,
+ * filter or a text that is off. In the order a request lists them.
+ */
+const FINDINGS_PARAMS: { [K in FindingsQueryMember]: FindingsParams<K> } = {
+  signatures: (ids) => (ids.length > 0 ? [['signatures', ids.join(',')]] : []),
+  signature: (ids) => ids.map((id) => ['signature', id]),
+  group: (names) => names.map((name) => ['group', name]),
+  q: (text) => (text === '' ? [] : [['q', text]]),
+  lines: ([first, last]) => [['lines', `${first}-${last}`]],
+  afterLine: (line) => [['after_line', String(line)]],
+  beforeLine: (line) => [['before_line', String(line)]],
+  offset: (count) => [['offset', String(count)]],
+  limit: (count) => [['limit', String(count)]],
+  text: (on) => (on ? [['text', 'true']] : []),
+  before: (count) => [['before', String(count)]],
+  maxBytes: (bytes) => [['max_bytes', String(bytes)]],
+  ticks: (width) => [['ticks', String(width)]],
+  fileTz: (zone) => [['file_tz', zone]],
+};
+
+/** The parameters one member sends; a helper so the member's type flows through. */
+function findingsParamsOf<K extends FindingsQueryMember>(
+  member: K,
+  value: Required<FindingsQuery>[K],
+): [string, string][] {
+  const encode: FindingsParams<K> = FINDINGS_PARAMS[member];
+  return encode(value);
+}
+
+/** The query of a findings request: the path, then each member that is set. */
+function findingsQuery(path: string, query: FindingsQuery): URLSearchParams {
+  const params = new URLSearchParams({ path });
+  for (const member of Object.keys(FINDINGS_PARAMS) as FindingsQueryMember[]) {
+    const value = query[member];
+    if (value === undefined) continue;
+    for (const [name, text] of findingsParamsOf(member, value)) params.append(name, text);
+  }
+  return params;
+}
+
 /** The query of a search: repeated paths and patterns, the cap and the flags that are on. */
 function traceQuery(
   paths: string[],
@@ -486,6 +582,64 @@ export const api = {
    */
   async getTaskStatus(taskId: string, options?: RequestOptions): Promise<TaskStatus> {
     return fetchJson<TaskStatus>(`${API_BASE}/tasks/${encodeURIComponent(taskId)}`, options);
+  },
+
+  /**
+   * Cancel a findings scan that is queued or running: it stops, writes
+   * nothing, and its status becomes `cancelled`. Rejects with an
+   * `ApiError` of 409 when the task already ended (or is not a findings
+   * scan), and of 404 when the backend does not know it.
+   * @param taskId - The scan's task ID
+   */
+  async cancelTask(taskId: string): Promise<void> {
+    await fetchJson<TaskStatus>(`${API_BASE}/tasks/${encodeURIComponent(taskId)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * The signature catalogue the backend loaded when it started. Check
+   * `backendHas('signatures')` first, as for every signature and
+   * findings route.
+   */
+  async getSignatures(): Promise<SignaturesResponse> {
+    return fetchJson<SignaturesResponse>(`${API_BASE}/signatures`);
+  },
+
+  /**
+   * A file's findings as the cache holds them: the summary of the
+   * selection and one page of the findings that pass the filters. Never
+   * scans.
+   * @param path - File path
+   * @param query - The selection, filters, page, text and ticks
+   */
+  async getFindings(
+    path: string,
+    query: FindingsQuery,
+    options?: RequestOptions,
+  ): Promise<FindingsResponse> {
+    const params = findingsQuery(path, query);
+    return fetchJson<FindingsResponse>(`${API_BASE}/findings?${params}`, options);
+  },
+
+  /**
+   * Start a scan of a file with the selected signatures (`force`: those
+   * with a current cache entry too), or join the scan of the file that
+   * runs. Answers the task to follow with `getTaskStatus`; its result is
+   * the `getFindings` answer for the selection.
+   * @param path - File path
+   * @param signatures - The selection, as `FindingsQuery.signatures`; empty, the default set
+   * @param force - Scan every selected signature again
+   */
+  async startFindingsScan(
+    path: string,
+    signatures: string[],
+    force: boolean,
+  ): Promise<IndexTaskResponse> {
+    return fetchJson<IndexTaskResponse>(`${API_BASE}/findings`, {
+      method: 'POST',
+      body: JSON.stringify({ path, signatures: signatures.join(','), force }),
+    });
   },
 
   /**
