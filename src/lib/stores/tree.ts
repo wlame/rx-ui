@@ -311,6 +311,18 @@ function createTreeStore() {
   }
 
   /**
+   * Show what the findings cache now holds for a file, after a scan of
+   * it ended: its state and its findings count, or nothing for `none`.
+   */
+  function markFindings(path: string, state: 'full' | 'partial' | 'none', count: number) {
+    const findings = state === 'none' ? null : { state, count };
+    update((s) => ({
+      ...s,
+      roots: updateNode(s.roots, path, (n) => ({ ...n, findings })),
+    }));
+  }
+
+  /**
    * Keep what a chain's description said, for its row: its state and
    * reasons (an invalid chain is marked), and whether every part it
    * needs is indexed (`idx`), which a listing of its directory gave
@@ -399,6 +411,7 @@ function createTreeStore() {
     toggleExpanded,
     selectPath,
     markIndexed,
+    markFindings,
     expandToPath,
     listChainsOfShownDirectories,
     refreshChains,
