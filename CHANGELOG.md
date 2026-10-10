@@ -50,6 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   red mark. The selection belongs to the tab and stays when an anomaly
   category is chosen, which used to clear the mark.
 
+### Fixed
+
+- A copy over plain http, where the browser offers no Clipboard API,
+  leaves the focus where it was. The text field the copy goes through
+  took it, so the keys of the editor or of the control used stopped
+  working until a click.
+
 ## [0.7.1] - 2026-10-10
 
 ### Added

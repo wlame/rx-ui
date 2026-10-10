@@ -20,12 +20,15 @@ describe('copyText', () => {
   function stubDocument(copied: boolean) {
     const field = { value: '', style: {}, setAttribute: vi.fn(), select: vi.fn(), remove: vi.fn() };
     const execCommand = vi.fn().mockReturnValue(copied);
+    // The element that has the focus before the copy, such as the editor's text area.
+    const focused = { focus: vi.fn() };
     vi.stubGlobal('document', {
       createElement: () => field,
       body: { appendChild: vi.fn() },
+      activeElement: focused,
       execCommand,
     });
-    return { field, execCommand };
+    return { field, execCommand, focused };
   }
 
   it('falls back to a selected text field without the Clipboard API', async () => {
@@ -36,6 +39,16 @@ describe('copyText', () => {
     expect(field.value).toBe('rx index /a.log');
     expect(execCommand).toHaveBeenCalledWith('copy');
     expect(field.remove).toHaveBeenCalled();
+  });
+
+  it('gives the focus back to the element that had it, after the text field took it', async () => {
+    vi.stubGlobal('navigator', {});
+    const { field, focused } = stubDocument(true);
+
+    await copyText('rx index /a.log');
+
+    expect(field.select).toHaveBeenCalled();
+    expect(focused.focus).toHaveBeenCalled();
   });
 
   it('falls back when the Clipboard API refuses', async () => {

@@ -4,7 +4,8 @@
  * The Clipboard API exists only in a secure context (https or
  * localhost), and `rx serve` is often reached over plain http on a
  * trusted network. There the text is copied the older way: from a text
- * field that is selected for the moment of the copy.
+ * field that is selected for the moment of the copy, after which the
+ * focus goes back where it was (the editor, for Cmd/Ctrl+C there).
  */
 export async function copyText(text: string): Promise<boolean> {
   if (navigator.clipboard?.writeText) {
@@ -19,6 +20,7 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 function copyThroughTextField(text: string): boolean {
+  const focused = document.activeElement as HTMLElement | null;
   const field = document.createElement('textarea');
   field.value = text;
   field.setAttribute('readonly', '');
@@ -29,5 +31,6 @@ function copyThroughTextField(text: string): boolean {
     return document.execCommand('copy');
   } finally {
     field.remove();
+    focused?.focus?.();
   }
 }
