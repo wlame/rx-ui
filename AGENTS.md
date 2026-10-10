@@ -40,8 +40,12 @@ interchangeable backends, no vendoring.
    rx-python catches up: check for it before calling it.
    The log chain routes (`/v1/logs/*`) are such: a chain feature acts only
    while `chainModeOn` (`src/lib/stores/chainMode.ts`) holds, which needs
-   `backendHas('log_chains')`.
-3. **Never hardcode ports.** Take what a backend serves from its answers.
+   `backendHas('log_chains')`. So are the signature and findings routes
+   (`/v1/signatures`, `/v1/findings`, `DELETE /v1/tasks/{id}`): call them
+   only while `backendHas('signatures')` holds.
+3. **Never hardcode signature ids, group names or ports.** A user's
+   signature files add to and switch off the built-in catalogue. Drive the
+   UI from the live `/v1/signatures` answer (`src/lib/stores/signatures.ts`).
 4. **Respect `file_chunks`.** In a trace response `file_chunks` is a
    `{file_id: chunk_count}` map. `relative_line_number` is absolute only when
    the count is 1. `absolute_line_number` is `-1` when unknown. When it is
@@ -94,6 +98,7 @@ interchangeable backends, no vendoring.
 | `src/lib/utils/icons.ts`                                  | The icon table (Lucide outlines); `src/components/common/Icon.svelte` draws it                                                                      |
 | `src/lib/utils/treeSort.ts`, `treeRows.ts`, `treeNav.ts`  | The files panel's sort, the rows the tree shows as one list, and the tree's key rules                                                               |
 | `src/lib/utils/tabOrder.ts`, `recentSwitch.ts`            | The open tabs' strip and recent orders; the recent-tab switcher's state machine                                                                     |
+| `src/lib/stores/signatures.ts`, `utils/groupStyle.ts`     | The signature catalogue and the colours of its groups (see "Signatures and findings")                                                               |
 | `vite.config.ts`                                          | Dev proxy `/v1`, `/health` → `localhost:8080`; Monaco manual chunk                                                                                  |
 | `.github/workflows/`                                      | `ci.yml` (build) and `release.yml` (tag → `dist.tar.gz` release)                                                                                    |
 
@@ -404,6 +409,43 @@ role="tab">` that also carries the drag handlers; its close button is a
   memory would lose the token on every reload. Not `localStorage`: it would
   outlive the tab. A 401 opens `TokenPrompt.svelte`.
 
+## Signatures and findings
+
+rx-go finds places worth noticing in a file (tracebacks, secrets, SQL,
+bursts) by named signatures, built in or from the user's YAML files, and
+caches each file's findings per signature.
+
+- **Gates.** The viewer reads contract major 2 only, so rx-python
+  (contract 1) is refused. Every signature and findings call
+  (`api.getSignatures`, `getFindings`, `startFindingsScan`, `cancelTask`)
+  goes through `fetchJson` and only while `backendHas('signatures')`.
+- **The catalogue** (`stores/signatures.ts`): `loadSignatures` asks
+  `GET /v1/signatures` once; `App.svelte` calls it when `/health` lists
+  `signatures`, and it does nothing before that, on a backend without the
+  feature or once loaded (a failed ask is tried again at the next call).
+  `signatures` holds every loaded signature in catalogue order, opt-in
+  ones and the built-ins a user file disabled (`disabled_by`) included,
+  the groups and the load errors. `defaultSetIds` names the default set:
+  `default` and no `disabled_by`.
+- **The group palette** (`utils/groupStyle.ts`):
+  `groupStyle(group, groups)` gives a group's `className` and `color`. A
+  group takes the colour at its catalogue `order` (13 colours, the
+  built-in groups first); a group past the 13th, or one the catalogue
+  does not name, gets one by a hash of its name. `installPaletteStyles`
+  (App's mount) adds the `group-palette-<n>` classes; each sets
+  `--rx-group-color` for the app's theme (`.dark`) and, more
+  specifically, for Monaco's (`.vs`, `.vs-dark`), so build a group's
+  look on that variable.
+- **Findings.** `GET /v1/findings` (`FindingsQuery`) reads the cache and
+  never scans. A scan is `POST /v1/findings`, which answers a task to
+  follow with `getTaskStatus`; `cancelTask` stops it (a 409 for one that
+  ended), and a poll ends on its `cancelled`. A finding's text comes only
+  from `GET /v1/findings` with `text`, masked and clipped by the backend;
+  never from `/v1/samples`, which gives the lines unmasked.
+- **The old analysis is gone.** `category`, its link key, is in
+  `RETIRED_PARAMS` (`utils/urlState.ts`): a link that holds it opens
+  without it, and the address bar drops it.
+
 ## Coding standards
 
 - TypeScript strict; `svelte-check` must pass with zero errors.
@@ -513,8 +555,9 @@ in this file; file a ticket.
 
 ## What NOT to do
 
-- Do not hardcode ports.
+- Do not hardcode signature ids, group names or ports.
 - Do not call an endpoint one backend lacks without a capability check.
+- Do not build a finding's text from `/v1/samples`; it is not masked.
 - Do not hand-edit `types.generated.ts` or write a wire type by hand — run
   `just gen-types`.
 - Do not treat `relative_line_number` as absolute when `file_chunks` is not 1.

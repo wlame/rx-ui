@@ -3,6 +3,7 @@
   import { health, settings } from '$lib/stores';
   import { backendHas, contractRefused } from '$lib/stores/health';
   import { loadSignatures } from '$lib/stores/signatures';
+  import { installPaletteStyles } from '$lib/utils/groupStyle';
   import { readViewState } from '$lib/utils/urlState';
   import { loadView, startViewSync } from '$lib/viewState';
   import Header from './components/layout/Header.svelte';
@@ -18,6 +19,8 @@
 
   onMount(() => {
     health.startPolling();
+    // The group colours, for the findings wherever they are drawn.
+    installPaletteStyles();
 
     // The link rebuilds the view; chain mode is on only when it says
     // `chains=1`. The URL follows the view only once that is done, so a
