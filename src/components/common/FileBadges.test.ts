@@ -2,8 +2,8 @@
 import '$lib/testing/matchMediaStub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { health } from '$lib/stores';
-import { forgetFindings, refreshFindings } from '$lib/stores/findings';
-import { loadSignatures } from '$lib/stores/signatures';
+import { findingsByFile, forgetFindings, refreshFindings } from '$lib/stores/findings';
+import { loadSignatures, signatures } from '$lib/stores/signatures';
 import { FINDINGS_DIR, FindingsBackend, finding, serveFindings } from '$lib/testing/fakeFindings';
 import type { FindingsLabel } from '$lib/utils/findingsLabel';
 import FileBadges from './FileBadges.svelte';
@@ -84,5 +84,24 @@ describe('FileBadges findings label', () => {
     await serve();
 
     expect(mount(null)).toBeNull();
+  });
+});
+
+// A scan's progress updates the findings store about once a second; a
+// tree of thousands of rows must not update each of them.
+describe('FileBadges subscriptions', () => {
+  it('reads the findings store and the catalogue only for a file with a findings label', () => {
+    const findingsSubscribe = vi.spyOn(findingsByFile, 'subscribe');
+    const catalogueSubscribe = vi.spyOn(signatures, 'subscribe');
+
+    mount(null);
+    expect(findingsSubscribe).not.toHaveBeenCalled();
+    expect(catalogueSubscribe).not.toHaveBeenCalled();
+
+    badges?.$destroy();
+    mount({ state: 'full', count: 3 });
+    expect(findingsSubscribe).toHaveBeenCalled();
+    expect(catalogueSubscribe).toHaveBeenCalled();
+    vi.restoreAllMocks();
   });
 });

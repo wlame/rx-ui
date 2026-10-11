@@ -7,11 +7,9 @@
    * signature scanned the file and an outline when only some did.
    */
   import { indexingLabel } from '$lib/samplesWait';
-  import { findingsByFile, findingsOf } from '$lib/stores/findings';
-  import { defaultSetIds, signatures } from '$lib/stores/signatures';
   import type { IndexBuild } from '$lib/types';
-  import { findingsLabelTitle, type FindingsLabel } from '$lib/utils/findingsLabel';
-  import { formatNumber } from '$lib/utils/format';
+  import type { FindingsLabel } from '$lib/utils/findingsLabel';
+  import FindingsBadge from './FindingsBadge.svelte';
 
   export let isCompressed: boolean | null = null;
   export let compressionFormat: string | null = null;
@@ -22,22 +20,6 @@
   export let findings: FindingsLabel | null = null;
   /** The file's path, whose summary in the findings store the label's tooltip reads. */
   export let path: string | null = null;
-
-  /** How each state of the findings label looks; both keep a border, so they are one height. */
-  const FINDINGS_LABEL_CLASSES: Record<FindingsLabel['state'], string> = {
-    full: 'badge-warning border border-transparent',
-    partial:
-      'border border-gh-attention-emphasis dark:border-gh-attention-dark-emphasis ' +
-      'text-gh-attention-fg dark:text-gh-attention-dark-fg',
-  };
-
-  $: findingsTitle = findings
-    ? findingsLabelTitle(
-        findings,
-        path === null ? null : findingsOf($findingsByFile, path).fileSummary,
-        defaultSetIds($signatures).length,
-      )
-    : '';
 </script>
 
 <span class="flex items-center gap-1 flex-shrink-0">
@@ -59,12 +41,6 @@
     </span>
   {/if}
   {#if findings}
-    <span
-      data-findings-label={findings.state}
-      class="badge text-[10px] py-0 tabular-nums {FINDINGS_LABEL_CLASSES[findings.state]}"
-      title={findingsTitle}
-    >
-      {formatNumber(findings.count)}
-    </span>
+    <FindingsBadge {findings} {path} />
   {/if}
 </span>
