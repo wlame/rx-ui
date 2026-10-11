@@ -78,6 +78,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   goes to the recent commands.
 - `tab=findings` and `findings_by=group` in the link: the Findings panel
   and its order by group.
+- Findings in the editor. The findings the Findings panel lists that
+  touch the loaded lines show as a bar in the glyph margin in the
+  colour of their signature's group, with a mark on the minimap and the
+  scrollbar and a box around a finding's value on its first line. A
+  hover on the bar names the signature, its level, the finding's lines
+  and the signature's description, from the catalogue only. The editor
+  asks for them once for each window it loads, and again when the
+  picker, the filter or the file's findings change; a log chain's tab
+  shows none. The marks give no line a background, and no value is
+  boxed while a hide or show filter rewrites the text.
+- F8 and Shift+F8 in the editor go to the next finding below the line
+  and the previous one above it, among those the Findings panel lists,
+  and select its lines as a click in the panel does; at either end a
+  notice says "No more findings below" or "No more findings above".
+  The editor's own F8 and Shift+F8 (its next and previous problem) no
+  longer act in a file's tab.
+- A yellow label with the findings count for a file the findings cache
+  holds an answer for, in the files panel and the editor header: filled
+  when every signature of the default set scanned the file, an outline
+  when only some did. Its tooltip says "Scanned with all 58 default
+  signatures: 42 findings." or "Scanned with 3 of 58 default signatures:
+  45 findings. Open Findings to scan the rest."; a scan changes the
+  label at once. Show labels off hides it in the files panel.
+- "Scan for findings" in the context menu of a text file in the files
+  panel, on a backend that serves signatures: it opens the file, shows
+  the Findings panel and scans the file with the picker's choice.
 
 ### Changed
 
@@ -94,9 +120,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   item of the file tree's menu, the analysis dialog with its report of
   line statistics and anomalies, the anomaly category chips in the
   editor header with their marks in the editor and their Cmd/Alt+click
-  steps, and the `GET /v1/detectors` request. A plain text file's row in
-  the tree has no menu of its own now; a compressed file's keeps Index
-  or Re-index.
+  steps, and the `GET /v1/detectors` request. "Scan for findings" takes
+  the Analyze item's place in the menu.
 - The `category` link parameter. A link that holds one opens as if it
   did not, and the address bar drops it, with no new history entry.
 

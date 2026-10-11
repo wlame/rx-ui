@@ -102,6 +102,7 @@ older viewers.
 | `src/lib/utils/tabOrder.ts`, `recentSwitch.ts`            | The open tabs' strip and recent orders; the recent-tab switcher's state machine                                                                          |
 | `src/lib/stores/signatures.ts`, `utils/groupStyle.ts`     | The signature catalogue and the colours of its groups (see "Signatures and findings")                                                                    |
 | `src/components/findings/`, `src/lib/stores/findings.ts`  | The Findings panel and each file's findings and scans; the pure rules in `utils/findingRows.ts`, `findingsNav.ts`, `findingsPicker.ts`, `virtualList.ts` |
+| `stores/editorFindings.ts`, `utils/findingsLabel.ts`      | The findings the editor marks and F8 steps through; the tree label of a scanned file and its tooltip                                                     |
 | `vite.config.ts`                                          | Dev proxy `/v1`, `/health` → `localhost:8080`; Monaco manual chunk                                                                                       |
 | `.github/workflows/`                                      | `ci.yml` (build) and `release.yml` (tag → `dist.tar.gz` release)                                                                                         |
 
@@ -302,7 +303,9 @@ role="tab">` that also carries the drag handlers; its close button is a
     each with its own controls' actions, acting only while
     `filesPanelShown` holds and no modal dialog is open) and
     `handleSearchPanelKey` (the search panel's root element, wherever the
-    focus is inside it). Each tab of the strip checks its rows with
+    focus is inside it), and `handleFilePaneKey` (`EditorPane.svelte`, on
+    the pane in the capture phase, outside text fields: `:` and
+    Cmd/Ctrl+G, F8 and Shift+F8, before Monaco's own bindings of them). Each tab of the strip checks its rows with
     `isShortcut`. The file tree has one `keydown` on `role="tree"`:
     it checks the chord rows with `isShortcut`, then gives the other keys
     to `treeKeyAction`. An Alt+letter or Alt+digit row matches by `code`,
@@ -491,6 +494,40 @@ caches each file's findings per signature.
   rules are `utils/findingsNav.ts`, under the `findingsPanel` scope,
   silenced by `modalOpen`. Group and signature headers have a
   `header-actions` slot for actions on the whole header.
+- **In the editor** (`stores/editorFindings.ts`): `requestWindowFindings`
+  asks `GET /v1/findings` with `lines=<window>`, `limit=10000` and the
+  panel's filters (`panelFilters` in `stores/findings.ts`: the picker's
+  selection and `q`) once per key: the window, the filters, the file's
+  `fileSummary` state and N, and its tree label. The newest answer wins
+  (`LatestRequestMap`). It asks nothing for a chain tab, with nothing
+  picked, or for a file known to hold none (its `fileSummary` says none,
+  or, before one, the tree lists it without a label). The pane passes
+  `$markInputs`, so a new choice, filter, summary or label asks again.
+  `findingDecorations` (`utils/editorDecorations.ts`) draws
+  `PaneView.findings` with `PaneView.signatures`: a glyph-margin bar
+  (`monaco-finding-bar` and the group's palette class; Monaco joins every
+  glyph class of one line into one element, so the bar is a `::before`
+  beside a search match's glyph), minimap and scrollbar marks in
+  `groupColors`, a hover built from the catalogue only (escaped
+  Markdown, so a user's description draws no image or link), and a box
+  around `value_start`–`value_end`, bytes turned into UTF-16 columns over
+  the editor's text, left out while a hide or show filter rewrites it.
+  `stepFinding` is F8 and Shift+F8: `after_line` or `before_line` of the
+  anchor line with `limit=1`, then `openFinding`, or a notice at the end.
+  The pane's capture-phase handler (`handleFilePaneKey`) stops the key
+  only when the step acted, so Monaco's own F8 (its next problem) never
+  runs in a file's tab and still does in a chain's.
+- **The tree label** (`FileBadges`, `utils/findingsLabel.ts`): from
+  `TreeEntry.findings`, which `tree.markFindings` changes when a scan
+  ends; the editor header falls back to the store's `fileSummary` for a
+  file the tree does not list, and shows none in a chain tab. The
+  tooltip says K only from a `fileSummary` whose state and N equal the
+  label's (the listing can be newer), "some of the M" otherwise, and
+  "opt-in signatures only" for K = 0; hovering asks nothing.
+- **Scan for findings** (`scanForFindings.ts`) is the tree menu's item on
+  a text file (`treeMenuItems(entry, { canScanFindings })`, never on a
+  chain row): open the file, `showPanel('findings', false)`, then
+  `startScan` with `pickedIds` of the picker's choice.
 - **The old analysis is gone.** `category`, its link key, is in
   `RETIRED_PARAMS` (`utils/urlState.ts`): a link that holds it opens
   without it, and the address bar drops it.

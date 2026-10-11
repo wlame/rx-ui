@@ -53,7 +53,7 @@ way.
   them: `⌥G` on a Mac, `Alt+G` elsewhere. Esc hides the tooltip.
 - **File tree** of the backend's search roots. Its toolbar groups rotated
   logs into chains (Alt+G), shows or hides the labels of the rows (the
-  compression, index and chain marks; Alt+L), and switches the value
+  compression, index, findings and chain marks; Alt+L), and switches the value
   right of each name between the size (a folder's item count) and the
   modification time in the browser's time zone (Alt+V). The column
   header under it sorts each folder's rows by name (Alt+N) or by the
@@ -93,11 +93,15 @@ way.
   of 1 MB and more, and can be switched per file. Invisible characters and
   word wrap can be switched per file as well.
 - **Index.** The tree's context menu builds or rebuilds the line index of
-  a compressed file; a plain file gets its index on first use.
+  a compressed file; a plain file gets its index on first use. On a
+  backend that serves signatures, the menu of a text file also scans it
+  for findings.
 - **Findings.** On a backend that serves signatures (rx-go 0.8.0 and
   later), the Findings panel lists the places in the open file that the
   backend's signatures found: tracebacks, secrets, SQL statements and
-  more. See [Findings](#findings).
+  more. The editor marks them, F8 and Shift+F8 step through them, a
+  yellow label in the tree says which files were scanned, and the tree's
+  context menu scans a file. See [Findings](#findings).
 - **Log chains.** On a backend that serves them, the rotated files of one
   log (`app.log`, `app.log.1`, `app.log.2.gz`, …) open as one text, in
   time order: see [Log chains](#log-chains).
@@ -296,6 +300,37 @@ line index; the panel reads that cache and never scans unless asked.
 - The panel says why it lists nothing on a backend without signatures,
   on a log chain's tab (findings are per file: open one of its parts), and
   for a file that is not text.
+- **In the editor**: each finding the panel lists that touches the
+  loaded lines has a bar in the margin left of the line numbers, in its
+  group's colour, a mark on the minimap and the scrollbar, and a box
+  around its value on its first line (the key a secret signature found,
+  for instance). A hover on the bar names the signature, its level, the
+  finding's lines and the signature's description. The marks follow the
+  picker and the filter, and come again when the editor loads other
+  lines or a scan ends. They give no line a background, which belongs to
+  the selected lines; no value is boxed while a hide or show filter
+  rewrites the text, and a log chain's tab shows none.
+- **F8 and Shift+F8** in the editor open the next finding below the line
+  and the previous one above it, among those the panel lists, as a click
+  in the list does. At either end a notice says "No more findings below"
+  or "No more findings above". A Mac keyboard sends F8 only with fn held,
+  unless its function keys are set to work as standard keys; without fn
+  the key plays or pauses media.
+- **Labels in the tree**: a file the cache holds findings for has a
+  yellow label with its findings count, beside its other labels in the
+  files panel and in the editor header. It is filled when every
+  signature of the default set scanned the file, and an outline when
+  only some did; opt-in signatures count among the findings, never
+  towards a filled label. Its tooltip says "Scanned with all 58 default
+  signatures: 42 findings." or "Scanned with 3 of 58 default signatures:
+  45 findings. Open Findings to scan the rest." (before the panel has
+  read the file, "some of the 58"; with only opt-in signatures, "opt-in
+  signatures only"). A scan changes the label at once. Show labels off
+  (Alt+L) hides it in the files panel; the editor header shows it with
+  the file's other labels.
+- **Scan for findings** in a text file's context menu in the files panel
+  opens the file, shows this panel and scans the file with the picker's
+  choice, as the panel's Scan button does.
 
 Alt+3 has no second key: the browsers keep most Cmd/Ctrl+Shift letters
 for themselves. Firefox on Linux takes Alt+1 to Alt+8 for its own tabs;
