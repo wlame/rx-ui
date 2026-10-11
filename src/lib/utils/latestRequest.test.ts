@@ -152,6 +152,26 @@ describe('LatestRequestMap', () => {
     expect(map.size).toBe(0);
     void a;
   });
+
+  it('forgetAllBut() drops every key it is not given, and keeps those it is', async () => {
+    const map = new LatestRequestMap();
+    const signals = new Map<string, AbortSignal>();
+    for (const key of ['/a.log', '/b.log', '/c.log']) {
+      void map.run(key, (s) => {
+        signals.set(key, s);
+        return deferred<string>().promise;
+      });
+    }
+
+    map.forgetAllBut(new Set(['/b.log']));
+
+    expect(map.size).toBe(1);
+    expect([...signals].map(([key, s]) => [key, s.aborted])).toEqual([
+      ['/a.log', true],
+      ['/b.log', false],
+      ['/c.log', true],
+    ]);
+  });
 });
 
 describe('isAbortError', () => {

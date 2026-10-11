@@ -313,6 +313,24 @@ describe('stepFinding', () => {
     expect(messages().some((m) => m.includes('not scanned'))).toBe(true);
   });
 
+  // A tab that closed while its step was asked for keeps no request.
+  it('drops a step of a file whose findings were forgotten', async () => {
+    const backend = await serve();
+    backend.addFile(APP_LOG, everyTenLines(5), TEST_DEFAULT_IDS);
+    await openAt(APP_LOG, 20);
+    backend.holdFindings();
+
+    stepFinding(APP_LOG, 20, 'next');
+    await settle();
+    forgetWindowFindings([]);
+    backend.release();
+    await settle();
+
+    expect(stepQueries(backend)).toHaveLength(1);
+    expect(get(files).openFiles[0].selectedLines).toEqual([]);
+    expect(messages()).toEqual([]);
+  });
+
   it("does not act in a log chain's tab, nor on a backend without signatures", async () => {
     const backend = await serve();
     expect(stepFinding(`chain:${APP_LOG}`, 10, 'next')).toBe(false);

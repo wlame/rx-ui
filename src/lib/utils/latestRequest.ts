@@ -98,4 +98,11 @@ export class LatestRequestMap {
     this.slots.get(key)?.abort();
     this.slots.delete(key);
   }
+
+  /** Cancel and drop every key that `keep` does not hold, as for the files no longer open. */
+  forgetAllBut(keep: ReadonlySet<string>): void {
+    for (const key of [...this.slots.keys()]) {
+      if (!keep.has(key)) this.forget(key);
+    }
+  }
 }

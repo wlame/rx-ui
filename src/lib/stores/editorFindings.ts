@@ -97,16 +97,16 @@ function holdsNone(listed: TreeFindings | undefined, file: FileSummary | null): 
 }
 
 /**
- * Drop the window findings, the asked windows and the requests of every
- * file but those of `keep`.
+ * Drop the window findings, the asked windows, the window requests and
+ * the steps of every file but those of `keep`.
  */
 export function forgetWindowFindings(keep: Iterable<string>): void {
   const kept = new Set(keep);
   for (const path of [...askedKeys.keys()]) {
-    if (kept.has(path)) continue;
-    askedKeys.delete(path);
-    windowRequests.forget(path);
+    if (!kept.has(path)) askedKeys.delete(path);
   }
+  windowRequests.forgetAllBut(kept);
+  stepRequests.forgetAllBut(kept);
   if ([...get(state).keys()].every((path) => kept.has(path))) return;
   state.update((map) => new Map([...map].filter(([path]) => kept.has(path))));
 }
