@@ -14,9 +14,10 @@ import type {
 } from './types';
 
 /**
- * The tree's Index and Re-index actions, from the request to the
- * refreshed tree badge and open file, and Index and Re-index of a log
- * chain's row.
+ * The tree's context-menu items, and its Index and Re-index actions, from
+ * the request to the refreshed tree badge and open file, and Index and
+ * Re-index of a log chain's row. "Scan for findings" runs
+ * `scanForFindings` (`scanForFindings.ts`).
  *
  * Every task of a file is followed through `taskPolls`, so an action on
  * a file whose task is already followed joins that poll instead of
@@ -24,12 +25,22 @@ import type {
  * `watchTask`, once per chain.
  */
 
-export type TreeMenuAction = 'index' | 'reindex';
+export type TreeMenuAction = 'scanFindings' | 'index' | 'reindex';
 
 export interface TreeMenuItem {
   action: TreeMenuAction;
   label: string;
 }
+
+const SCAN_ITEM: TreeMenuItem = { action: 'scanFindings', label: 'Scan for findings' };
+
+/** What the backend lets the tree's menu do beyond indexing. */
+export interface TreeMenuFeatures {
+  /** The backend scans files for findings (`signatures` in `/health`). */
+  canScanFindings: boolean;
+}
+
+const NO_MENU_FEATURES: TreeMenuFeatures = { canScanFindings: false };
 
 /** The index item of a compressed file, keyed by whether it is indexed already. */
 const INDEX_ITEM: Record<'true' | 'false', TreeMenuItem> = {
@@ -40,15 +51,19 @@ const INDEX_ITEM: Record<'true' | 'false', TreeMenuItem> = {
 /**
  * The context-menu items of a tree entry.
  *
- * Only a text file has lines to index; the backend answers a directory
- * or a binary file with a 400. A plain file gets its index on first use,
- * so the explicit index item is offered on compressed files only.
+ * Only a text file has lines to scan and index; the backend answers a
+ * directory or a binary file with a 400. "Scan for findings" comes first,
+ * on a backend that scans. A plain file gets its index on first use, so
+ * the explicit index item is offered on compressed files only.
  */
 export function treeMenuItems(
   entry: Pick<TreeEntry, 'type' | 'is_text' | 'is_compressed' | 'is_indexed'>,
+  features: TreeMenuFeatures = NO_MENU_FEATURES,
 ): TreeMenuItem[] {
-  if (entry.type !== 'file' || entry.is_text === false || !entry.is_compressed) return [];
-  return [INDEX_ITEM[entry.is_indexed ? 'true' : 'false']];
+  if (entry.type !== 'file' || entry.is_text === false) return [];
+  const scan = features.canScanFindings ? [SCAN_ITEM] : [];
+  if (!entry.is_compressed) return scan;
+  return [...scan, INDEX_ITEM[entry.is_indexed ? 'true' : 'false']];
 }
 
 /**

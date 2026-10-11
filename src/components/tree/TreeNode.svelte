@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { TreeNode as TreeNodeType } from '$lib/types';
-  import { tree, notifications } from '$lib/stores';
+  import { backendHas, health, tree, notifications } from '$lib/stores';
   import { chainModeOn } from '$lib/stores/chainMode';
   import { indexFile, treeMenuItems, type TreeMenuAction } from '$lib/indexTasks';
   import { openTreeRow } from '$lib/fileOpening';
+  import { scanForFindings } from '$lib/scanForFindings';
   import { treeTabStop } from '$lib/stores/treeFocus';
   import { isChainRow, rowKey, shownChildren } from '$lib/utils/chainTree';
   import { formatCount, formatSize } from '$lib/utils/format';
@@ -72,7 +73,7 @@
     else openTreeRow(node.path);
   }
 
-  $: menuItems = treeMenuItems(node);
+  $: menuItems = treeMenuItems(node, { canScanFindings: backendHas('signatures', $health) });
 
   /** A row with no action of its own keeps the browser's own menu. */
   function handleContextMenu(event: MouseEvent) {
@@ -99,8 +100,14 @@
     }
   }
 
+  function handleScanFindings() {
+    closeContextMenu();
+    void scanForFindings(node.path);
+  }
+
   /** What each context-menu item does. */
   const MENU_HANDLERS: Record<TreeMenuAction, () => void> = {
+    scanFindings: handleScanFindings,
     index: () => handleIndex(false),
     reindex: () => handleIndex(true),
   };

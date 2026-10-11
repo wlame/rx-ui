@@ -231,7 +231,7 @@ describe('treeMenuItems', () => {
   });
 
   // A plain file gets its line index on first use.
-  it('offers nothing on a plain text file', () => {
+  it('offers nothing on a plain text file of a backend that does not scan', () => {
     expect(treeMenuItems(file)).toEqual([]);
   });
 
@@ -242,9 +242,33 @@ describe('treeMenuItems', () => {
     const items = treeMenuItems({ ...file, is_compressed: true, is_indexed: isIndexed });
     expect(items.map((i) => i.label)).toEqual([label]);
   });
+
+  const scans = { canScanFindings: true };
+
+  it('offers Scan for findings first on a text file of a backend that scans', () => {
+    expect(treeMenuItems(file, scans).map((i) => i.label)).toEqual(['Scan for findings']);
+    expect(treeMenuItems({ ...file, is_text: null }, scans).map((i) => i.action)).toEqual([
+      'scanFindings',
+    ]);
+    expect(treeMenuItems({ ...file, is_compressed: true }, scans).map((i) => i.label)).toEqual([
+      'Scan for findings',
+      'Index',
+    ]);
+  });
+
+  it('offers no scan on a directory or a file that is not text', () => {
+    expect(treeMenuItems({ ...file, type: 'directory', is_text: null }, scans)).toEqual([]);
+    expect(treeMenuItems({ ...file, is_text: false }, scans)).toEqual([]);
+  });
 });
 
 describe('chainMenuItems', () => {
+  // Findings are per file: a chain is not scanned.
+  it('offers no scan on a log chain', () => {
+    const items = chainMenuItems({ is_indexed: false, too_many_parts: false });
+    expect(items.map((i) => i.action)).not.toContain('scanFindings');
+  });
+
   const chain = { is_indexed: false, too_many_parts: false };
 
   it.each([
