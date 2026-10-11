@@ -96,7 +96,7 @@ older viewers.
 | `src/lib/stores/filesView.ts`, `treeFocus.ts`             | The files panel's labels, value and sort; the file tree's current row and Tab stop                                                                       |
 | `src/lib/stores/searchDraft.ts`, `trace.ts`               | The search form as the user left it; the search the URL names                                                                                            |
 | `src/lib/utils/shortcuts.ts`, `panels.ts`                 | The one shortcut table with its scoped key handlers; the side panel's panels, which the activity bar draws                                               |
-| `src/lib/actions/`                                        | Svelte actions: `tooltip` (label and keys on hover and focus), `modal` (counts an open modal dialog), `takeFocus` (focus to a dialog, then back)         |
+| `src/lib/actions/`                                        | Svelte actions: `tooltip` (label and keys), `modal` (counts an open modal), `takeFocus` (focus to a dialog and back), `captureKeydown` (keys first)      |
 | `src/lib/utils/icons.ts`                                  | The icon table (Lucide outlines); `src/components/common/Icon.svelte` draws it                                                                           |
 | `src/lib/utils/treeSort.ts`, `treeRows.ts`, `treeNav.ts`  | The files panel's sort, the rows the tree shows as one list, and the tree's key rules                                                                    |
 | `src/lib/utils/tabOrder.ts`, `recentSwitch.ts`            | The open tabs' strip and recent orders; the recent-tab switcher's state machine                                                                          |

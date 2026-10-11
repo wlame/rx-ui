@@ -441,10 +441,12 @@ describe('EditorPane marks of findings', () => {
       .map((d) => d.range.startLineNumber);
   }
 
+  // The pane is still mounted here: the backend loses the feature first,
+  // so it asks for no window once its windows are forgotten.
   afterEach(async () => {
-    forgetWindowFindings([]);
     serveFindings(new FindingsBackend({ features: [] }));
     await health.check();
+    forgetWindowFindings([]);
     vi.unstubAllGlobals();
   });
 
@@ -456,6 +458,23 @@ describe('EditorPane marks of findings', () => {
     const asked = backend.requestsTo('GET', '/v1/findings').map((r) => r.query.get('lines'));
     expect(asked).toEqual(['1-3']);
     expect(findingBars(editor)).toEqual([2]);
+  });
+
+  // The value's offsets count the bytes of the file's line, "LINE 2".
+  it("boxes a finding's value at its columns on its first line", async () => {
+    const backend = new FindingsBackend();
+    const valued = finding('aws-access-key', 2, 2, { value_start: 5, value_end: 6 });
+    backend.addFile('/logs/a.log', [valued], TEST_DEFAULT_IDS);
+    serveFindings(backend);
+    await health.check();
+    await loadSignatures();
+
+    const { editor } = await mountPane(openFile());
+
+    const boxes = (editor.decorationSets.at(-1) ?? [])
+      .filter((d) => d.options.inlineClassName?.startsWith('monaco-finding-value'))
+      .map((d) => [d.range.startLineNumber, d.range.startColumn, d.range.endColumn]);
+    expect(boxes).toEqual([[2, 6, 7]]);
   });
 
   it("asks for no findings and marks none in a log chain's tab", async () => {
@@ -503,10 +522,12 @@ describe('EditorPane F8 and Shift+F8', () => {
       .filter((q) => q.has('after_line') || q.has('before_line'));
   }
 
+  // The pane is still mounted here: the backend loses the feature first,
+  // so it asks for no window once its windows are forgotten.
   afterEach(async () => {
-    forgetWindowFindings([]);
     serveFindings(new FindingsBackend({ features: [] }));
     await health.check();
+    forgetWindowFindings([]);
     vi.unstubAllGlobals();
   });
 
