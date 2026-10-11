@@ -119,6 +119,57 @@ interface FakeFile {
   current: Set<string>;
   /** Not text: every findings request is refused with a 400. */
   isBinary: boolean;
+  /** The file's first and last time, read in UTC, for `ticks`; none until `setTimeRange`. */
+  timeRange?: { startMs: number; endMs: number };
+}
+
+/** A zone `file_tz` names as `±HH:MM`: how far its wall clock is ahead of UTC, in ms; 0 for others. */
+function zoneOffsetMs(zone: string | null): number {
+  const match = /^([+-])(\d{2}):(\d{2})$/.exec(zone ?? '');
+  if (!match) return 0;
+  const sign = match[1] === '-' ? -1 : 1;
+  return sign * (Number(match[2]) * 3_600_000 + Number(match[3]) * 60_000);
+}
+
+/** The text of line `n` of every file the fake backend holds. */
+export function fakeLineText(n: number): string {
+  return `LINE ${n}`;
+}
+
+/** The bytes a line costs in a text budget: its UTF-8 bytes and one for its line break. */
+function lineCost(line: string): number {
+  return new TextEncoder().encode(line).length + 1;
+}
+
+/**
+ * Fill each finding's `lines` and `before` as rx-go does for `text=true`:
+ * its own `lines` if the test gave them, else `LINE n`; `before` lines
+ * above it, none before line 1; within `budget` bytes, after which the
+ * finding at which it runs out and every later one lose their text and
+ * are marked `lines_truncated`.
+ */
+function withText(found: Finding[], before: number, budget: number): Finding[] {
+  let remaining = budget;
+  let isSpent = false;
+  return found.map((f) => {
+    const firstBefore = Math.max(1, f.start_line - before);
+    const above = Array.from({ length: f.start_line - firstBefore }, (_, i) =>
+      fakeLineText(firstBefore + i),
+    );
+    const lines =
+      f.lines ??
+      Array.from({ length: f.end_line - f.start_line + 1 }, (_, i) =>
+        fakeLineText(f.start_line + i),
+      );
+    const cost = [...above, ...lines].reduce((sum, line) => sum + lineCost(line), 0);
+    if (isSpent || cost > remaining) {
+      isSpent = true;
+      const { lines: _lines, ...rest } = f;
+      return { ...rest, lines_truncated: true };
+    }
+    remaining -= cost;
+    return { ...f, lines, before: above };
+  });
 }
 
 /** A scan task of the fake backend. */
@@ -168,7 +219,9 @@ export interface FindingsBackendOptions {
 /**
  * A backend that serves the test catalogue and the findings of the files
  * `addFile` gives it, through a stubbed `fetch`, as rx-go answers
- * `GET /v1/findings` (selection, filters, paging), `POST /v1/findings`
+ * `GET /v1/findings` (selection, filters, paging, `text` within
+ * `max_bytes`, `ticks` over the range `setTimeRange` gives, times read in
+ * a `±HH:MM` `file_tz`), `POST /v1/findings`
  * (a task, or the running task of the file), `GET /v1/tasks/{id}` and
  * `DELETE /v1/tasks/{id}`. A test drives each task with `progress`,
  * `complete` and `fail`. `/v1/tree` lists the files under `FINDINGS_DIR`,
@@ -204,6 +257,12 @@ export class FindingsBackend {
   /** Count `count` findings of `signature` in a file, of which only those it holds are stored. */
   setCount(path: string, signature: string, count: number): void {
     this.files.get(path)?.counts.set(signature, count);
+  }
+
+  /** Give a file its first and last time, as read in UTC, which `ticks` spreads its columns over. */
+  setTimeRange(path: string, startMs: number, endMs: number): void {
+    const file = this.files.get(path);
+    if (file) file.timeRange = { startMs, endMs };
   }
 
   /** The requests made with `method` to `pathname`. */
@@ -288,14 +347,17 @@ export class FindingsBackend {
       }),
     );
     const only = query.getAll('signature');
+    const groups = query.getAll('group');
+    const groupOf = (id: string) => TEST_SIGNATURES.find((s) => s.id === id)?.group;
     const text = (query.get('q') ?? '').toLowerCase();
     const [first, last] = (query.get('lines') ?? '1-Infinity').split('-').map(Number);
     const after = Number(query.get('after_line') ?? 0);
     const before = Number(query.get('before_line') ?? 0);
-    const filtered = file.findings.filter(
+    const filtered = this.inZone(file.findings, query.get('file_tz')).filter(
       (f) =>
         checked.includes(f.signature) &&
         (only.length === 0 || only.includes(f.signature)) &&
+        (groups.length === 0 || groups.includes(groupOf(f.signature) ?? '')) &&
         (text === '' || f.excerpt.toLowerCase().includes(text)) &&
         f.end_line >= first &&
         f.start_line <= last &&
@@ -306,15 +368,72 @@ export class FindingsBackend {
     if (before > 0) filtered.reverse();
     const offset = Number(query.get('offset') ?? 0);
     const limit = Number(query.get('limit') ?? 1000);
+    const page = filtered.slice(offset, offset + limit);
+    const width = Number(query.get('ticks') ?? 0);
     return findingsAnswer({
       state,
       checked,
       missing,
       counts,
       total: filtered.length,
-      findings: filtered.slice(offset, offset + limit),
+      findings:
+        query.get('text') === 'true'
+          ? withText(
+              page,
+              Number(query.get('before') ?? 0),
+              Number(query.get('max_bytes') || Infinity),
+            )
+          : page,
+      ticks: width > 0 ? this.ticksOf(file, filtered, width, query.get('file_tz')) : null,
       cli_command: `rx trace --signatures=${selection.join(',')} ${path}`,
     });
+  }
+
+  /**
+   * `found` with their times read in `zone` as rx-go reads them with
+   * `file_tz`: a line's wall clock in a zone ahead of UTC is an earlier
+   * instant.
+   */
+  private inZone(found: Finding[], zone: string | null): Finding[] {
+    const shift = zoneOffsetMs(zone);
+    if (shift === 0) return found;
+    return found.map((f) => ({ ...f, time_ms: f.time_ms === null ? null : f.time_ms - shift }));
+  }
+
+  /**
+   * The `ticks` of rx-go: column k holds the findings whose time t has
+   * floor((t - start) * width / (end - start + 1)) = k, over the file's
+   * time range read in `zone`; per signature, the count and the first
+   * finding's start line.
+   */
+  private ticksOf(file: FakeFile, found: Finding[], width: number, zone: string | null) {
+    const shift = zoneOffsetMs(zone);
+    const range = file.timeRange;
+    const startMs = range ? range.startMs - shift : null;
+    const endMs = range ? range.endMs - shift : null;
+    const columns = new Map<number, Record<string, { count: number; first_line: number }>>();
+    if (startMs !== null && endMs !== null) {
+      const span = endMs - startMs + 1;
+      for (const f of found) {
+        if (f.time_ms === null || f.time_ms < startMs || f.time_ms > endMs) continue;
+        const column = Math.floor(((f.time_ms - startMs) * width) / span);
+        const bySignature = columns.get(column) ?? {};
+        const seen = bySignature[f.signature];
+        bySignature[f.signature] = {
+          count: (seen?.count ?? 0) + 1,
+          first_line: Math.min(seen?.first_line ?? Infinity, f.start_line),
+        };
+        columns.set(column, bySignature);
+      }
+    }
+    return {
+      start_ms: startMs,
+      end_ms: endMs,
+      width,
+      columns: [...columns.keys()]
+        .sort((a, b) => a - b)
+        .map((column) => ({ column, signatures: columns.get(column) ?? {} })),
+    };
   }
 
   private taskStatus(task: FakeTask) {

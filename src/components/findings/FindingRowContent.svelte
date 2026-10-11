@@ -1,9 +1,10 @@
 <!--
   What one row of the findings list shows. A finding: its group's colour
   bar, its line or lines, its signature's name and its excerpt (masked by
-  the backend where a value is secret). A header: its group or
-  signature, its count, and for a capped signature how many it shows. A
-  row whose finding has not arrived: an ellipsis.
+  the backend where a value is secret). A header: its group's colour
+  mark, its group or signature, its count, and for a capped signature how
+  many it shows; the marks make the group view the legend of the
+  timeline's ticks. A row whose finding has not arrived: an ellipsis.
 -->
 <script lang="ts">
   import type { SignaturesState } from '$lib/stores/signatures';
@@ -17,6 +18,13 @@
   export let catalogue: Pick<SignaturesState, 'groups'>;
 
   const MUTED = 'text-gh-fg-muted dark:text-gh-fg-dark-muted';
+
+  /** The palette class of the group a header row belongs to. */
+  function headerGroupClass(header: Extract<FindingRow, { kind: 'group' | 'signature' }>): string {
+    const group =
+      header.kind === 'group' ? header.group : (signatureOf.get(header.id)?.group ?? '');
+    return groupStyle(group, catalogue.groups).className;
+  }
 
   function lineText(finding: Finding): string {
     const { start_line: start, end_line: end } = finding;
@@ -45,6 +53,12 @@
   <span class="text-gh-fg-subtle dark:text-gh-fg-dark-subtle">…</span>
 {:else}
   <span class="w-3 flex-shrink-0 {MUTED}" aria-hidden="true">{row.collapsed ? '▸' : '▾'}</span>
+  <span
+    data-group-mark
+    class="w-1 h-4 rounded-sm flex-shrink-0 {headerGroupClass(row)}"
+    style="background: var(--rx-group-color)"
+    aria-hidden="true"
+  />
   {#if row.kind === 'group'}
     <span class="font-semibold truncate">{row.group || 'Other signatures'}</span>
     <span class={MUTED}>{row.count.toLocaleString()}</span>

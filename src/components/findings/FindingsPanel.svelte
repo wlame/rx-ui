@@ -13,6 +13,7 @@
 -->
 <script lang="ts">
   import { tick } from 'svelte';
+  import { copyFindings, type FindingsCopyTarget } from '$lib/findingsCopy';
   import { backendHas, files, health, settings, tree } from '$lib/stores';
   import { activeOpenFile } from '$lib/stores/files';
   import {
@@ -31,6 +32,7 @@
     sidebarVisible,
   } from '$lib/stores/layout';
   import { loadSignatures, signatures } from '$lib/stores/signatures';
+  import type { FindingRow } from '$lib/utils/findingRows';
   import { pickerSummary, selectionOf } from '$lib/utils/findingsPicker';
   import { stateLine } from '$lib/utils/findingsSummary';
   import { isChainKey } from '$lib/utils/tabKey';
@@ -110,6 +112,32 @@
     return end.kind === 'failed' ? `Scan failed: ${end.message}` : 'Scan cancelled.';
   }
 
+  /**
+   * What Copy on a header takes: its group or its signature. A group the
+   * catalogue does not name has no name the backend filters by, and no Copy.
+   */
+  function copyTargetOf(row: FindingRow): FindingsCopyTarget | null {
+    if (row.kind === 'signature') return { kind: 'signature', id: row.id };
+    if (row.kind === 'group' && row.group !== '') return { kind: 'group', group: row.group };
+    return null;
+  }
+
+  /** The label of a header's Copy: what it copies. */
+  function copyLabelOf(target: FindingsCopyTarget): string {
+    if (target.kind === 'group') return `Copy the findings of the group ${target.group}`;
+    if (target.kind === 'signature') {
+      const name = $signatures.list.find((s) => s.id === target.id)?.name ?? target.id;
+      return `Copy the findings of ${name}`;
+    }
+    return 'Copy all';
+  }
+
+  function copy(target: FindingsCopyTarget) {
+    if (filePath !== null) void copyFindings(filePath, target);
+  }
+
+  $: canCopyAll = (tab?.summary?.total ?? 0) > 0;
+
   /** The large Scan button of a file the picked signatures have not scanned. */
   function scanFirst() {
     if (filePath !== null && tab?.summary) void startScan(filePath, tab.summary.missing, false);
@@ -152,7 +180,12 @@
     <div class="relative flex items-center gap-1.5 px-3 pt-1.5">
       <FindingsPicker path={filePath} />
       <span class="flex-1" />
-      <FindingsScanBar path={filePath} {tab} {selection} />
+      <FindingsScanBar
+        path={filePath}
+        {tab}
+        {selection}
+        onCopyAll={canCopyAll ? () => copy({ kind: 'all' }) : null}
+      />
     </div>
     {#if tab.scanEnd && !tab.scan}
       <p class="px-3 pt-1 text-xs {MUTED}" role="status" data-scan-end>
@@ -191,7 +224,28 @@
         {$findingsFilter === '' ? 'No findings.' : 'No finding matches the filter.'}
       </p>
     {:else}
-      <FindingsList path={filePath} {tab} view={$findingsBy} catalogue={$signatures} />
+      <FindingsList path={filePath} {tab} view={$findingsBy} catalogue={$signatures}>
+        <!-- A Copy is not a Tab stop, so the list stays one; its click and
+             keys stay with it, so the header neither opens nor closes. -->
+        <svelte:fragment slot="header-actions" let:row>
+          {@const target = copyTargetOf(row)}
+          {#if target}
+            <button
+              type="button"
+              tabindex="-1"
+              class="px-1.5 rounded text-xs {MUTED}
+                     hover:bg-gh-canvas-inset dark:hover:bg-gh-canvas-dark-inset
+                     hover:text-gh-fg-default dark:hover:text-gh-fg-dark-default"
+              aria-label={copyLabelOf(target)}
+              title={copyLabelOf(target)}
+              on:click|stopPropagation={() => copy(target)}
+              on:keydown|stopPropagation={() => {}}
+            >
+              Copy
+            </button>
+          {/if}
+        </svelte:fragment>
+      </FindingsList>
     {/if}
   {/if}
 </section>
