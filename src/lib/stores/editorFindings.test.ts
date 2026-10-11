@@ -226,13 +226,17 @@ describe('requestWindowFindings', () => {
 
   it("asks nothing for a log chain's tab, nor of a backend without signatures", async () => {
     const backend = await serve();
-    ask(`chain:${APP_LOG}`, 1, 50);
-    await serve(new FindingsBackend({ features: [] }));
     backend.addFile(APP_LOG, everyTenLines(5), TEST_DEFAULT_IDS);
+    ask(`chain:${APP_LOG}`, 1, 50);
+    await settle();
+    expect(windowQueries(backend)).toHaveLength(0);
+
+    const without = await serve(new FindingsBackend({ features: [] }));
+    without.addFile(APP_LOG, everyTenLines(5), TEST_DEFAULT_IDS);
     ask(APP_LOG, 1, 50);
     await settle();
 
-    expect(windowQueries(backend)).toHaveLength(0);
+    expect(windowQueries(without)).toHaveLength(0);
   });
 });
 
@@ -312,11 +316,13 @@ describe('stepFinding', () => {
   it("does not act in a log chain's tab, nor on a backend without signatures", async () => {
     const backend = await serve();
     expect(stepFinding(`chain:${APP_LOG}`, 10, 'next')).toBe(false);
+    await settle();
+    expect(stepQueries(backend)).toHaveLength(0);
 
-    await serve(new FindingsBackend({ features: [] }));
+    const without = await serve(new FindingsBackend({ features: [] }));
     expect(stepFinding(APP_LOG, 10, 'next')).toBe(false);
     await settle();
 
-    expect(stepQueries(backend)).toHaveLength(0);
+    expect(stepQueries(without)).toHaveLength(0);
   });
 });
