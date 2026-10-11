@@ -304,8 +304,10 @@ role="tab">` that also carries the drag handlers; its close button is a
     `filesPanelShown` holds and no modal dialog is open) and
     `handleSearchPanelKey` (the search panel's root element, wherever the
     focus is inside it), and `handleFilePaneKey` (`EditorPane.svelte`, on
-    the pane in the capture phase, outside text fields: `:` and
-    Cmd/Ctrl+G, F8 and Shift+F8, before Monaco's own bindings of them). Each tab of the strip checks its rows with
+    the pane in the capture phase through `use:captureKeydown`
+    (`actions/captureKeydown.ts`), outside text fields: `:` and
+    Cmd/Ctrl+G, F8 and Shift+F8, before Monaco's own bindings of them).
+    An action, not `onMount`, so a component test hears the keys too. Each tab of the strip checks its rows with
     `isShortcut`. The file tree has one `keydown` on `role="tree"`:
     it checks the chord rows with `isShortcut`, then gives the other keys
     to `treeKeyAction`. An Alt+letter or Alt+digit row matches by `code`,

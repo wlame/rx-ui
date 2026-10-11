@@ -467,3 +467,90 @@ describe('EditorPane marks of findings', () => {
     expect(findingBars(editor)).toEqual([]);
   });
 });
+
+describe('EditorPane F8 and Shift+F8', () => {
+  /** A backend whose `/health` lists `features`, holding findings on lines 2 and 3 of `a.log`. */
+  async function serveFindingsOf(features: string[] = ['signatures']) {
+    const backend = new FindingsBackend({ features });
+    const found = [finding('python-traceback', 2), finding('sql-statement', 3)];
+    backend.addFile('/logs/a.log', found, TEST_DEFAULT_IDS);
+    serveFindings(backend);
+    await health.check();
+    await loadSignatures();
+    return backend;
+  }
+
+  /** Press F8 (Shift+F8 with `shiftKey`) in the editor of the pane in `target`. */
+  function pressF8(shiftKey = false): KeyboardEvent {
+    const editorElement = document.querySelector('[data-monaco-stub]');
+    if (!editorElement) throw new Error('the pane shows no editor');
+    const event = new KeyboardEvent('keydown', {
+      key: 'F8',
+      code: 'F8',
+      shiftKey,
+      bubbles: true,
+      cancelable: true,
+    });
+    editorElement.dispatchEvent(event);
+    return event;
+  }
+
+  /** The step requests the backend got: those with `after_line` or `before_line`. */
+  function steps(backend: FindingsBackend): URLSearchParams[] {
+    return backend
+      .requestsTo('GET', '/v1/findings')
+      .map((r) => r.query)
+      .filter((q) => q.has('after_line') || q.has('before_line'));
+  }
+
+  afterEach(async () => {
+    forgetWindowFindings([]);
+    serveFindings(new FindingsBackend({ features: [] }));
+    await health.check();
+    vi.unstubAllGlobals();
+  });
+
+  it('asks for the next finding below the anchor line on F8, and keeps the key from Monaco', async () => {
+    const backend = await serveFindingsOf();
+    await mountPane(openFile({ anchorLine: 1 }));
+
+    const event = pressF8();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(steps(backend).map((q) => [q.get('after_line'), q.get('limit')])).toEqual([['1', '1']]);
+  });
+
+  it('asks for the previous finding above the anchor line on Shift+F8', async () => {
+    const backend = await serveFindingsOf();
+    await mountPane(openFile({ anchorLine: 3 }));
+
+    const event = pressF8(true);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(steps(backend).map((q) => [q.get('before_line'), q.get('limit')])).toEqual([['3', '1']]);
+  });
+
+  it("leaves F8 to Monaco in a log chain's tab", async () => {
+    const backend = await serveFindingsOf();
+    await mountPane(chainFile());
+
+    const event = pressF8();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(steps(backend)).toEqual([]);
+  });
+
+  it('leaves F8 to Monaco on a backend without signatures', async () => {
+    const backend = await serveFindingsOf([]);
+    await mountPane(openFile({ anchorLine: 1 }));
+
+    const event = pressF8();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(steps(backend)).toEqual([]);
+  });
+});

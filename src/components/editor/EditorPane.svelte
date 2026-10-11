@@ -18,6 +18,7 @@
   import MonacoEditor from './MonacoEditor.svelte';
   import { attachSelectionController, type SelectionController } from './selectionController';
   import { startSelectionCopy } from '$lib/selectionCopy';
+  import { captureKeydown } from '$lib/actions/captureKeydown';
   import RegexFilterPanel from './RegexFilterPanel.svelte';
   import EditorHeader from './EditorHeader.svelte';
   import LineRangeNav from './LineRangeNav.svelte';
@@ -423,7 +424,6 @@
   }
 
   onMount(() => {
-    paneEl?.addEventListener('keydown', handleKeyDown, true);
     if (paneEl) stopWatchingUserInput = watchUserInput(paneEl, noteUserScroll);
   });
 
@@ -431,7 +431,6 @@
     // The editor is still there: a component's own onDestroy runs before
     // its children are destroyed.
     rememberTab();
-    paneEl?.removeEventListener('keydown', handleKeyDown, true);
     stopWatchingUserInput?.();
     selectionController?.dispose();
     if (decorationsCollection) {
@@ -442,6 +441,7 @@
 
 <div
   bind:this={paneEl}
+  use:captureKeydown={handleKeyDown}
   tabindex="-1"
   class="h-full w-full flex flex-col outline-none
          border-r border-gh-border-default dark:border-gh-border-dark-default

@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
 import '$lib/testing/matchMediaStub';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
-import { health, tree } from '$lib/stores';
+import { get } from 'svelte/store';
+import { files, health, settings, tree } from '$lib/stores';
 import { chainMode } from '$lib/stores/chainMode';
+import { findingsByFile, findingsOf, forgetFindings } from '$lib/stores/findings';
+import { sidebarTab } from '$lib/stores/layout';
+import { loadSignatures } from '$lib/stores/signatures';
+import { FINDINGS_DIR, FindingsBackend, serveFindings } from '$lib/testing/fakeFindings';
 import {
   CHAIN_NAMES,
   LOG_DIR,
@@ -261,5 +266,113 @@ describe('TreeNode of a folder in a chosen order', () => {
     await tick();
 
     expect(shown()).toEqual(BY_NAME);
+  });
+});
+
+describe('TreeNode menu: Scan for findings', () => {
+  const APP_LOG = `${FINDINGS_DIR}/app.log`;
+  const POLL_INTERVAL_MS = 1000;
+  let backend: FindingsBackend;
+
+  /** The row of `app.log`, listed by a backend whose `/health` lists `features`. */
+  async function mountListedFile(features: string[] = ['signatures'], isBinary = false) {
+    backend = new FindingsBackend({ features });
+    backend.addFile(APP_LOG, [], [], isBinary);
+    serveFindings(backend);
+    await health.check();
+    await loadSignatures();
+    await tree.loadRoots();
+    await tree.expand(FINDINGS_DIR);
+    const node = tree.nodeAt(APP_LOG);
+    if (!node) throw new Error('the tree does not list app.log');
+    const target = document.body.appendChild(document.createElement('div'));
+    row = new TreeNode({ target, props: { node } });
+    const item = target.querySelector<HTMLElement>('[role="treeitem"]');
+    if (!item) throw new Error('the tree row is not rendered');
+    return item;
+  }
+
+  /** Right-click `item` and give the labels of the menu that opens. */
+  async function menuOf(item: HTMLElement): Promise<string[]> {
+    item.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    await tick();
+    return [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].map(
+      (b) => b.textContent?.trim() ?? '',
+    );
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    sidebarTab.set('tree');
+  });
+
+  afterEach(async () => {
+    for (const task of backend?.unfinishedTasks() ?? []) backend.complete(task.id);
+    await vi.advanceTimersByTimeAsync(2 * POLL_INTERVAL_MS);
+    forgetFindings([]);
+    for (const file of get(files).openFiles) files.closeFile(file.path);
+    settings.update((s) => ({ ...s, findingsPicker: null }));
+    sidebarTab.set('tree');
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("opens the file, shows the Findings panel and scans with the picker's choice", async () => {
+    const item = await mountListedFile();
+    settings.update((s) => ({ ...s, findingsPicker: ['sql-statement'] }));
+
+    expect(await menuOf(item)).toEqual(['Scan for findings']);
+    document.querySelector<HTMLButtonElement>('[role="menuitem"]')?.click();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(get(files).openFiles.map((f) => f.path)).toEqual([APP_LOG]);
+    expect(get(sidebarTab)).toBe('findings');
+    expect(backend.requestsTo('POST', '/v1/findings').map((r) => r.body)).toEqual([
+      { path: APP_LOG, signatures: 'sql-statement', force: false },
+    ]);
+    expect(findingsOf(get(findingsByFile), APP_LOG).scan).not.toBeNull();
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+  });
+
+  it('offers no scan on a file that is not text, nor on a backend without signatures', async () => {
+    const binary = await mountListedFile(['signatures'], true);
+    expect(await menuOf(binary)).toEqual([]);
+    row?.$destroy();
+    document.body.replaceChildren();
+
+    const plain = await mountListedFile([]);
+    expect(await menuOf(plain)).toEqual([]);
+  });
+
+  // Findings are per file: a chain's row offers its index, never a scan.
+  it('offers no scan on the row of a log chain', async () => {
+    serveLogDir(new LogDirBackend({ features: ['log_chains', 'signatures'] }));
+    await health.check();
+    chainMode.set(true);
+    const folder = {
+      ...treeEntry(LOG_DIR, 'directory'),
+      expanded: true,
+      loading: false,
+      level: 0,
+      children: logDirEntries().map((entry) => ({
+        ...entry,
+        expanded: false,
+        loading: false,
+        children: [],
+        level: 1,
+      })),
+      chains: logDirChains(),
+    } as TreeNodeType;
+    const target = document.body.appendChild(document.createElement('div'));
+    row = new TreeNode({ target, props: { node: folder } });
+    await tick();
+    const chainRow = target.querySelector<HTMLElement>('[data-chain]');
+    if (!chainRow) throw new Error('the folder shows no chain row');
+
+    const items = await menuOf(chainRow);
+
+    expect(items.length).toBeGreaterThan(0);
+    expect(items).not.toContain('Scan for findings');
+    chainMode.set(false);
   });
 });
