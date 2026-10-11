@@ -308,8 +308,12 @@ line index; the panel reads that cache and never scans unless asked.
   finding's lines and the signature's description. The marks follow the
   picker and the filter, and come again when the editor loads other
   lines or a scan ends. They give no line a background, which belongs to
-  the selected lines; no value is boxed while a hide or show filter
-  rewrites the text, and a log chain's tab shows none.
+  the selected lines, and a log chain's tab shows none. A value is boxed
+  only where the box lands exactly: not while a hide or show filter
+  rewrites the text, and not when the line holds a lone carriage return
+  or a byte that is not UTF-8 before the value; the bar and its hover
+  stay. On line 1 of a file that starts with a byte order mark, the box
+  allows for the mark, which the editor does not show.
 - **F8 and Shift+F8** in the editor open the next finding below the line
   and the previous one above it, among those the panel lists, as a click
   in the list does. At either end a notice says "No more findings below"

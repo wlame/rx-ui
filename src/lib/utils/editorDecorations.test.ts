@@ -372,6 +372,56 @@ describe('findingDecorations', () => {
   });
 });
 
+describe('findingDecorations value box, only where it lands exactly', () => {
+  /** A window from file line 1, where a BOM can start the text. */
+  const fromLine1 = { startLine: 1, lineCount: 3 };
+
+  /** The box of a value on `fileLine`, bytes `start` to `end`, over the file's lines `text`. */
+  function boxOf(text: string[], fileLine: number, start: number, end: number) {
+    const valued = finding('aws-access-key', fileLine, fileLine, {
+      value_start: start,
+      value_end: end,
+    });
+    const decorations = findingDecorations(
+      [valued],
+      fromLine1,
+      TEST_GROUPS,
+      TEST_SIGNATURES,
+      lines(...text),
+    );
+    expect(decorations.some((d) => d.options.glyphMarginClassName)).toBe(true);
+    const box = decorations.find((d) => d.options.inlineClassName)?.range;
+    return box ? [box.startColumn, box.endColumn] : null;
+  }
+
+  // rx-go counts the BOM in line 1's offsets; Monaco drops it from the text.
+  it('takes the 3 bytes of a BOM off the offsets on line 1 of a text that starts with one', () => {
+    expect(boxOf(['\uFEFFkey=VALUE'], 1, 7, 12)).toEqual([5, 10]);
+  });
+
+  // Further on, U+FEFF is a character of the line, which the editor shows.
+  it('counts a U+FEFF that does not start the text as a character of the line', () => {
+    expect(boxOf(['x', '\uFEFFkey=VALUE'], 2, 7, 12)).toEqual([6, 11]);
+  });
+
+  it.each([
+    ['a lone carriage return', 'a\rkey=VALUE', 6, 11],
+    ['U+240D', 'a\u240Dkey=VALUE', 8, 13],
+    ['U+FFFD, a byte that was not UTF-8', 'a\uFFFDkey=VALUE', 8, 13],
+  ])('draws no box when the text before the value holds %s', (_name, line, start, end) => {
+    expect(boxOf([line], 1, start, end)).toBeNull();
+  });
+
+  it('draws the box when such a character comes only after the value', () => {
+    expect(boxOf(['key=VALUE\r\uFFFD'], 1, 4, 9)).toEqual([5, 10]);
+  });
+
+  it('places a value after multi-byte characters at its columns', () => {
+    // "é" is two bytes and one column; "🙂" is four bytes and two columns.
+    expect(boxOf(['é🙂 key=VALUE'], 1, 11, 16)).toEqual([9, 14]);
+  });
+});
+
 describe('paneDecorations with findings', () => {
   const valued = finding('aws-access-key', 102, 102, { value_start: 0, value_end: 3 });
   const view = {
@@ -383,7 +433,23 @@ describe('paneDecorations with findings', () => {
     hiddenContent: new Map<string, string>(),
     findings: [valued],
     signatures: testCatalogue(),
+    fileText: lines('abc', 'abc'),
   };
+
+  // A click changes the selection; the findings' marks are not built again.
+  it('keeps the marks of the findings it built for the same findings, window and text', () => {
+    const first = paneDecorations(view);
+    const second = paneDecorations({
+      ...view,
+      editorWindow: { ...editorWindow },
+      selection: [{ start: 103, end: 103 }],
+    });
+
+    const bar = (decorations: typeof first) =>
+      decorations.find((d) => d.options.glyphMarginClassName);
+    expect(bar(second)).toBe(bar(first));
+    expect(bar(paneDecorations({ ...view, findings: [valued] }))).not.toBe(bar(first));
+  });
 
   it("marks the findings with the bar, the marks and the value's box", () => {
     const decorations = paneDecorations(view);
@@ -391,6 +457,22 @@ describe('paneDecorations with findings', () => {
     expect(
       decorations.map((d) => d.options.glyphMarginClassName ?? d.options.inlineClassName),
     ).toEqual(['monaco-finding-bar group-palette-1', 'monaco-finding-value group-palette-1']);
+  });
+
+  // The value's offsets count the file's bytes, which the editor's text
+  // need not show all of (a BOM, a carriage return).
+  it("places the value's box over the file's lines, not the editor's text", () => {
+    const multiByte = finding('aws-access-key', 102, 102, { value_start: 2, value_end: 4 });
+
+    const decorations = paneDecorations({
+      ...view,
+      findings: [multiByte],
+      text: lines('abcd', 'abcd'),
+      fileText: lines('éxy', 'éxy'),
+    });
+
+    const box = decorations.find((d) => d.options.inlineClassName)?.range;
+    expect([box?.startColumn, box?.endColumn]).toEqual([2, 4]);
   });
 
   // A hide or show filter rewrites the text, so its columns are not the file's.
@@ -420,6 +502,7 @@ describe('isSamePaneView', () => {
     gutterRuns: [],
     findings: [],
     signatures: testCatalogue(),
+    fileText: lines('abc'),
   };
 
   // A tab's update builds the view anew: the window is a new object that
@@ -442,6 +525,7 @@ describe('isSamePaneView', () => {
     ['other gutter runs', { gutterRuns: [] }],
     ['other findings, the same ones in a new list', { findings: [] }],
     ['another catalogue', { signatures: testCatalogue() }],
+    ['other lines of the file', { fileText: lines('abc') }],
   ])('is another view with %s', (_name, change) => {
     expect(isSamePaneView(view, { ...view, ...change })).toBe(false);
   });

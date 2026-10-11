@@ -512,8 +512,16 @@ caches each file's findings per signature.
   beside a search match's glyph), minimap and scrollbar marks in
   `groupColors`, a hover built from the catalogue only (escaped
   Markdown, so a user's description draws no image or link), and a box
-  around `value_start`–`value_end`, bytes turned into UTF-16 columns over
-  the editor's text, left out while a hide or show filter rewrites it.
+  around `value_start`–`value_end`, only where it lands exactly: bytes
+  turned into UTF-16 columns over the window's lines as the file has them
+  (`PaneView.fileText`, `fileLinesSource` over `file.lines`), the BOM's 3
+  bytes taken off on line 1 (rx-go counts it, Monaco drops it), no box
+  after a lone `\r`, U+240D or U+FFFD on the line, nor while a hide or
+  show filter rewrites the text. `paneDecorations` keeps the finding
+  marks (`memoizeLast`) while the findings, window, catalogue and lines
+  are the same, so a click that changes the selection builds none of
+  them again. `FileBadges` draws the label through `FindingsBadge.svelte`
+  only for a labelled file, so only those rows hear the findings store.
   `stepFinding` is F8 and Shift+F8: `after_line` or `before_line` of the
   anchor line with `limit=1`, then `openFinding`, or a notice at the end.
   The pane's capture-phase handler (`handleFilePaneKey`) stops the key

@@ -27,7 +27,12 @@
   import { anchorAfterScroll, type VisibleLines } from '$lib/utils/anchorLine';
   import { pagingDirection, watchUserInput } from '$lib/utils/paging';
   import { processContent } from '$lib/utils/processContent';
-  import { isSamePaneView, paneDecorations, type PaneView } from '$lib/utils/editorDecorations';
+  import {
+    fileLinesSource,
+    isSamePaneView,
+    paneDecorations,
+    type PaneView,
+  } from '$lib/utils/editorDecorations';
   import { acceptsTyping } from '$lib/utils/keyTargets';
   import { handleFilePaneKey } from '$lib/utils/shortcuts';
   import { indexBuildLabel } from '$lib/samplesWait';
@@ -89,6 +94,7 @@
   const processedOf = memoizeLast(processContent);
   const lineLabelsOf = memoizeLast(chainLineLabels);
   const gutterRunsOf = memoizeLast(chainGutterRuns);
+  const fileTextOf = memoizeLast(fileLinesSource);
   // Keyed on whether the tab is a chain's: its chain record is replaced
   // at each move of the anchor.
   const matchedLinesOf = memoizeLast(
@@ -146,6 +152,7 @@
         : NO_GUTTER_RUNS,
     findings: file.chain ? NO_FINDINGS : windowFindingsOf($windowFindings, file.path),
     signatures: $signatures,
+    fileText: fileTextOf(file.lines),
   } satisfies PaneView;
   $: if (monacoEditor) updateDecorations(paneView);
 

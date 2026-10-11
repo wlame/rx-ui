@@ -86,8 +86,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the signature's description, from the catalogue only. The editor
   asks for them once for each window it loads, and again when the
   picker, the filter or the file's findings change; a log chain's tab
-  shows none. The marks give no line a background, and no value is
-  boxed while a hide or show filter rewrites the text.
+  shows none. The marks give no line a background. A value is boxed
+  only where the box lands exactly: not while a hide or show filter
+  rewrites the text, nor after a lone carriage return or a byte that is
+  not UTF-8 on its line; on line 1 of a file that starts with a byte
+  order mark the box allows for the mark.
 - F8 and Shift+F8 in the editor go to the next finding below the line
   and the previous one above it, among those the Findings panel lists,
   and select its lines as a click in the panel does; at either end a

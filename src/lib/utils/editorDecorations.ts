@@ -15,6 +15,7 @@ import type { Finding, GroupInfo, RegexFilter, SignatureInfo } from '../types';
 import type { GutterRun } from './chainZones';
 import { groupColors, groupStyle } from './groupStyle';
 import type { LineRange } from './lineSelection';
+import { memoizeLast } from './memoizeLast';
 import { HIDDEN_MARKER } from './processContent';
 import { matchedSpans } from './regexMatches';
 
@@ -242,55 +243,91 @@ function utf8Length(codePoint: number): number {
   return codePoint < 0x10000 ? 3 : 4;
 }
 
+/** The UTF-8 byte order mark: rx-go counts it in line 1's offsets, and Monaco drops it from the text. */
+const BOM = '\uFEFF';
+const BOM_BYTES = 3;
+
+/**
+ * Characters after which the editor's columns are no longer the file's
+ * bytes: a lone carriage return, which the editor drops or shows as
+ * U+240D, and U+FFFD, which stands for a byte that was not UTF-8.
+ */
+const DRIFTING_CHARACTERS: ReadonlySet<string> = new Set(['\r', '\u240D', '\uFFFD']);
+
 /**
  * The Monaco column at `byteOffset` bytes of `line`'s UTF-8 text: Monaco
  * counts UTF-16 code units, a finding's value counts bytes. An offset
  * inside a character gives the column after it; one past the end, the
- * column after the last character.
+ * column after the last character. Null when a character before the
+ * offset makes the editor's columns drift from the bytes.
  */
-function columnAtByte(line: string, byteOffset: number): number {
+function columnAtByte(line: string, byteOffset: number): number | null {
   let bytes = 0;
   let units = 0;
   for (const char of line) {
     if (bytes >= byteOffset) break;
+    if (DRIFTING_CHARACTERS.has(char)) return null;
     bytes += utf8Length(char.codePointAt(0) ?? 0);
     units += char.length;
   }
   return units + 1;
 }
 
-/** The box around a finding's value, on its first line, or null when it has none to show. */
+/**
+ * The box around a finding's value, on its first line, where it lands
+ * exactly; null when it has none to show, or when its columns in the
+ * editor are not known for sure. Line 1 of a text that starts with a BOM
+ * counts the BOM's 3 bytes, which the editor does not show.
+ */
 function valueBox(
   finding: Finding,
   editorWindow: EditorWindow,
-  text: LineSource | null,
+  fileText: LineSource | null,
   className: string,
 ): Decoration | null {
   const { value_start: start, value_end: end } = finding;
   const line = toMonacoLine(finding.start_line, editorWindow);
-  if (text === null || line === null || start === undefined || end === undefined) return null;
-  const content = text.getLineContent(line);
-  const startColumn = columnAtByte(content, start);
-  const endColumn = columnAtByte(content, end);
-  if (endColumn <= startColumn) return null;
+  if (fileText === null || line === null || start === undefined || end === undefined) return null;
+  let content = fileText.getLineContent(line);
+  let shift = 0;
+  if (finding.start_line === 1 && content.startsWith(BOM)) {
+    content = content.slice(BOM.length);
+    shift = BOM_BYTES;
+  }
+  if (start < shift) return null;
+  const startColumn = columnAtByte(content, start - shift);
+  const endColumn = columnAtByte(content, end - shift);
+  if (startColumn === null || endColumn === null || endColumn <= startColumn) return null;
   return inlineSpan(line, startColumn, endColumn, {
     inlineClassName: `monaco-finding-value ${className}`,
   });
 }
 
 /**
+ * The window's lines as the file has them, the samples answer's text,
+ * for the value boxes: the editor drops a BOM and carriage returns.
+ */
+export function fileLinesSource(lines: readonly { content: string }[]): LineSource {
+  return {
+    getLineCount: () => lines.length,
+    getLineContent: (lineNumber) => lines[lineNumber - 1]?.content ?? '',
+  };
+}
+
+/**
  * Marks the findings the window holds: for each, a bar in the glyph
  * margin over its lines (cut to the window) in its group's colour, with
  * the signature's hover, marks on the minimap and the scrollbar, and a
- * box around its value on its first line when the editor's `text` is
- * given. No line gets a background: the selection owns those.
+ * box around its value on its first line when the window's lines as the
+ * file has them (`fileText`, `fileLinesSource`) are given. No line gets a
+ * background: the selection owns those.
  */
 export function findingDecorations(
   findings: readonly Finding[],
   editorWindow: EditorWindow,
   groups: readonly GroupInfo[],
   catalogue: readonly SignatureInfo[],
-  text: LineSource | null = null,
+  fileText: LineSource | null = null,
 ): Decoration[] {
   const signatureOf = new Map(catalogue.map((signature) => [signature.id, signature]));
   const windowEnd = editorWindow.startLine + editorWindow.lineCount - 1;
@@ -313,7 +350,7 @@ export function findingDecorations(
         overviewRuler: { color: light, darkColor: dark, position: OVERVIEW_RULER_LEFT },
       },
     });
-    const box = valueBox(finding, editorWindow, text, className);
+    const box = valueBox(finding, editorWindow, fileText, className);
     if (box) out.push(box);
   }
   return out;
@@ -337,6 +374,8 @@ export interface PaneView {
   findings?: readonly Finding[];
   /** The catalogue the findings are marked by. */
   signatures?: FindingCatalogue;
+  /** The window's lines as the file has them (`fileLinesSource`), which the value boxes count in. */
+  fileText?: LineSource | null;
 }
 
 /** Whether two values of a field of a pane view are the same. */
@@ -359,6 +398,7 @@ const SAME_PANE_FIELDS: { [K in keyof Required<PaneView>]: SameField<PaneView[K]
   gutterRuns: isSameObject,
   findings: isSameObject,
   signatures: isSameObject,
+  fileText: isSameObject,
 };
 
 const PANE_FIELDS = Object.keys(SAME_PANE_FIELDS) as (keyof PaneView)[];
@@ -396,6 +436,26 @@ const FILTER_DECORATIONS: Record<
   show: (_, text, hiddenContent) => hiddenMarkerDecorations('show', text, hiddenContent),
 };
 
+const NO_FINDINGS: readonly Finding[] = [];
+const NO_GROUPS: readonly GroupInfo[] = [];
+const NO_SIGNATURES: readonly SignatureInfo[] = [];
+
+/**
+ * The marks of the findings, built again only for other findings, window,
+ * catalogue or lines: a click that changes the selection redraws the
+ * pane, and a window holds up to 10,000 findings with their hovers.
+ */
+const findingMarksOf = memoizeLast(
+  (
+    findings: readonly Finding[],
+    startLine: number,
+    lineCount: number,
+    groups: readonly GroupInfo[],
+    catalogue: readonly SignatureInfo[],
+    fileText: LineSource | null,
+  ) => findingDecorations(findings, { startLine, lineCount }, groups, catalogue, fileText),
+);
+
 /**
  * Every decoration of the pane: matched lines, the findings, the selected
  * lines, what an active filter does, and a log chain's gutter classes. A
@@ -409,12 +469,13 @@ export function paneDecorations(view: PaneView): Decoration[] {
   const isTextRewritten = isFilterActive && filter?.mode !== 'highlight';
   return [
     ...matchLineDecorations(view.matchedFileLines, editorWindow),
-    ...findingDecorations(
-      view.findings ?? [],
-      editorWindow,
-      view.signatures?.groups ?? [],
-      view.signatures?.list ?? [],
-      isTextRewritten ? null : text,
+    ...findingMarksOf(
+      view.findings ?? NO_FINDINGS,
+      editorWindow.startLine,
+      editorWindow.lineCount,
+      view.signatures?.groups ?? NO_GROUPS,
+      view.signatures?.list ?? NO_SIGNATURES,
+      isTextRewritten ? null : (view.fileText ?? null),
     ),
     ...selectionDecorations(view.selection, editorWindow),
     ...(filter && isFilterActive && text
