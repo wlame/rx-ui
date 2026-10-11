@@ -35,6 +35,15 @@ function entryToNode(entry: TreeEntry, level: number): TreeNode {
   };
 }
 
+/**
+ * Whether the folder at `folder` holds `path`, at any depth: `path` starts
+ * with the folder's path and a slash. A folder does not hold itself.
+ */
+export function holdsPath(folder: string, path: string): boolean {
+  const prefix = folder.endsWith('/') ? folder : `${folder}/`;
+  return path.length > prefix.length && path.startsWith(prefix);
+}
+
 function createTreeStore() {
   const { subscribe, update } = writable<TreeState>({
     roots: [],
@@ -44,10 +53,14 @@ function createTreeStore() {
     describedChains: new Map(),
   });
 
+  /**
+   * The node at `path`, looked for only inside the folders whose path
+   * holds it: the open file's pane asks at each of its updates.
+   */
   function findNode(nodes: TreeNode[], path: string): TreeNode | null {
     for (const node of nodes) {
       if (node.path === path) return node;
-      if (node.children.length > 0) {
+      if (holdsPath(node.path, path)) {
         const found = findNode(node.children, path);
         if (found) return found;
       }

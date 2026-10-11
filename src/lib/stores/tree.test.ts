@@ -6,7 +6,7 @@ import { isChainRow, shownChildren } from '../utils/chainTree';
 import { DEFAULT_SORT } from '../utils/treeSort';
 import { chainMode } from './chainMode';
 import { health } from './health';
-import { MAX_DESCRIBED_CHAINS, tree } from './tree';
+import { MAX_DESCRIBED_CHAINS, holdsPath, tree } from './tree';
 
 /** A tree entry for a directory or a file under `path`. */
 function entry(path: string, type: 'directory' | 'file') {
@@ -350,5 +350,42 @@ describe('the tree in chain mode', () => {
     expect(described.size).toBe(MAX_DESCRIBED_CHAINS);
     expect(described.has('/many/c0.log')).toBe(false);
     expect(described.has(`/many/c${MAX_DESCRIBED_CHAINS}.log`)).toBe(true);
+  });
+});
+
+describe('tree.nodeAt', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  // The open file's pane asks at every update; a large tree is not walked.
+  it('looks only inside the folders whose path holds the one asked for', async () => {
+    serveTree(['/logs', '/srv']);
+    await tree.loadRoots();
+    const logs = get(tree).roots.find((root) => root.path === '/logs');
+    if (!logs) throw new Error('no /logs root');
+    let isLogsWalked = false;
+    const children = logs.children;
+    Object.defineProperty(logs, 'children', {
+      get: () => {
+        isLogsWalked = true;
+        return children;
+      },
+    });
+
+    expect(tree.nodeAt('/srv/a.log')?.path).toBe('/srv/a.log');
+    expect(isLogsWalked).toBe(false);
+    expect(tree.nodeAt('/logs/a.log')?.path).toBe('/logs/a.log');
+  });
+});
+
+describe('holdsPath', () => {
+  it.each([
+    ['/logs', '/logs/a.log', true],
+    ['/logs', '/logs/app/a.log', true],
+    ['/', '/a.log', true],
+    ['/logs', '/logs', false],
+    ['/logs', '/logsx/a.log', false],
+    ['/logs', 'chain:/logs/a.log', false],
+  ])('says whether %s holds %s', (folder, path, holds) => {
+    expect(holdsPath(folder, path)).toBe(holds);
   });
 });
