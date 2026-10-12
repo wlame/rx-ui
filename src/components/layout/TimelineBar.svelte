@@ -26,6 +26,9 @@
    * and a dot where missing parts would be; the slider's value names the
    * part of its time. Until the chain is ready the bar says why it does
    * not jump, and its zone is the chain's.
+   *
+   * A file's track also carries the ticks of the findings the Findings
+   * panel lists, in their groups' colours (`FindingTimelineLayer`).
    */
   import type { OpenFile } from '$lib/types';
   import type { TimeJumpOutcome, TimeQuery } from '$lib/stores/files';
@@ -33,6 +36,7 @@
   import { chainTimelineMarks } from '$lib/utils/chainTimeline';
   import { isShortcut, type ShortcutId } from '$lib/utils/shortcuts';
   import ChainTimelineMarks from './ChainTimelineMarks.svelte';
+  import FindingTimelineLayer from './FindingTimelineLayer.svelte';
   import FileZoneControl from './FileZoneControl.svelte';
   import {
     effectiveTimeAt,
@@ -269,6 +273,8 @@
         </div>
         {#if marks}
           <ChainTimelineMarks {marks} />
+        {:else if activeFile && !activeFile.chain}
+          <FindingTimelineLayer file={activeFile} {axis} />
         {/if}
         {#if hoverMs !== null && dragMs === null}
           <div

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import '$lib/testing/matchMediaStub';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
 import type { ChainResponse, FileLine, OpenFile, TimeRangeResponse } from '$lib/types';

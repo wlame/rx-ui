@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { measureHeight } from './measureHeight';
+import { measureHeight, measureWidth } from './measureSize';
 
 /** An element whose height is `height.px`, as a browser's layout would give it. */
 function elementOfHeight(height: { px: number }): HTMLElement {
@@ -75,5 +75,22 @@ describe('measureHeight', () => {
 
     expect(first).toEqual([300]);
     expect(second).toEqual([300]);
+  });
+});
+
+describe('measureWidth', () => {
+  it("reports the width at once, and again when the window's size changes", () => {
+    vi.stubGlobal('ResizeObserver', undefined);
+    const width = { px: 640 };
+    const element = document.createElement('div');
+    Object.defineProperty(element, 'clientWidth', { configurable: true, get: () => width.px });
+    const widths: number[] = [];
+
+    const action = measureWidth(element, (px) => widths.push(px));
+    width.px = 800;
+    window.dispatchEvent(new Event('resize'));
+    action.destroy();
+
+    expect(widths).toEqual([640, 800]);
   });
 });

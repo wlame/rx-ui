@@ -19,7 +19,7 @@
 
 <script lang="ts">
   import { tick } from 'svelte';
-  import { measureHeight } from '$lib/actions/measureHeight';
+  import { measureHeight } from '$lib/actions/measureSize';
   import {
     FINDINGS_PAGE_SIZE,
     LINE_LIST,

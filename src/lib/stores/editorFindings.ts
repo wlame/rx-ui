@@ -89,10 +89,14 @@ const windowRequests = new LatestRequestMap();
 const stepRequests = new LatestRequestMap();
 
 /**
- * Whether what is known of `path` says it holds no findings: the store's
- * summary says none, or, before one, the tree lists it without a label.
+ * Whether what is known of a file says it holds no findings: the store's
+ * summary says none, or, before one, the tree lists it without a label
+ * (`listed` null; undefined when the tree does not list the file).
  */
-function holdsNone(listed: TreeFindings | undefined, file: FileSummary | null): boolean {
+export function holdsNoFindings(
+  listed: TreeFindings | undefined,
+  file: FileSummary | null,
+): boolean {
   return file ? file.state === 'none' : listed === null;
 }
 
@@ -158,7 +162,7 @@ export function requestWindowFindings(
   ]);
   if (askedKeys.get(path) === key) return;
   askedKeys.set(path, key);
-  if (inputs.filters === null || holdsNone(listed, file)) {
+  if (inputs.filters === null || holdsNoFindings(listed, file)) {
     windowRequests.forget(path);
     holdWindowFindings(path, NO_FINDINGS);
     return;
