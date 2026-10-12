@@ -810,7 +810,7 @@ function jsonAnswer(status: number, body: unknown) {
   };
 }
 
-/** rx-go's `GET /v1/time-range` answer for the playground's middleware.log, under `path`. */
+/** rx-go's `GET /v1/time-range` answer for a middleware.log, under `path`. */
 function middlewareRange(path: string, source: 'index' | 'scan' | 'none' = 'scan') {
   const known = source !== 'none';
   return {
