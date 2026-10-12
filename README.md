@@ -53,8 +53,8 @@ way.
   them: `⌥G` on a Mac, `Alt+G` elsewhere. Esc hides the tooltip.
 - **File tree** of the backend's search roots. Its toolbar groups rotated
   logs into chains (Alt+G), shows or hides the labels of the rows (the
-  compression, index, findings and chain marks; Alt+L), and switches the value
-  right of each name between the size (a folder's item count) and the
+  compression, index, findings and chain marks; Alt+L), and switches the
+  value right of each name between the size (a folder's item count) and the
   modification time in the browser's time zone (Alt+V). The column
   header under it sorts each folder's rows by name (Alt+N) or by the
   value shown (Alt+S), and a second click or key press reverses the
@@ -76,6 +76,20 @@ way.
   at most five of them. Line numbers are the file's own, also in gzip and
   seekable-zstd files.
 - **Go to a line of the file** with `:` or Cmd/Ctrl+G, or jump to the end.
+- **Select lines** in the open file with the mouse or the keys (see the
+  table below): whole lines, in up to 100 ranges per tab. The editor
+  header counts them, "3 ranges · 21 lines", with Copy and × (clear).
+  Copy, or Cmd/Ctrl+C in the editor while no text is highlighted, asks
+  the backend for every range in one samples request and copies each
+  range under a header that names the file and its lines,
+  `==> app.log:120-134 <==`, an empty line between ranges, at most
+  8 MiB in whole ranges; the recent commands record the request's
+  command. A drag in the text keeps the editor's highlight, so
+  Cmd/Ctrl+C then copies the text dragged over. A tab keeps its
+  selection while the editor loads other pages, and the link holds it
+  as `sel`. In a log chain's tab each part's lines get a header of their
+  own, and Copy works once the chain is ready. Cmd/Ctrl+click in the
+  text adds a cursor; a link in the text opens with Alt+click.
 - **Search** with one or more regex patterns over files or directories,
   through `/v1/trace`. One line under the patterns holds the options:
   match-case, whole-word and regular-expression toggles when the
@@ -110,8 +124,9 @@ way.
 - **The URL holds the view.** A link or a reload reopens the file at its
   line, with its highlighting, filter and selected lines, the panel
   the side panel shows, the files panel's chain mode, labels, value and
-  order, the findings panel's order, and the search. Back and Forward step through the files opened,
-  the searches run and the panels switched in the activity bar. See
+  order, the findings panel's order, and the search. Back and Forward
+  step through the files opened, the searches run and the panels
+  switched in the activity bar. See
   [Link parameters](#link-parameters).
 - **The equivalent command.** The status bar shows the `rx` command the
   backend reports for the last answer, with a copy button and a list of
@@ -248,6 +263,11 @@ as "delete") closes it and shows the tab used before it. The keyboard
 reaches each tab's close button through Delete only; the button is not
 a Tab stop.
 
+Alt+3 has no second key: the browsers keep most Cmd/Ctrl+Shift letters
+for themselves. Firefox on Linux takes Alt+1 to Alt+8 for its own tabs;
+there, the activity bar's buttons show the panels. On a Mac, F8 and
+Shift+F8 usually need fn held (see [Findings](#findings)).
+
 The table in the app is generated from `src/lib/utils/shortcuts.ts`, and a
 test fails when this table lacks one of its keys or holds one it lacks.
 
@@ -258,14 +278,25 @@ tab: the places where a signature of the backend's catalogue matched.
 The backend keeps them in a cache per file and signature, apart from the
 line index; the panel reads that cache and never scans unless asked.
 
+The text of a finding, wherever the viewer shows or copies it (the
+excerpt in the list, the lines of a copy and the lines before them),
+comes from the backend's findings answers, `GET /v1/findings`, with
+`text=true` for a copy. The backend masks it before it answers: a
+secret value reads like `AKIA************`, and a line of a private
+key's body reads `[masked, N bytes]`. The viewer never builds a
+finding's text from the file's lines (`/v1/samples`). Masking is for
+findings only: the editor, a search's matches and a copy of selected
+lines show the file as it is. rx-go's documentation (Concepts /
+Signatures, "Masking") gives the whole rule.
+
 - **State line**: the file's name and how far it is scanned, whatever is
   picked, in the same numbers as its label in the tree: "full · 42
   findings" when every signature of the default set has scanned it,
-  "partial · 3 of 58 default signatures · 45 findings" when only some
+  "partial · 3 of 64 default signatures · 45 findings" when only some
   signatures have (opt-in ones count among the findings, not among the
   default signatures), or "not scanned". The findings counted are those
   of every signature the cache holds for the file, picked or not.
-- **Signatures picker**: the button "Signatures: Default (58)" opens a
+- **Signatures picker**: the button "Signatures: Default (64)" opens a
   checklist of the signatures, group by group. A group's box picks or
   drops the whole group and shows a dash when the group is partly
   picked; the presets Default, All and None and a filter box sit above
@@ -286,11 +317,11 @@ line index; the panel reads that cache and never scans unless asked.
   afterwards scans what that scan left out. A file nothing picked has
   scanned yet shows a large Scan button.
 - **List**: By line lists the findings in line order: the group's colour,
-  the line or lines, the signature's name and the start of the first
-  line, where secret values are masked by the backend. By group lists
-  them under each group and signature, with their counts; a signature's
-  findings load when it is opened, and a capped signature says "showing
-  10,000 of 48,210". The filter box narrows the list to the findings
+  the line or lines, the signature's name and the finding's excerpt,
+  the start of its first line. By group lists them under each group and
+  signature, with their counts; a signature's findings load when it is
+  opened, and a capped signature says "showing 10,000 of 48,210". The
+  filter box narrows the list to the findings
   whose text or signature name holds what is typed. Only the rows on
   screen are drawn, and they load page by page as the list scrolls.
 - **Open a finding**: a click or Enter selects the finding's lines in the
@@ -328,10 +359,10 @@ line index; the panel reads that cache and never scans unless asked.
   files panel and in the editor header. It is filled when every
   signature of the default set scanned the file, and an outline when
   only some did; opt-in signatures count among the findings, never
-  towards a filled label. Its tooltip says "Scanned with all 58 default
-  signatures: 42 findings." or "Scanned with 3 of 58 default signatures:
+  towards a filled label. Its tooltip says "Scanned with all 64 default
+  signatures: 42 findings." or "Scanned with 3 of 64 default signatures:
   45 findings. Open Findings to scan the rest." (before the panel has
-  read the file, "some of the 58"; with only opt-in signatures, "opt-in
+  read the file, "some of the 64"; with only opt-in signatures, "opt-in
   signatures only"). A scan changes the label at once. Show labels off
   (Alt+L) hides it in the files panel; the editor header shows it with
   the file's other labels.
@@ -353,10 +384,9 @@ line index; the panel reads that cache and never scans unless asked.
   ```
 
   The header names the lines before only when the finding has some (a
-  finding on line 1 has none). The text comes from the backend, masked
-  as everywhere: a secret value stays masked and a line of a key block
-  reads `[masked, N bytes]`. A copy holds at most 8 MiB, in whole
-  findings; when the findings do not all fit, its last line says
+  finding on line 1 has none). The text is the backend's, masked as
+  said above. A copy holds at most 8 MiB, in whole findings; when the
+  findings do not all fit, its last line says
   "[37 of 120 findings copied: the copy stops at 8.0 MB]". A signature
   that stores fewer findings than it found (the backend keeps the first
   10,000 by default) copies those it stores, and the last line says
@@ -366,17 +396,19 @@ line index; the panel reads that cache and never scans unless asked.
   `rx trace --signatures=group:traceback -B 1 app.log` for a group,
   `--signatures=python-traceback` for a signature, and the picked
   signatures for Copy all (`--signatures=default` for the default set);
-  `-B` is left out with no line before. The filter text has no `rx`
-  flag, so with a filter the command lists more than the copy holds. The
-  headers' Copy buttons are not Tab stops, so the list stays one; Copy
-  all is in the ⋯ menu, which the keyboard reaches.
+  `-B` is left out with no line before. The viewer writes this command
+  itself, and `rx` has no flag for the filter text or for a picker that
+  leaves out some of a group's signatures, so with either the command
+  lists more than the copy holds. The headers' Copy buttons are not Tab
+  stops, so the list stays one; Copy all is in the ⋯ menu, which the
+  keyboard reaches.
 
 - **Timeline ticks**: the timeline bar of a file marks where its
   findings are in time: a thin, short tick in the group's colour for
   each group with findings in a column of the bar's pixels, each group
   on a line of its own; with many groups the lines overlap, and every
-  tick stays 5 px tall. The group view's headers carry
-  the same colours, so the panel reads as the legend. The ticks show the
+  tick stays 5 px tall. The group view's headers carry the same
+  colours, so the panel reads as the legend. The ticks show the
   findings the panel lists (the picker's choice and the filter), also
   while the panel is hidden, and come again when the bar's width
   changes, when a scan changes what the file holds and when the file is
@@ -388,13 +420,9 @@ line index; the panel reads that cache and never scans unless asked.
   the tick sits (a column spans the file's time divided by the bar's
   width, so on a long file its findings can lie a little before or after
   that time). A click opens the group's first finding in the column, as
-  a click in the list does. A finding without a time has no tick, and a file
-  whose time range the backend cannot read (a compressed file before its
-  index) has none.
-
-Alt+3 has no second key: the browsers keep most Cmd/Ctrl+Shift letters
-for themselves. Firefox on Linux takes Alt+1 to Alt+8 for its own tabs;
-there, the activity bar's button shows the panel.
+  a click in the list does. A finding without a time has no tick, and a
+  file whose time range the backend cannot read (a compressed file
+  before its index) has none.
 
 ## Log chains
 
@@ -557,7 +585,7 @@ than when the entry was made.
 | `POST /v1/index`        | Build an index                                           |
 | `GET /v1/tasks/{id}`    | Follow an index task or a findings scan                  |
 | `GET /v1/signatures`    | The signature catalogue, once, on a backend that has it  |
-| `GET /v1/findings`      | A file's findings from the cache: summary and pages      |
+| `GET /v1/findings`      | A file's findings; a copy's masked text (`text=true`)    |
 | `POST /v1/findings`     | Scan a file for the picked signatures                    |
 | `DELETE /v1/tasks/{id}` | Cancel a findings scan                                   |
 | `GET /v1/logs/*`        | Log chains: list, describe, samples and search           |
@@ -624,7 +652,7 @@ header shows and the backends read to name the bundle they cache:
 
 ```json
 {
-  "version": "v0.2.0",
+  "version": "v0.8.0",
   "buildDate": "2026-10-03T02:00:00Z",
   "commit": "<full commit hash>"
 }
@@ -667,7 +695,7 @@ part to bump.
 ```bash
 just release-dry minor        # preview, changes nothing
 just release minor            # gates, changelog, commit, tag
-git push origin main && git push origin v0.3.0
+git push origin main && git push origin v0.8.0
 ```
 
 Either way `just ci` runs first, so a release cannot be cut from a tree
@@ -704,7 +732,8 @@ its floor at Chrome and Edge 92, Firefox 90 and Safari 15.4.
    contract rather than on one backend.
 2. Make the change with its tests, and run `just ci`.
 3. Check it in a browser against rx-go (`rx serve --port=8080`, then
-   `just dev`): tree, open file, search, jump to a result and index.
+   `just dev`): tree, open file, search, jump to a result, index, and a
+   scan for findings.
 4. Add an entry under `[Unreleased]` in `CHANGELOG.md`.
 
 ## License

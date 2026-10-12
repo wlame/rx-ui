@@ -20,7 +20,7 @@ type ScanKnowledge = 'full' | 'someOf' | 'kOf' | 'optInOnly';
 
 /** The parts of a tooltip: M, the default set; K, its current signatures; N, the findings. */
 interface TooltipNumbers {
-  /** "58 default signatures", or "default signatures" before the catalogue is loaded. */
+  /** "64 default signatures", or "default signatures" before the catalogue is loaded. */
   defaults: string;
   k: number;
   /** "45 findings". */

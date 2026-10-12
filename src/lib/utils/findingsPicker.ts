@@ -107,7 +107,7 @@ export const PICKER_PRESETS: readonly PickerPreset[] = [
 
 /**
  * The picker button's summary of a stored choice: the preset it equals
- * with its count (`Default (58)`, `All (70)`, `None`), or how many
+ * with its count (`Default (64)`, `All (70)`, `None`), or how many
  * signatures it picks.
  */
 export function pickerSummary(stored: readonly string[] | null, catalogue: Catalogue): string {

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+The Findings panel replaces the index analysis: the viewer lists what
+rx-go's signatures find in a file, marks it in the editor and on the
+timeline, steps through it with F8 and copies it by group. Lines can be
+selected and copied, and the link keeps them. This release speaks wire
+contract 2 and needs rx-go 0.8.0 or later; it refuses rx-python, which
+speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
+0.9.0, so release the two back to back, rx-go first.
+
 ### Added
 
 - Select lines in the open file. A click on a line number selects that
@@ -23,18 +31,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   never the line the cursor is on. Shift+↑ and Shift+↓ extend the
   selection from the cursor, and Esc in the editor clears it, as × does,
   with the editor's highlight. Each tab keeps its own selection,
-  also when the editor loads other pages of the file. Cmd/Ctrl+click
-  now adds a cursor in the editor; a link in the text opens with
-  Alt+click.
+  also when the editor loads other pages of the file.
 - A chip in the editor header for the selected lines, "3 ranges · 21
   lines", with Copy and × (clear). Copy asks the backend for every range
   in one samples request without context lines and copies each range
-  under a header that names the file and its lines, `==> app.log:120-134
-<==`, with an empty line between ranges; in a log chain each part's
-  lines get their own header. The copy stops at 8 MiB, in whole ranges,
-  and its last line then says how many ranges it holds. The request's
-  `rx samples` command goes to the recent commands. A chain whose index
-  is still being built cannot be copied from yet.
+  under a header that names the file and its lines,
+  `==> app.log:120-134 <==`, with an empty line between ranges; in a
+  log chain each part's lines get their own header. The copy stops at
+  8 MiB, in whole ranges, and its last line then says how many ranges
+  it holds. The request's `rx samples` command goes to the recent
+  commands. A chain whose index is still being built cannot be copied
+  from yet.
 - The selected lines in the link: `sel=120-134,200,305-310`, as
   `rx samples --lines=` writes them, at most 100 ranges. A reload or a
   shared link selects them again; with `sel` and no `line` the view
@@ -51,11 +58,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Findings panel, the third button of the activity bar (Alt+3), on
   a backend that serves signatures. It lists the findings of the file in
   the active tab from the backend's findings cache, and never scans on
-  its own: its state line says "full · 42 findings", "partial · 3 of 58
+  its own: its state line says "full · 42 findings", "partial · 3 of 64
   default signatures · 45 findings" or "not scanned", for every
-  signature the cache holds, as the file's label in the tree does. The list is in line order or, with By
-  group, under each group and signature with their counts ("showing
-  10,000 of 48,210" for a capped signature); a filter box narrows it by
+  signature the cache holds, as the file's label in the tree does. The
+  list is in line order or, with By group, under each group and
+  signature with their counts ("showing 10,000 of 48,210" for a capped
+  signature); a filter box narrows it by
   excerpt or signature name. Only the rows on screen are drawn and
   loaded, page by page, so a file with 100,000 findings scrolls like a
   short one. A click or Enter on a finding selects its lines in the
@@ -100,8 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A yellow label with the findings count for a file the findings cache
   holds an answer for, in the files panel and the editor header: filled
   when every signature of the default set scanned the file, an outline
-  when only some did. Its tooltip says "Scanned with all 58 default
-  signatures: 42 findings." or "Scanned with 3 of 58 default signatures:
+  when only some did. Its tooltip says "Scanned with all 64 default
+  signatures: 42 findings." or "Scanned with 3 of 64 default signatures:
   45 findings. Open Findings to scan the rest."; a scan changes the
   label at once. Show labels off hides it in the files panel.
 - "Scan for findings" in the context menu of a text file in the files
@@ -115,11 +123,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `==> app.log:120-134  python-traceback  (1 line before) <==`. The text
   comes from the backend's findings, masked as everywhere, never from
   the file's raw lines. A copy holds at most 8 MiB in whole findings;
-  when cut, its last line and the notification say "37 of 120 findings
-  copied", and a signature that stores fewer findings than it found says
-  "of 48,210 found, 10,000 stored". The recent commands record the
-  `rx trace --signatures=group:traceback -B 1 app.log` command that
-  lists the same findings.
+  when cut, its last line says "[37 of 120 findings copied: the copy
+  stops at 8.0 MB]" and the notification "Copied 37 of 120 findings: the
+  copy stops at 8.0 MB", and a signature that stores fewer findings than
+  it found says "of 48,210 found, 10,000 stored". The recent commands
+  record the `rx trace --signatures=group:traceback -B 1 app.log`
+  command that lists the same findings, which the viewer writes itself.
 - Ticks of the findings on the timeline. A file's timeline bar has a
   thin tick in the group's colour for each group with findings in a
   column of its pixels, for the findings the Findings panel lists, in
@@ -135,6 +144,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   backend that reports contract 1 (rx-python, rx-go before 0.8.0) is
   refused with the blocking message that names both versions, and no
   request goes to it until it reports contract 2.
+- Cmd/Ctrl+click in the editor's text adds a cursor, and a link in the
+  text opens with Alt+click; before, Alt+click added a cursor and
+  Cmd/Ctrl+click opened a link. Cmd/Ctrl+click on a line number adds
+  that line to the selected lines.
 - Index and Re-index in the file tree send only `path`, `force` and
   `threshold`; a re-index no longer reads the stored index first.
 

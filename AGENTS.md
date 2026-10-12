@@ -54,7 +54,8 @@ older viewers.
    unknown, resolve the position through `/v1/samples` by byte offset, which is
    always absolute.
 5. **Test against rx-go before a release.** Start it with `--port=8080`, run
-   the app, and exercise tree, open file, search, jump to result and index.
+   the app, and exercise tree, open file, search, jump to result, index
+   and a scan for findings.
    A viewer release changes behaviour for every installed backend on its
    next cache refresh. rx-python is paused and speaks contract 1, which
    this viewer refuses; record a difference between the backends in
@@ -268,8 +269,9 @@ role="tab">` that also carries the drag handlers; its close button is a
   With no text selected, Cmd/Ctrl+C copies the selected lines
   (`emptySelectionClipboard: false`, so a cursor never copies its line).
   It never commits a selection change Monaco makes itself (a page load,
-  the API, Monaco's own Esc); the pane wires it to the store. `selectionDecorations` (`utils/editorDecorations.ts`)
-  draws them, `SelectionChip.svelte` in the header counts them and
+  the API, Monaco's own Esc); the pane wires it to the store.
+  `selectionDecorations` (`utils/editorDecorations.ts`) draws them,
+  `SelectionChip.svelte` in the header counts them and
   copies them (`selectionCopy.ts`: one samples request, the text from
   `utils/copyFormat.ts`, within 8 MiB). The URL holds them as `sel`; a
   chain's tab holds them in its own numbers and the URL names each range
@@ -285,7 +287,9 @@ role="tab">` that also carries the drag handlers; its close button is a
   narrows it to, so `findingsCopyCommand` (`findingsCopy.ts`) writes
   `rx trace --signatures=group:<g> -B <N> <path>` (a signature's id, or
   the picked signatures for Copy all), quoting each word as rx quotes
-  its own commands.
+  its own commands. `rx trace` has no flag for the filter text or for a
+  picker that narrows the group, so with either the command lists more
+  findings than the copy holds.
 - Every keyboard shortcut and mouse gesture is a row of one table,
   `src/lib/utils/shortcuts.ts`. The key handlers ask it whether a key is
   theirs and the help dialog (Cmd/Ctrl+/) lists it, so add a shortcut
@@ -314,8 +318,9 @@ role="tab">` that also carries the drag handlers; its close button is a
     the pane in the capture phase through `use:captureKeydown`
     (`actions/captureKeydown.ts`), outside text fields: `:` and
     Cmd/Ctrl+G, F8 and Shift+F8, before Monaco's own bindings of them).
-    An action, not `onMount`, so a component test hears the keys too. Each tab of the strip checks its rows with
-    `isShortcut`. The file tree has one `keydown` on `role="tree"`:
+    An action, not `onMount`, so a component test hears the keys too.
+    Each tab of the strip checks its rows with `isShortcut`. The file
+    tree has one `keydown` on `role="tree"`:
     it checks the chord rows with `isShortcut`, then gives the other keys
     to `treeKeyAction`. An Alt+letter or Alt+digit row matches by `code`,
     because a Mac's Option changes `key` (`©`, `¡`, `Dead`, `‘` for
@@ -337,15 +342,17 @@ role="tab">` that also carries the drag handlers; its close button is a
   panel stays mounted and the ones not shown are `hidden`: the tree
   keeps its open folders, the search form its unsent edits, the
   findings list its loaded pages, and a link's search runs on load
-  whichever panel is shown. A modal dialog is therefore never drawn inside a panel, where a
-  panel switch or Back would hide it while `modalOpen` still counts it:
-  a panel that opens one has `App.svelte` draw it. A component shows a
-  panel through `showPanel(id, focus)` or `clickPanelButton(id)` (`stores/layout.ts`);
-  only `restoreView` sets `sidebarTab` itself, from a link.
+  whichever panel is shown. A modal dialog is therefore never drawn
+  inside a panel, where a panel switch or Back would hide it while
+  `modalOpen` still counts it: a panel that opens one has `App.svelte`
+  draw it. A component shows a panel through `showPanel(id, focus)` or
+  `clickPanelButton(id)` (`stores/layout.ts`); only `restoreView` sets
+  `sidebarTab` itself, from a link.
   A focus request (`treeFocusRequested`, `searchFocusRequested`,
   `findingsFocusRequested`, `editorFocusRequested`,
   `tabStripFocusRequested`) is a flag that the target answers after the
-  next update and resets, so a panel is drawn before it takes the focus. An editor pane mounted with the request
+  next update and resets, so a panel is drawn before it takes the
+  focus. An editor pane mounted with the request
   raised answers once it is drawn, and while its Monaco editor is not
   ready it holds the focus and hands it on when the editor is.
   A switch of tabs by key (Alt+], Alt+[, Alt+X, an Alt+Q switch) goes
@@ -450,7 +457,8 @@ caches each file's findings per signature.
   `groupStyle(group, groups)` gives a group's `className` and `color`. A
   group takes the colour at its catalogue `order` (13 colours, the
   built-in groups first); a group past the 13th, or one the catalogue
-  does not name, gets one by a hash of its name. `installPaletteStyles`
+  does not name, gets one by a hash of its name, among the colours no
+  listed group takes while any are left. `installPaletteStyles`
   (App's mount) adds the `group-palette-<n>` classes; each sets
   `--rx-group-color` for the app's theme (`.dark`) and, more
   specifically, for Monaco's (`.vs`, `.vs-dark`), so build a group's
@@ -460,10 +468,14 @@ caches each file's findings per signature.
   follow with `getTaskStatus`; `cancelTask` stops it (a 409 for one that
   ended), and a poll ends on its `cancelled`. Follow a scan with
   `watchTask` (`utils/taskPolling.ts`), never `taskPolls`, which is keyed
-  by tab and holds index tasks only (its result is a line index). A
-  finding's text comes only from `GET /v1/findings`: its `excerpt`, or
-  `lines` with `text`, masked and clipped by the backend; never from
-  `/v1/samples`, which gives the lines unmasked.
+  by tab and holds index tasks only (its result is a line index).
+- **Finding text.** Every text of a finding the viewer shows or copies
+  comes from `GET /v1/findings`, masked and clipped by the backend: the
+  `excerpt` of each finding, and `lines` and `before` with `text=true`.
+  Never from `/v1/samples`, which gives the file's lines unmasked (the
+  editor, a search's matches and a copy of selected lines show the
+  file as it is; masking is for findings). The editor's finding hover
+  is built from the catalogue, never from the file.
 - **The findings store** (`stores/findings.ts`) keys everything by the
   file's path: `findingsByFile` holds each file's summary (the last
   `GET /v1/findings` for the picker's selection and the filter `q`), its
@@ -499,9 +511,10 @@ caches each file's findings per signature.
   `findings_by=group` is `ViewState.findingsBy` (`stores/layout.ts`
   `findingsBy`). The picker and the ⋯ menu are popovers, not dialogs:
   they carry no `use:modal`, and the panel opens no modal dialog. The
-  list is a virtual list of fixed-height rows (`ROW_HEIGHT_PX`,
-  `utils/virtualList.ts`) with one Tab stop that is always drawn; its key
-  rules are `utils/findingsNav.ts`, under the `findingsPanel` scope,
+  list is a virtual list of fixed-height rows (`ROW_HEIGHT_PX` in
+  `FindingsList.svelte`, the rows on screen from `utils/virtualList.ts`)
+  with one Tab stop that is always drawn; its key rules are
+  `utils/findingsNav.ts`, under the `findingsPanel` scope,
   silenced by `modalOpen`. Group and signature headers have a
   `header-actions` slot for actions on the whole header, which the panel
   fills with Copy (`tabindex="-1"`, so the list stays one Tab stop; its
@@ -512,16 +525,17 @@ caches each file's findings per signature.
   legend of the timeline's ticks.
 - **Copy a group** (`findingsCopy.ts`): `copyFindings(path, target)`,
   the target a group, a signature or all, with the panel's filters, the
-  ⋯ menu's `copyLinesBefore` and `text=true`. The text comes only from
-  `GET /v1/findings?text=true` (masked and clipped by the backend),
-  never from `/v1/samples`. Pages of `FINDINGS_COPY_PAGE_SIZE` (10,000),
-  each with `max_bytes` set to what is left of `COPY_BUDGET_BYTES`
+  ⋯ menu's `copyLinesBefore` and `text=true` (see "Finding text").
+  Pages of `FINDINGS_COPY_PAGE_SIZE` (10,000), each with `max_bytes`
+  set to what is left of `COPY_BUDGET_BYTES`
   (8 MiB), until the list ends, a finding comes back `lines_truncated`
   or the budget is spent: the backend's budget counts per request.
   `formatCopyBlocks` (`utils/copyFormat.ts`, shared with the selection
   copy) writes `==> file:A-B  <signature>  (N lines before) <==` with
   the lines before the finding has, and a last line when the copy is cut
-  (`total`: the answer's) or a signature is capped (`cap`).
+  (`total`: the answer's) or a signature is capped (`cap`). The command
+  it records is the one exception to commands from the backend: the
+  viewer writes it (see the status bar's equivalent command above).
 - **Ticks on the timeline**: `TimelineBar` draws `FindingTimelineLayer`
   on a file's track (never a chain's), so a hidden timeline asks
   nothing. The layer measures the track (`measureWidth`,

@@ -1,6 +1,6 @@
 <!--
   The findings panel's signature picker: a button that names the choice
-  ("Signatures: Default (58)") and opens a checklist of the active
+  ("Signatures: Default (64)") and opens a checklist of the active
   signatures, group by group, with a three-state box per group, a filter
   box, the presets Default, All and None, a mark on opt-in signatures and
   on those already current for the open file. The choice is the viewer's
