@@ -164,9 +164,10 @@ describe('copyFindings requests', () => {
   });
 
   it('asks no further page once the budget is spent', async () => {
-    // Each block takes more than 8 MiB / 10,000 in the copy, though its
-    // lines alone fit the backend's budget: the first page fills it.
-    const backend = backendWithFindings(wideFindings(FINDINGS_COPY_PAGE_SIZE + 1, 837));
+    // The lines of 10,000 findings (about 811 bytes each with the line
+    // before) fit the backend's 8 MiB, so it cuts nothing on the first
+    // page; with their headers they take more than 8 MiB in the copy.
+    const backend = backendWithFindings(wideFindings(FINDINGS_COPY_PAGE_SIZE + 1, 800));
     await serve(backend);
 
     await copyFindings(APP_LOG, SIGNATURE);
@@ -181,6 +182,22 @@ describe('copyFindings requests', () => {
       type: 'warning',
       message: `Copied ${match?.[1]} of 10,001 findings: the copy stops at 8.0 MB`,
     });
+  });
+
+  it('asks no further page after the backend cut the text, though the list goes on', async () => {
+    // Finding 5,000 alone is over the budget: the backend gives it and
+    // every later finding of the page no text.
+    const found = wideFindings(FINDINGS_COPY_PAGE_SIZE + 1, 10);
+    found[4999] = { ...found[4999], lines: ['x'.repeat(9 << 20)] };
+    const backend = backendWithFindings(found);
+    await serve(backend);
+
+    await copyFindings(APP_LOG, SIGNATURE);
+
+    expect(findingsRequests(backend)).toHaveLength(1);
+    expect(copied().trimEnd().split('\n').at(-1)).toBe(
+      '[4,999 of 10,001 findings copied: the copy stops at 8.0 MB]',
+    );
   });
 
   it('stops where the backend ran out of the budget, and says how many it copied', async () => {

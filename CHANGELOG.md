@@ -123,10 +123,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ticks of the findings on the timeline. A file's timeline bar has a
   thin tick in the group's colour for each group with findings in a
   column of its pixels, for the findings the Findings panel lists, in
-  the zone the file is read in. A hover says "3 findings at 12:00:01:
-  python-traceback ×2, error-line ×1"; a click opens the column's first
-  finding, as a click in the list does. The group view's headers carry
-  the same colours, as the ticks' legend.
+  the zone the file is read in. A tick stands for its group's findings
+  in the column: a hover says "3 findings at 12:00:01: python-traceback
+  ×2, java-exception ×1", and a click opens the first of them, as a
+  click in the list does. The group view's headers carry the same
+  colours, as the ticks' legend.
 
 ### Changed
 

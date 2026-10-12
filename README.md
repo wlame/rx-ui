@@ -374,19 +374,21 @@ line index; the panel reads that cache and never scans unless asked.
 - **Timeline ticks**: the timeline bar of a file marks where its
   findings are in time: a thin, short tick in the group's colour for
   each group with findings in a column of the bar's pixels, each group
-  on a line of its own above the band. The group view's headers carry
+  on a line of its own; with many groups the lines overlap, and every
+  tick stays 5 px tall. The group view's headers carry
   the same colours, so the panel reads as the legend. The ticks show the
   findings the panel lists (the picker's choice and the filter), also
   while the panel is hidden, and come again when the bar's width
   changes, when a scan changes what the file holds and when the file is
   read in another zone (the zone control at the left of the bar), so a
-  tick sits where the bar prints its findings' time. A hover says
-  "3 findings at 12:00:01: python-traceback ×2, error-line ×1": the
-  findings of the tick's column of pixels, at the time of the column's
-  middle, where the tick sits (a column spans the file's time divided by
-  the bar's width, so on a long file its findings can lie a little before
-  or after that time). A click opens the column's first finding, as a
-  click in the list does. A finding without a time has no tick, and a file
+  tick sits where the bar prints its findings' time. A tick stands for
+  its group's findings in its column: a hover says "3 findings at
+  12:00:01: python-traceback ×2, java-exception ×1", the count of each of
+  the group's signatures there, at the time of the column's middle, where
+  the tick sits (a column spans the file's time divided by the bar's
+  width, so on a long file its findings can lie a little before or after
+  that time). A click opens the group's first finding in the column, as
+  a click in the list does. A finding without a time has no tick, and a file
   whose time range the backend cannot read (a compressed file before its
   index) has none.
 

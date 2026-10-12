@@ -9,6 +9,7 @@ import {
   buttonNamed,
   click,
   finishScans,
+  keyDown,
   mountFindingsPanel,
   unmountFindingsPanels,
 } from '$lib/testing/findingsPanel';
@@ -89,7 +90,32 @@ describe('Copy on the headers of the group view', () => {
     );
   });
 
-  it('keeps the list one Tab stop: the Copy buttons take the focus only from the mouse', async () => {
+  it('leaves the focus where it is when Copy is pressed', async () => {
+    const { target } = await mountByGroup();
+    const button = buttonNamed(
+      headerRow(target, '[data-group="traceback"]'),
+      'Copy the findings of the group traceback',
+    );
+
+    const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    button.dispatchEvent(press);
+
+    expect(press.defaultPrevented).toBe(true);
+  });
+
+  it("leaves the list's keys to the list when a Copy has the focus", async () => {
+    const { target } = await mountByGroup();
+    const row = headerRow(target, '[data-group="traceback"]');
+    const button = buttonNamed(row, 'Copy the findings of the group traceback');
+    button.focus();
+
+    await keyDown(button, { key: 'ArrowDown', code: 'ArrowDown' });
+
+    const next = Number(row.dataset.index) + 1;
+    expect((document.activeElement as HTMLElement | null)?.dataset.index).toBe(String(next));
+  });
+
+  it('keeps the list one Tab stop: the Copy buttons take no focus from the keyboard', async () => {
     const { target } = await mountByGroup();
     const buttons = target.querySelectorAll<HTMLButtonElement>('[role="tree"] button');
     expect(buttons.length).toBeGreaterThan(0);

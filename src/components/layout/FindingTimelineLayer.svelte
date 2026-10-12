@@ -6,7 +6,7 @@
 <script lang="ts">
   /**
    * The findings of a file on the timeline bar's track: this layer spans
-   * the track, measures its width, asks for the ticks of what the
+   * the track, measures its width and height, asks for the ticks of what the
    * Findings panel lists, one column per pixel (`stores/findingTicks.ts`),
    * and draws them with FindingTimelineMarks. The bar draws it only while
    * it shows a file's axis, so a hidden timeline asks nothing. A new width
@@ -15,7 +15,7 @@
    * file is never drawn.
    */
   import { onDestroy } from 'svelte';
-  import { measureWidth } from '$lib/actions/measureSize';
+  import { measureHeight, measureWidth } from '$lib/actions/measureSize';
   import { api, type FindingsQuery } from '$lib/api';
   import { markInputs } from '$lib/stores/editorFindings';
   import { fileZones } from '$lib/stores/fileZones';
@@ -36,6 +36,8 @@
 
   /** The track's width in pixels, as last kept; 0 before it is laid out. */
   let width = 0;
+  /** The track's height in pixels, which the ticks' lanes share; 0 before it is laid out. */
+  let height = 0;
   let resizeTimer: ReturnType<typeof setTimeout> | null = null;
   /** The last answer, and the file it is of. */
   let shown: { path: string; ticks: FindingsTicks } | null = null;
@@ -100,7 +102,12 @@
   });
 </script>
 
-<div class="absolute inset-0 pointer-events-none" data-finding-ticks use:measureWidth={noteWidth}>
+<div
+  class="absolute inset-0 pointer-events-none"
+  data-finding-ticks
+  use:measureWidth={noteWidth}
+  use:measureHeight={(px) => (height = px)}
+>
   {#if ticks}
     <FindingTimelineMarks
       {ticks}
@@ -108,7 +115,8 @@
       catalogue={$signatures.list}
       {axis}
       {timeLabel}
-      onOpen={(line) => openTickFinding(file.path, line)}
+      trackHeight={height}
+      onOpen={(line, ids) => openTickFinding(file.path, line, ids)}
     />
   {/if}
 </div>

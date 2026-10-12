@@ -85,17 +85,28 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * A click on a tick: open the first finding the panel lists that starts
- * on `line` or after it, as a click on it in the list does (its lines
+ * A click on a tick: open the first finding of the tick's `signatures`
+ * (its group's in its column) that the panel lists and that starts on
+ * `line` or after it, as a click on it in the list does (its lines
  * selected, the editor at its first line). `line` is the first line of
- * the tick's first finding, so that finding is the one opened unless a
- * scan changed the file meanwhile. Nothing happens once another tab is
+ * the group's first finding in the column, so that finding is the one
+ * opened unless a scan changed the file meanwhile, and never another
+ * group's finding on the same line. Nothing happens once another tab is
  * shown.
  */
-export async function openTickFinding(path: string, line: number): Promise<void> {
+export async function openTickFinding(
+  path: string,
+  line: number,
+  signatures: readonly string[],
+): Promise<void> {
   const filters = panelFilters();
   if (filters === null) return;
-  const query: FindingsQuery = { ...filters, afterLine: line - 1, limit: 1 };
+  const query: FindingsQuery = {
+    ...filters,
+    signature: [...signatures],
+    afterLine: line - 1,
+    limit: 1,
+  };
   let answer;
   try {
     answer = await openRequests.run(path, (signal) => api.getFindings(path, query, { signal }));

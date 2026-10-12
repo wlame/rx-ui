@@ -226,8 +226,10 @@
       </p>
     {:else}
       <FindingsList path={filePath} {tab} view={$findingsBy} catalogue={$signatures}>
-        <!-- A Copy is not a Tab stop, so the list stays one; its click and
-             keys stay with it, so the header neither opens nor closes. -->
+        <!-- A Copy is not a Tab stop, so the list stays one, and a press on
+             it leaves the focus where it was, so the list's keys stay the
+             list's. Its click stays with it: the header neither opens nor
+             closes. -->
         <svelte:fragment slot="header-actions" let:row>
           {@const target = copyTargetOf(row)}
           {#if target}
@@ -239,8 +241,8 @@
                      hover:text-gh-fg-default dark:hover:text-gh-fg-dark-default"
               aria-label={copyLabelOf(target)}
               title={copyLabelOf(target)}
+              on:mousedown|preventDefault
               on:click|stopPropagation={() => copy(target)}
-              on:keydown|stopPropagation={() => {}}
             >
               Copy
             </button>

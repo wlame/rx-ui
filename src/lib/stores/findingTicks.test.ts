@@ -123,18 +123,23 @@ describe('ticksRequestOf', () => {
 });
 
 describe('openTickFinding', () => {
-  it('opens the first finding the panel lists from the line, as a click in the list does', async () => {
+  it("opens the first finding of the tick's signatures from the line, as a click in the list does", async () => {
     const backend = await serve(new FindingsBackend());
+    // An SQL statement on line 120 would come first in the list: it ends sooner.
     backend.addFile(
       APP_LOG,
-      [finding('sql-statement', 40), finding('python-traceback', 120, 134)],
+      [
+        finding('sql-statement', 40),
+        finding('sql-statement', 120),
+        finding('python-traceback', 120, 134),
+      ],
       TEST_DEFAULT_IDS,
     );
     const opening = files.openFile(APP_LOG);
     await settle();
     await opening;
 
-    const done = openTickFinding(APP_LOG, 120);
+    const done = openTickFinding(APP_LOG, 120, ['python-traceback']);
     await settle();
     await done;
 
@@ -143,6 +148,7 @@ describe('openTickFinding', () => {
       .map((r) => r.query)
       .filter((q) => q.has('after_line'));
     expect(query.get('after_line')).toBe('119');
+    expect(query.getAll('signature')).toEqual(['python-traceback']);
     expect(query.get('limit')).toBe('1');
     const tab = get(files).openFiles.find((f) => f.path === APP_LOG);
     expect(tab?.selectedLines).toEqual([{ start: 120, end: 134 }]);

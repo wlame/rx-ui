@@ -505,7 +505,9 @@ caches each file's findings per signature.
   silenced by `modalOpen`. Group and signature headers have a
   `header-actions` slot for actions on the whole header, which the panel
   fills with Copy (`tabindex="-1"`, so the list stays one Tab stop; its
-  click and keys stop there, so the header neither opens nor closes),
+  `mousedown` is cancelled, so a press leaves the focus and the list's
+  keys where they were; its click stops there, so the header neither
+  opens nor closes),
   and they carry their group's palette mark, so the group view is the
   legend of the timeline's ticks.
 - **Copy a group** (`findingsCopy.ts`): `copyFindings(path, target)`,
@@ -522,7 +524,8 @@ caches each file's findings per signature.
   (`total`: the answer's) or a signature is capped (`cap`).
 - **Ticks on the timeline**: `TimelineBar` draws `FindingTimelineLayer`
   on a file's track (never a chain's), so a hidden timeline asks
-  nothing. The layer measures the track (`measureWidth`), takes a new
+  nothing. The layer measures the track (`measureWidth`,
+  `measureHeight`), takes a new
   width after `RESIZE_WAIT_MS`, and asks `ticksRequestOf`
   (`stores/findingTicks.ts`): `ticks=<width>` (at most 4,000),
   `limit=1`, the panel's filters and `file_tz` when the tab reads the
@@ -532,11 +535,17 @@ caches each file's findings per signature.
   marks). `FindingTimelineMarks` draws `tickMarks` (`utils/findingTicks.ts`):
   one tick per group per column at the middle of the column's instants
   placed with `fractionOf`, so it sits where the axis prints its
-  findings' times; a lane per group present, in catalogue order. A
-  tick's `pointerdown` stops there (the track would scrub and jump on
-  release); its click is `openTickFinding`: `after_line=<first line - 1>`
-  and `limit=1` with the panel's filters, then `openFinding`. Ticks are
-  buttons with `tabindex="-1"`.
+  findings' times; a lane per group present, in catalogue order, placed
+  by `tickBox(trackHeight, lanes, lane)` in px (5 px tall, at least 3,
+  the lanes overlapping when they do not fit, always inside the track;
+  the browser lays the track out, so the size is a pure function with a
+  table test rather than CSS `calc`). A tick stands for its group's
+  findings in its column: its title counts that group's signatures
+  there, and its click is `openTickFinding(path, firstLine, signatures)`:
+  `signature=` the group's signatures in the column,
+  `after_line=<first line - 1>` and `limit=1` with the panel's filters,
+  then `openFinding`. A tick's `pointerdown` stops there (the track would
+  scrub and jump on release). Ticks are buttons with `tabindex="-1"`.
 - **In the editor** (`stores/editorFindings.ts`): `requestWindowFindings`
   asks `GET /v1/findings` with `lines=<window>`, `limit=10000` and the
   panel's filters (`panelFilters` in `stores/findings.ts`: the picker's

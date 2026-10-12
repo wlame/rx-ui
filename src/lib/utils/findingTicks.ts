@@ -7,10 +7,14 @@
  * floor((t - start) * W / (end - start + 1)) of W columns over the file's
  * time range; each column that holds findings lists, per signature, how
  * many and the first line of the first. A column holds one tick per
- * group, in the group's colour; each group present has a lane of its own
- * (catalogue order), the same in every column. A tick sits at the middle
- * of its column's instants, placed on the axis as the timeline places a
- * time, so it sits where the axis prints its findings' times. Pure.
+ * group, in the group's colour, which stands for that group's findings
+ * in the column: its hover counts them, and a click opens the first of
+ * them. Each group present has a lane of its own (catalogue order), the
+ * same in every column; `tickBox` stacks the lanes inside the track,
+ * overlapping when they do not fit, and keeps every tick tall enough to
+ * see. A tick sits at the middle of its column's instants, placed on the
+ * axis as the timeline places a time, so it sits where the axis prints
+ * its findings' times. Pure.
  */
 import type { FindingsTicks, GroupInfo, SignatureInfo } from '../types';
 import { formatCount, formatNumber } from './format';
@@ -30,10 +34,44 @@ export interface TickMark {
   /** The tick's lane from the top, and how many lanes the answer's groups take. */
   lane: number;
   lanes: number;
-  /** What a hover says: the column's findings, their time and each signature's count. */
+  /** What a hover says: the group's findings in the column, their time and each signature's count. */
   title: string;
-  /** The first line of the column's first finding, which a click opens. */
+  /** The first line of the group's first finding in the column, which a click opens. */
   firstLine: number;
+  /** The group's signatures with findings in the column, by id. */
+  signatures: string[];
+}
+
+/** The height of a tick, in px, when the track has room for it. */
+export const TICK_PX = 5;
+/** The shortest a tick is, in px, however many lanes share the track. */
+export const MIN_TICK_PX = 3;
+/** The space between two lanes that fit, in px. */
+const TICK_GAP_PX = 1;
+/** The space kept free at the top and at the bottom of the track, in px. */
+const TRACK_MARGIN_PX = 1;
+/** The track's height in the timeline bar, for a track not laid out yet. */
+const FALLBACK_TRACK_PX = 32;
+
+/**
+ * Where the tick of lane `lane` of `lanes` sits in a track
+ * `trackHeightPx` tall: its top and its height, in px. Lanes stack from
+ * the top, a gap between them while they fit and overlapping when they
+ * do not, so the last one still ends inside the track; a tick is
+ * `TICK_PX` tall, or the track's height when shorter, and never under
+ * `MIN_TICK_PX`.
+ */
+export function tickBox(
+  trackHeightPx: number,
+  lanes: number,
+  lane: number,
+): { topPx: number; heightPx: number } {
+  const track = trackHeightPx > 0 ? trackHeightPx : FALLBACK_TRACK_PX;
+  const usable = Math.max(0, track - 2 * TRACK_MARGIN_PX);
+  const heightPx = Math.max(MIN_TICK_PX, Math.min(TICK_PX, usable));
+  const room = Math.max(0, usable - heightPx);
+  const step = lanes <= 1 ? 0 : Math.min(heightPx + TICK_GAP_PX, room / (lanes - 1));
+  return { topPx: TRACK_MARGIN_PX + lane * step, heightPx };
 }
 
 /** What drawing the ticks reads besides the answer: the catalogue and how the timeline prints a time. */
@@ -71,22 +109,38 @@ export function columnSpanMs(
   };
 }
 
+type TickCounts = TickColumn['signatures'];
+
 /**
- * What a hover on a column's ticks says: "3 findings at 12:00:01:
- * python-traceback ×2, …", at `middleMs`, where the ticks sit and where
- * the track's own label prints the time under the pointer.
+ * What a hover on a tick says of the findings `counts` holds (one group's
+ * in one column): "3 findings at 12:00:01: python-traceback ×2, …", at
+ * `middleMs`, where the tick sits and where the track's own label prints
+ * the time under the pointer.
  */
-function columnTitle(
-  column: TickColumn,
+function tickTitle(
+  counts: TickCounts,
   middleMs: number,
   timeLabel: (ms: number) => string,
 ): string {
-  const counts = Object.entries(column.signatures).sort(
+  const ordered = Object.entries(counts).sort(
     ([idA, a], [idB, b]) => b.count - a.count || (idA < idB ? -1 : idA > idB ? 1 : 0),
   );
-  const total = counts.reduce((sum, [, count]) => sum + count.count, 0);
-  const each = counts.map(([id, count]) => `${id} ×${formatNumber(count.count)}`).join(', ');
+  const total = ordered.reduce((sum, [, count]) => sum + count.count, 0);
+  const each = ordered.map(([id, count]) => `${id} ×${formatNumber(count.count)}`).join(', ');
   return `${formatCount(total, 'finding')} at ${timeLabel(middleMs)}: ${each}`;
+}
+
+/** The counts of a column by group: each group with its signatures' counts. */
+function countsByGroup(
+  column: TickColumn,
+  groupOf: ReadonlyMap<string, string>,
+): Map<string, TickCounts> {
+  const byGroup = new Map<string, TickCounts>();
+  for (const [id, count] of Object.entries(column.signatures)) {
+    const group = groupOf.get(id) ?? '';
+    byGroup.set(group, { ...byGroup.get(group), [id]: count });
+  }
+  return byGroup;
 }
 
 /** The groups of `columns` by lane: in catalogue order, a group the catalogue lacks after them, '' last. */
@@ -116,12 +170,12 @@ export function tickMarks(ticks: FindingsTicks, axis: TimeAxis, look: TickLook):
   for (const column of ticks.columns) {
     const span = columnSpanMs(ticks, column.column);
     const middleMs = (span.firstMs + span.lastMs) / 2;
-    const title = columnTitle(column, middleMs, look.timeLabel);
     const fraction = fractionOf(middleMs, axis);
-    const firstLine = Math.min(...Object.values(column.signatures).map((c) => c.first_line));
-    const groupsHere = new Set(Object.keys(column.signatures).map((id) => groupOf.get(id) ?? ''));
+    const byGroup = countsByGroup(column, groupOf);
     for (const [lane, group] of lanes.entries()) {
-      if (!groupsHere.has(group)) continue;
+      const counts = byGroup.get(group);
+      if (!counts) continue;
+      const signatures = Object.keys(counts).sort();
       marks.push({
         key: `${column.column}\u0000${group}`,
         column: column.column,
@@ -130,8 +184,9 @@ export function tickMarks(ticks: FindingsTicks, axis: TimeAxis, look: TickLook):
         fraction,
         lane,
         lanes: lanes.length,
-        title,
-        firstLine,
+        title: tickTitle(counts, middleMs, look.timeLabel),
+        firstLine: Math.min(...signatures.map((id) => counts[id].first_line)),
+        signatures,
       });
     }
   }

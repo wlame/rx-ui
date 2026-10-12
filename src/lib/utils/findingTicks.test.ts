@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TEST_GROUPS, TEST_SIGNATURES } from '../testing/fakeFindings';
 import type { FindingsTicks } from '../types';
-import { columnSpanMs, tickMarks, type TickLook } from './findingTicks';
+import { MIN_TICK_PX, columnSpanMs, tickBox, tickMarks, type TickLook } from './findingTicks';
 import { groupStyle } from './groupStyle';
 import { fractionOf } from './timeline';
 
@@ -89,14 +89,16 @@ describe('tickMarks', () => {
     ]);
   });
 
-  it("says the column's findings, their time and each signature's count on hover", () => {
-    const ticks = ticksOf({ 1: { 'sql-statement': [1, 120], 'python-traceback': [2, 140] } });
+  it("says its group's findings in the column, their time and each signature's count on hover", () => {
+    const ticks = ticksOf({
+      1: { 'sql-statement': [1, 120], 'python-traceback': [2, 140], 'java-exception': [3, 150] },
+    });
 
     const titles = tickMarks(ticks, AXIS, LOOK).map((m) => m.title);
 
     expect(titles).toEqual([
-      '3 findings at 12:00:01: python-traceback ×2, sql-statement ×1',
-      '3 findings at 12:00:01: python-traceback ×2, sql-statement ×1',
+      '5 findings at 12:00:01: java-exception ×3, python-traceback ×2',
+      '1 finding at 12:00:01: sql-statement ×1',
     ]);
   });
 
@@ -105,9 +107,17 @@ describe('tickMarks', () => {
     expect(tickMarks(ticks, AXIS, LOOK)[0].title).toBe('1 finding at 12:00:49: sql-statement ×1');
   });
 
-  it("opens the column's first finding: the smallest first line of its signatures", () => {
-    const ticks = ticksOf({ 1: { 'python-traceback': [2, 140], 'sql-statement': [1, 120] } });
-    expect(tickMarks(ticks, AXIS, LOOK).map((m) => m.firstLine)).toEqual([120, 120]);
+  it("opens its group's first finding in the column: the smallest first line of the group's signatures", () => {
+    const ticks = ticksOf({
+      1: { 'python-traceback': [2, 140], 'java-exception': [1, 130], 'sql-statement': [1, 120] },
+    });
+
+    const marks = tickMarks(ticks, AXIS, LOOK);
+
+    expect(marks.map((m) => [m.group, m.firstLine, m.signatures])).toEqual([
+      ['traceback', 130, ['java-exception', 'python-traceback']],
+      ['sql', 120, ['sql-statement']],
+    ]);
   });
 
   it("sits where the axis places the findings' times", () => {
@@ -135,5 +145,40 @@ describe('tickMarks', () => {
       ['sql', 0],
       ['', 1],
     ]);
+  });
+});
+
+describe('tickBox', () => {
+  /** The track of the timeline bar as the browser lays it out. */
+  const TRACK_PX = 32;
+
+  it.each([
+    [1, [1]],
+    [3, [1, 7, 13]],
+    [11, [1, 3.5, 6, 8.5, 11, 13.5, 16, 18.5, 21, 23.5, 26]],
+  ])(
+    'stacks %i lanes of 5 px ticks inside the track, overlapping when they do not fit',
+    (lanes, tops) => {
+      const boxes = Array.from({ length: lanes }, (_, lane) => tickBox(TRACK_PX, lanes, lane));
+
+      expect(boxes.map((box) => box.topPx)).toEqual(tops);
+      expect(boxes.every((box) => box.heightPx === 5)).toBe(true);
+      expect(boxes.every((box) => box.topPx >= 0 && box.topPx + box.heightPx <= TRACK_PX)).toBe(
+        true,
+      );
+    },
+  );
+
+  it('keeps a tick at least 3 px tall on a short track', () => {
+    for (const lane of [0, 5, 10]) {
+      const box = tickBox(6, 11, lane);
+      expect(box.heightPx).toBeGreaterThanOrEqual(MIN_TICK_PX);
+      expect(box.topPx).toBeGreaterThanOrEqual(0);
+    }
+    expect(MIN_TICK_PX).toBe(3);
+  });
+
+  it('lays a track that has no height yet out as the bar does', () => {
+    expect(tickBox(0, 3, 2)).toEqual(tickBox(TRACK_PX, 3, 2));
   });
 });

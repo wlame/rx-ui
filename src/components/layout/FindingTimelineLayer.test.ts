@@ -170,12 +170,14 @@ describe('the ticks of the findings on the timeline', () => {
     expect(query.get('limit')).toBe('1');
     expect(query.has('file_tz')).toBe(false);
     expect(drawnTicks(target).map((t) => t.dataset.group)).toEqual(['traceback', 'sql', 'sql']);
-    expect(drawnTicks(target)[0].title).toBe(
-      '2 findings at 2026-10-10 12:05:00: python-traceback ×1, sql-statement ×1',
-    );
+    expect(drawnTicks(target).map((t) => t.title)).toEqual([
+      '1 finding at 2026-10-10 12:05:00: python-traceback ×1',
+      '1 finding at 2026-10-10 12:05:00: sql-statement ×1',
+      '1 finding at 2026-10-10 12:09:00: sql-statement ×1',
+    ]);
   });
 
-  it("opens the column's first finding on a click, as a click in the list does", async () => {
+  it("opens its group's first finding in the column on a click, as a click in the list does", async () => {
     const backend = await serve();
     const opening = files.openFile(APP_LOG);
     await settle();
@@ -189,9 +191,12 @@ describe('the ticks of the findings on the timeline', () => {
       .requestsTo('GET', '/v1/findings')
       .map((request) => request.query)
       .find((query) => query.has('after_line'));
-    expect(opened?.get('after_line')).toBe('119');
+    // The SQL statement's tick opens line 200, though the traceback on
+    // line 120 is in the same column.
+    expect(opened?.get('after_line')).toBe('199');
+    expect(opened?.getAll('signature')).toEqual(['sql-statement']);
     const tab = get(files).openFiles.find((file) => file.path === APP_LOG);
-    expect(tab?.selectedLines).toEqual([{ start: 120, end: 134 }]);
+    expect(tab?.selectedLines).toEqual([{ start: 200, end: 200 }]);
   });
 
   it('asks again once the resized track keeps its new width', async () => {
@@ -229,9 +234,9 @@ describe('the ticks of the findings on the timeline', () => {
     expect(drawnTicks(target)).toEqual([]);
   });
 
-  // Review focus 4: a file read in a zone of its own. The axis spans the
-  // file's times read in that zone; the ticks must span the same instants.
-  it('Review focus 4: asks in the zone chosen for the file, and puts a tick where the axis prints its time', async () => {
+  // A file read in a zone of its own: the axis spans the file's times read
+  // in that zone, and the ticks must span the same instants.
+  it('asks in the zone chosen for the file, and puts a tick where the axis prints its time', async () => {
     const backend = await serve();
     fileZones.set(APP_LOG, '+02:00', () => true);
     const inZone = openFile({ timeRange: rangeIn('+02:00', 2 * HOUR_MS) });
