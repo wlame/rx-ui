@@ -776,7 +776,7 @@ export interface components {
             lines?: string[];
             /** @description True when the answer's text budget ran out at or before this finding, so lines, before and after are left out. */
             lines_truncated?: boolean;
-            /** @description True when a value in the excerpt or the lines was masked, or the signature redacts. */
+            /** @description True when a value in the excerpt, the lines, or the lines before and after was masked, or the signature redacts. */
             masked?: boolean;
             /** @description Id of the signature that matched. */
             signature: string;
