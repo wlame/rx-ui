@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
+import { hoverTooltipText } from '$lib/testing/tooltipText';
 import type { LineRange } from '$lib/utils/lineSelection';
 import SelectionChip from './SelectionChip.svelte';
 
@@ -22,6 +23,7 @@ afterEach(() => {
   chip?.$destroy();
   chip = null;
   document.body.replaceChildren();
+  vi.useRealTimers();
 });
 
 describe('SelectionChip', () => {
@@ -67,6 +69,16 @@ describe('SelectionChip', () => {
     await tick();
     await tick();
     expect(copyButton.disabled).toBe(false);
+  });
+
+  it('draws Copy as the copy icon, named by its label and its tooltip', () => {
+    vi.useFakeTimers();
+    const { button } = mount([{ start: 7, end: 7 }]);
+    const copyButton = button('Copy the selected lines');
+
+    expect(copyButton.textContent?.trim()).toBe('');
+    expect(copyButton.querySelector('svg')?.dataset.icon).toBe('copy');
+    expect(hoverTooltipText(copyButton)).toBe('Copy the selected lines');
   });
 
   it('cannot copy when the tab gives no way to', () => {

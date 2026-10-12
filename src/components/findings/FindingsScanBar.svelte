@@ -17,6 +17,7 @@
   } from '$lib/stores/findings';
   import { scanLabel } from '$lib/utils/findingsSummary';
   import { isShortcut } from '$lib/utils/shortcuts';
+  import Icon from '../common/Icon.svelte';
 
   /** The open file. */
   export let path: string;
@@ -123,10 +124,11 @@
       </button>
       <button
         type="button"
-        class={MENU_ITEM_CLASS}
+        class="{MENU_ITEM_CLASS} flex items-center gap-1.5"
         disabled={onCopyAll === null}
         on:click={copyAll}
       >
+        <Icon name="copy" size={12} />
         Copy all
       </button>
       <label class="flex items-center justify-between gap-2 px-3 py-1">

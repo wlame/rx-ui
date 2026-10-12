@@ -13,6 +13,7 @@ import {
   mountFindingsPanel,
   unmountFindingsPanels,
 } from '$lib/testing/findingsPanel';
+import { hoverTooltipText } from '$lib/testing/tooltipText';
 import { copyText } from '$lib/utils/clipboard';
 import { groupStyle } from '$lib/utils/groupStyle';
 import { TEST_GROUPS } from '$lib/testing/fakeFindings';
@@ -149,6 +150,33 @@ describe('Copy on the headers of the group view', () => {
     expect(markOf('[data-signature="python-traceback"]')).toContain(traceback);
     expect(markOf('[data-group="sql"]')).toContain(sql);
     expect(traceback).not.toBe(sql);
+  });
+});
+
+describe('the Copy buttons of the findings panel', () => {
+  it('draws Copy on a header as the copy icon, named by its label and its tooltip', async () => {
+    const { target } = await mountByGroup();
+    const copies = [
+      [headerRow(target, '[data-group="traceback"]'), 'Copy the findings of the group traceback'],
+      [headerRow(target, '[data-signature="sql-statement"]'), 'Copy the findings of SQL statement'],
+    ] as const;
+
+    for (const [row, label] of copies) {
+      const button = buttonNamed(row, label);
+      expect(button.textContent?.trim()).toBe('');
+      expect(button.querySelector('svg')?.dataset.icon).toBe('copy');
+      expect(hoverTooltipText(button)).toBe(label);
+    }
+  });
+
+  it('keeps the text of Copy all in the more menu, with the copy icon in front', async () => {
+    const { target } = await mountByGroup();
+
+    await click(buttonNamed(target, 'More scan actions'));
+
+    const copyAll = buttonNamed(target, 'Copy all');
+    expect(copyAll.textContent?.trim()).toBe('Copy all');
+    expect(copyAll.firstElementChild?.getAttribute('data-icon')).toBe('copy');
   });
 });
 

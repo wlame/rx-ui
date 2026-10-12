@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
    * The editor header's chip for the tab's selected lines: how many
-   * ranges and lines are selected, Copy and × (clear). Nothing shows
-   * while no line is selected.
+   * ranges and lines are selected, Copy (the copy icon) and × (clear).
+   * Nothing shows while no line is selected.
    *
    * The header gives what the two buttons do: `copy`, which resolves when
    * the copy ended (null where the tab's selection cannot be copied), and
@@ -11,6 +11,7 @@
   import { tooltip } from '$lib/actions/tooltip';
   import { formatCount } from '$lib/utils/format';
   import { selectionLineCount, type LineRange } from '$lib/utils/lineSelection';
+  import Icon from '../common/Icon.svelte';
 
   export let ranges: readonly LineRange[];
   export let copy: (() => Promise<void>) | null;
@@ -54,7 +55,7 @@
       use:tooltip={{ label: copyLabel }}
       on:click={runCopy}
     >
-      Copy
+      <Icon name="copy" size={12} />
     </button>
     <button
       type="button"

@@ -13,6 +13,7 @@
 -->
 <script lang="ts">
   import { tick } from 'svelte';
+  import { tooltip } from '$lib/actions/tooltip';
   import { copyFindings, type FindingsCopyTarget } from '$lib/findingsCopy';
   import { backendHas, files, health, settings, tree } from '$lib/stores';
   import { activeOpenFile } from '$lib/stores/files';
@@ -36,6 +37,7 @@
   import { pickerSummary, selectionOf } from '$lib/utils/findingsPicker';
   import { stateLine } from '$lib/utils/findingsSummary';
   import { isChainKey } from '$lib/utils/tabKey';
+  import Icon from '../common/Icon.svelte';
   import Spinner from '../common/Spinner.svelte';
   import FindingsList from './FindingsList.svelte';
   import FindingsPicker from './FindingsPicker.svelte';
@@ -248,18 +250,19 @@
         <svelte:fragment slot="header-actions" let:row>
           {@const target = copyTargetOf(row)}
           {#if target}
+            {@const label = copyLabelOf(target)}
             <button
               type="button"
               tabindex="-1"
-              class="px-1.5 rounded text-xs {MUTED}
+              class="p-0.5 rounded {MUTED}
                      hover:bg-gh-canvas-inset dark:hover:bg-gh-canvas-dark-inset
                      hover:text-gh-fg-default dark:hover:text-gh-fg-dark-default"
-              aria-label={copyLabelOf(target)}
-              title={copyLabelOf(target)}
+              aria-label={label}
+              use:tooltip={{ label }}
               on:mousedown|preventDefault
               on:click|stopPropagation={() => copy(target)}
             >
-              Copy
+              <Icon name="copy" size={14} />
             </button>
           {/if}
         </svelte:fragment>
