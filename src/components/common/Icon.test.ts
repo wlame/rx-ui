@@ -39,6 +39,10 @@ describe('Icon', () => {
     },
   );
 
+  it('names the icon it draws in data-icon', () => {
+    expect(mount({ name: 'eye-off' }).dataset.icon).toBe('eye-off');
+  });
+
   it('draws outlines in the text colour', () => {
     const svg = mount({ name: 'layers' });
 

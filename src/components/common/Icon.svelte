@@ -1,6 +1,7 @@
 <!--
   An outline icon from the table in `utils/icons.ts`, drawn in the text
   colour. It is decoration: the control that holds it carries the name.
+  `data-icon` says which icon it draws.
 -->
 <script lang="ts">
   import { ICONS, type IconName } from '$lib/utils/icons';
@@ -26,6 +27,7 @@
   stroke-linejoin="round"
   aria-hidden="true"
   focusable="false"
+  data-icon={name}
   class={className}
 >
   {#each shapes as shape, index (index)}
