@@ -16,7 +16,7 @@ import {
   type TimelineFile,
 } from './timeline';
 
-/** 2025-12-10 07:00:00 UTC, the start of the playground's hour. */
+/** 2025-12-10 07:00:00 UTC, the start of the hour the tests' times fall in. */
 const HOUR_START = Date.UTC(2025, 11, 10, 7, 0, 0);
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;

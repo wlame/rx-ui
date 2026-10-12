@@ -127,8 +127,11 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   stops at 8.0 MB]" and the notification "Copied 37 of 120 findings: the
   copy stops at 8.0 MB", and a signature that stores fewer findings than
   it found says "of 48,210 found, 10,000 stored". The recent commands
-  record the `rx trace --signatures=group:traceback -B 1 app.log`
-  command that lists the same findings, which the viewer writes itself.
+  record an `rx trace` command for them, which the viewer writes
+  itself: `rx trace --signatures=group:traceback -B 1 app.log` for a
+  group. It names the whole group and has no flag for the filter text,
+  so with a picker that narrows the group, or with a filter, it lists
+  more findings than the copy holds.
 - Ticks of the findings on the timeline. A file's timeline bar has a
   thin tick in the group's colour for each group with findings in a
   column of its pixels, for the findings the Findings panel lists, in

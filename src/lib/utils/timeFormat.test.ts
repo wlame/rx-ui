@@ -25,7 +25,7 @@ function utc(text: string): number {
 }
 
 describe('formatInFileLayout', () => {
-  // The real answers of rx-go 1.5 for the playground's logs.
+  // Time-range answers in the shape rx-go gives, one for each timestamp layout printed below.
   const middleware = rangeOf({
     format: 'iso',
     display_zone: 'UTC',

@@ -321,9 +321,9 @@ Signatures, "Masking") gives the whole rule.
   the start of its first line. By group lists them under each group and
   signature, with their counts; a signature's findings load when it is
   opened, and a capped signature says "showing 10,000 of 48,210". The
-  filter box narrows the list to the findings
-  whose text or signature name holds what is typed. Only the rows on
-  screen are drawn, and they load page by page as the list scrolls.
+  filter box narrows the list to the findings whose excerpt or
+  signature name holds what is typed. Only the rows on screen are
+  drawn, and they load page by page as the list scrolls.
 - **Open a finding**: a click or Enter selects the finding's lines in the
   editor and goes to its first line; the link then holds `sel` and
   `line`.
@@ -392,16 +392,16 @@ Signatures, "Masking") gives the whole rule.
   10,000 by default) copies those it stores, and the last line says
   "(of 48,210 found, 10,000 stored)". A notification says what was
   copied: "Copied 120 findings (1.2 MB)". The recent commands record
-  the `rx trace` command that lists the same findings:
-  `rx trace --signatures=group:traceback -B 1 app.log` for a group,
-  `--signatures=python-traceback` for a signature, and the picked
-  signatures for Copy all (`--signatures=default` for the default set);
-  `-B` is left out with no line before. The viewer writes this command
-  itself, and `rx` has no flag for the filter text or for a picker that
-  leaves out some of a group's signatures, so with either the command
-  lists more than the copy holds. The headers' Copy buttons are not Tab
-  stops, so the list stays one; Copy all is in the ⋯ menu, which the
-  keyboard reaches.
+  an `rx trace` command for the copied findings, which the viewer
+  writes itself: `rx trace --signatures=group:traceback -B 1 app.log`
+  for a group, `--signatures=python-traceback` for a signature, and the
+  picked signatures for Copy all (`--signatures=default` for the default
+  set); `-B` is left out with no line before. A group's command names
+  the whole group, and the filter text has no `rx` flag, so with a
+  picker that leaves out some of the group's signatures, or with a
+  filter, the command lists more findings than the copy holds. The
+  headers' Copy buttons are not Tab stops, so the list stays one; Copy
+  all is in the ⋯ menu, which the keyboard reaches.
 
 - **Timeline ticks**: the timeline bar of a file marks where its
   findings are in time: a thin, short tick in the group's colour for

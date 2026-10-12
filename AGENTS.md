@@ -287,9 +287,10 @@ role="tab">` that also carries the drag handlers; its close button is a
   narrows it to, so `findingsCopyCommand` (`findingsCopy.ts`) writes
   `rx trace --signatures=group:<g> -B <N> <path>` (a signature's id, or
   the picked signatures for Copy all), quoting each word as rx quotes
-  its own commands. `rx trace` has no flag for the filter text or for a
-  picker that narrows the group, so with either the command lists more
-  findings than the copy holds.
+  its own commands. A group's command names the whole group, not the
+  picked signatures in it, and `rx trace` has no flag for the filter
+  text, so with a picker that narrows the group or with a filter text
+  the command lists more findings than the copy holds.
 - Every keyboard shortcut and mouse gesture is a row of one table,
   `src/lib/utils/shortcuts.ts`. The key handlers ask it whether a key is
   theirs and the help dialog (Cmd/Ctrl+/) lists it, so add a shortcut
