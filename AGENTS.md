@@ -510,7 +510,11 @@ caches each file's findings per signature.
   (`selectionOf`: none for the default set, `all`, or ids). Its state
   line says `fileSummary` ("partial · K of M default signatures · N
   findings"); its scan button speaks of the selection sent ("Scan N
-  missing", from its `missing`). The list measures its own height
+  missing", from its `missing`). While a scan runs, the button and the
+  large Scan button are gone, and `FindingsScanProgress.svelte` draws
+  the bar, the share read and Cancel in a row of their own under the
+  picker's row (`data-findings-controls`), so Cancel never shares the
+  width with the picker. The list measures its own height
   (`measureHeight` in `actions/measureSize.ts`) to know which rows are
   on screen.
   `findings_by=group` is `ViewState.findingsBy` (`stores/layout.ts`

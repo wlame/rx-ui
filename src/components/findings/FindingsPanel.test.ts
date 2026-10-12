@@ -247,6 +247,45 @@ describe('the scan button', () => {
     expect(target.querySelector('[data-scan-end]')?.textContent?.trim()).toBe('Scan cancelled.');
   });
 
+  // At the panel's default width the picker, a progress bar and Cancel
+  // do not fit in one row, and Cancel was cut off; jsdom does no layout,
+  // so the test checks where each part is drawn.
+  it('shows the progress and Cancel in a row of their own under the picker while a scan runs', async () => {
+    const backend = new FindingsBackend();
+    backend.addFile(APP_LOG, APP_FINDINGS);
+    const target = await mountFindingsPanel(backend, [APP_LOG]);
+
+    await click(scanButton(target));
+    backend.progress(backend.lastTask()?.id ?? '', 250, 1000);
+    await settle(POLL_INTERVAL_MS);
+
+    const controls = target.querySelector('[data-findings-controls]');
+    const progress = target.querySelector('[data-scan-progress]');
+    const cancel = buttonNamed(target, 'Cancel');
+    expect(controls?.nextElementSibling).toBe(progress);
+    expect(progress?.querySelector('[role="progressbar"]')).not.toBeNull();
+    expect(progress?.contains(cancel)).toBe(true);
+    expect(controls?.querySelector('[role="progressbar"]')).toBeNull();
+    expect(cancel.classList).toContain('flex-shrink-0');
+    expect(cancel.classList).toContain('whitespace-nowrap');
+  });
+
+  it('hides the large Scan button while a scan runs, and shows it again when the scan ends', async () => {
+    const backend = new FindingsBackend();
+    backend.addFile(APP_LOG, APP_FINDINGS);
+    const target = await mountFindingsPanel(backend, [APP_LOG]);
+    const isLargeScanShown = () =>
+      [...target.querySelectorAll('button')].some((b) => b.textContent?.includes('Scan with'));
+
+    await click(buttonNamed(target, 'Scan with Default (4)'));
+    await settle(POLL_INTERVAL_MS);
+
+    expect(isLargeScanShown()).toBe(false);
+    await click(buttonNamed(target, 'Cancel'));
+    await settle(POLL_INTERVAL_MS);
+    expect(isLargeScanShown()).toBe(true);
+  });
+
   it('says the file changed while it was scanned when the cache kept nothing of the scan', async () => {
     const backend = new FindingsBackend();
     backend.addFile(APP_LOG, APP_FINDINGS);

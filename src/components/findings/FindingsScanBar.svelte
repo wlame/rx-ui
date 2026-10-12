@@ -1,8 +1,9 @@
 <!--
   The findings panel's scan controls for the open file. With no scan
   running: "Scan N missing", which scans only the picked signatures the
-  cache does not answer, or "Up to date". While a scan runs: a progress
-  bar from the bytes the scan has read, and Cancel. The ⋯ button opens a
+  cache does not answer, or "Up to date". While a scan runs the button
+  is gone, and the panel shows the scan's progress and Cancel in a row
+  of their own (`FindingsScanProgress.svelte`). The ⋯ button opens a
   small menu: Rescan (every picked signature again), Copy all, and how
   many lines before each finding a copy holds. It is a popover: Esc or a
   click outside closes it.
@@ -10,7 +11,6 @@
 <script lang="ts">
   import {
     MAX_COPY_LINES_BEFORE,
-    cancelScan,
     copyLinesBefore,
     startScan,
     type FindingsTabState,
@@ -40,7 +40,6 @@
   $: scan = tab.scan;
   $: missing = tab.summary?.missing ?? [];
   $: canScan = tab.summary !== null && selection !== null && missing.length > 0;
-  $: percent = scan !== null && scan.total > 0 ? Math.floor((scan.read * 100) / scan.total) : 0;
 
   /** Scan the picked signatures the cache does not answer. */
   function scanMissing() {
@@ -75,33 +74,7 @@
 
 <svelte:window on:click={handleWindowClick} />
 
-{#if scan}
-  <div class="flex-1 flex items-center gap-1.5 min-w-0">
-    <div
-      role="progressbar"
-      aria-label={scan.joined ? 'Scan already running, joined' : 'Scan'}
-      aria-valuemin="0"
-      aria-valuemax="100"
-      aria-valuenow={percent}
-      class="flex-1 h-1.5 rounded bg-gh-canvas-inset dark:bg-gh-canvas-dark-inset overflow-hidden"
-    >
-      <div
-        class="h-full bg-gh-accent-emphasis dark:bg-gh-accent-dark-emphasis"
-        style="width: {percent}%"
-      />
-    </div>
-    <span class="text-xs tabular-nums text-gh-fg-muted dark:text-gh-fg-dark-muted">{percent}%</span>
-    <button
-      type="button"
-      class="px-2 py-0.5 rounded text-xs border border-gh-border-default dark:border-gh-border-dark-default
-             hover:bg-gh-canvas-subtle dark:hover:bg-gh-canvas-dark-subtle disabled:opacity-50"
-      disabled={scan.taskId === ''}
-      on:click={() => cancelScan(path)}
-    >
-      Cancel
-    </button>
-  </div>
-{:else}
+{#if !scan}
   <button
     type="button"
     data-scan

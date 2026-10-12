@@ -307,8 +307,8 @@ Signatures, "Masking") gives the whole rule.
   panel lists and scans only the picked signatures.
 - **Scan**: "Scan N missing" scans the picked signatures the cache does
   not answer; "Up to date" when there are none. While a scan runs, a
-  bar shows the share of the file read, and Cancel stops it; a cancelled
-  scan writes nothing. The ⋯ menu holds Rescan (every picked signature
+  row under the picker shows a bar of the share of the file read and
+  Cancel, which stops it; a cancelled scan writes nothing. The ⋯ menu holds Rescan (every picked signature
   again), Copy all, and how many lines before each finding a copy holds
   (0 to 3). A scan belongs to its file: it runs on while another tab is
   shown, and also when its tab is closed; when it ends, the file's label
@@ -318,7 +318,7 @@ Signatures, "Masking") gives the whole rule.
   nothing of a scan that completed, as for a file that grew while it was
   read, the panel says the file changed while it was scanned: scan again
   when it is quiet. A file nothing picked has scanned yet shows a large
-  Scan button.
+  Scan button, hidden while a scan runs.
 - **List**: By line lists the findings in line order: the group's colour,
   the line or lines, the signature's name and the finding's excerpt,
   the start of its first line. By group lists them under each group and

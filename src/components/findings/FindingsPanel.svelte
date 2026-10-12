@@ -40,6 +40,7 @@
   import FindingsList from './FindingsList.svelte';
   import FindingsPicker from './FindingsPicker.svelte';
   import FindingsScanBar from './FindingsScanBar.svelte';
+  import FindingsScanProgress from './FindingsScanProgress.svelte';
   import FindingsToolbar from './FindingsToolbar.svelte';
 
   /** Joins the paths of the open tabs into one string, which no path holds. */
@@ -186,7 +187,7 @@
         · <span data-findings-state>{stateLine(tab.fileSummary)}</span>
       {/if}
     </p>
-    <div class="relative flex items-center gap-1.5 px-3 pt-1.5">
+    <div class="relative flex items-center gap-1.5 px-3 pt-1.5" data-findings-controls>
       <FindingsPicker path={filePath} />
       <span class="flex-1" />
       <FindingsScanBar
@@ -196,6 +197,9 @@
         onCopyAll={canCopyAll ? () => copy({ kind: 'all' }) : null}
       />
     </div>
+    {#if tab.scan}
+      <FindingsScanProgress path={filePath} scan={tab.scan} />
+    {/if}
     {#if tab.scanEnd && !tab.scan}
       <p class="px-3 pt-1 text-xs {MUTED}" role="status" data-scan-end>
         {scanEndText(tab.scanEnd)}
@@ -219,14 +223,17 @@
     {:else if tab.summary.checked.length === 0}
       <div class="flex flex-col items-center gap-3 px-3 py-6 text-sm {MUTED}">
         <p>The picked signatures have not scanned this file yet.</p>
-        <button
-          type="button"
-          class="btn btn-primary"
-          disabled={tab.scan !== null || tab.summary.missing.length === 0}
-          on:click={scanFirst}
-        >
-          Scan with {summaryText}
-        </button>
+        <!-- While a scan runs, the progress row under the picker shows it. -->
+        {#if tab.scan === null}
+          <button
+            type="button"
+            class="btn btn-primary"
+            disabled={tab.summary.missing.length === 0}
+            on:click={scanFirst}
+          >
+            Scan with {summaryText}
+          </button>
+        {/if}
       </div>
     {:else if tab.summary.total === 0}
       <p class="px-3 py-4 text-sm {MUTED}">

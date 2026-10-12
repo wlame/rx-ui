@@ -78,8 +78,11 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   catalogue.
 - Scans from the Findings panel: "Scan N missing" scans only the picked
   signatures the cache does not answer, and Rescan in the ⋯ menu scans
-  them all again. A progress bar shows the bytes read, and Cancel stops
-  the scan, which then writes nothing. A scan belongs to its file: it
+  them all again. While a scan runs, a row of its own under the picker
+  shows a progress bar of the bytes read and Cancel, which stays whole
+  at any panel width and stops the scan, which then writes nothing; the
+  large Scan button of a file not scanned yet is hidden meanwhile. A
+  scan belongs to its file: it
   goes on while another tab is shown or its tab is closed, and when it
   ends the file's label in the tree and the panel show what it found.
   A scan that joined one already running for the file scans, once more,
