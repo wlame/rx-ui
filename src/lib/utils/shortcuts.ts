@@ -636,7 +636,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
     id: 'copySelection',
     scope: 'filePane',
     description: 'Copy the selected lines, when no text is selected in the editor',
-    chord: { key: 'c', mod: true },
+    chord: { key: 'c', mod: true, shift: false },
   },
   {
     id: 'gotoJump',

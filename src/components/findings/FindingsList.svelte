@@ -78,6 +78,8 @@
     'findingsCollapse',
     'findingsOpen',
   ];
+  /** The keys a control in a header's actions keeps for itself: Enter presses it. */
+  const HEADER_ACTION_KEYS: readonly ShortcutId[] = ['findingsOpen'];
 
   let scroller: HTMLElement;
   let scrollTop = 0;
@@ -224,15 +226,26 @@
   }
 
   /**
+   * Whether `target` is in a header's actions: a Copy, which a script or
+   * assistive technology can focus although it is no Tab stop.
+   */
+  function isInHeaderActions(target: EventTarget | null): boolean {
+    return target instanceof Element && target.closest('[data-header-actions]') !== null;
+  }
+
+  /**
    * The list's one key handler. A key with Ctrl, Cmd or Alt belongs to
    * the shortcut table, and a key an input method composes with to it.
-   * The key is cancelled only when it acted.
+   * A control in a header's actions keeps its Enter; the other keys move
+   * in the list from there. The key is cancelled only when it acted.
    */
   function handleKeydown(event: KeyboardEvent) {
     if ($modalOpen) return;
     if (event.ctrlKey || event.metaKey || event.altKey || belongsToInputMethod(event)) return;
     const index = rowIndexOf(event.target);
     if (index === null || !NAVIGATION_KEYS.some((id) => isShortcut(id, event))) return;
+    const isActionKey = HEADER_ACTION_KEYS.some((id) => isShortcut(id, event));
+    if (isActionKey && isInHeaderActions(event.target)) return;
     const action = findingsKeyAction(rows, index, event.key, view);
     if (action.type === 'none') return;
     event.preventDefault();
@@ -304,7 +317,9 @@
         >
           <FindingRowContent {row} {signatureOf} {catalogue} />
           {#if isHeader(row)}
-            <span class="ml-auto flex-shrink-0"><slot name="header-actions" {row} /></span>
+            <span class="ml-auto flex-shrink-0" data-header-actions>
+              <slot name="header-actions" {row} />
+            </span>
           {/if}
         </div>
       {/each}

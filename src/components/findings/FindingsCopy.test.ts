@@ -115,6 +115,20 @@ describe('Copy on the headers of the group view', () => {
     expect((document.activeElement as HTMLElement | null)?.dataset.index).toBe(String(next));
   });
 
+  // A script or assistive technology can focus a Copy: Enter then
+  // presses it, and the header neither closes nor opens.
+  it('leaves Enter to a Copy that has the focus', async () => {
+    const { target } = await mountByGroup();
+    const row = headerRow(target, '[data-group="traceback"]');
+    const button = buttonNamed(row, 'Copy the findings of the group traceback');
+    button.focus();
+
+    const event = await keyDown(button, { key: 'Enter', code: 'Enter' });
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(row.getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('keeps the list one Tab stop: the Copy buttons take no focus from the keyboard', async () => {
     const { target } = await mountByGroup();
     const buttons = target.querySelectorAll<HTMLButtonElement>('[role="tree"] button');

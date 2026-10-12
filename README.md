@@ -79,9 +79,9 @@ way.
 - **Select lines** in the open file with the mouse or the keys (see the
   table below): whole lines, in up to 100 ranges per tab. The editor
   header counts them, "3 ranges · 21 lines", with Copy and × (clear).
-  Copy, or Cmd/Ctrl+C in the editor while no text is highlighted, asks
-  the backend for every range in one samples request and copies each
-  range under a header that names the file and its lines,
+  Copy, or Cmd/Ctrl+C (without Shift) in the editor while no text is
+  highlighted, asks the backend for every range in one samples request
+  and copies each range under a header that names the file and its lines,
   `==> app.log:120-134 <==`, an empty line between ranges, at most
   8 MiB in whole ranges; the recent commands record the request's
   command. A drag in the text keeps the editor's highlight, so
@@ -403,8 +403,9 @@ Signatures, "Masking") gives the whole rule.
   the whole group, and the filter text has no `rx` flag, so with a
   picker that leaves out some of the group's signatures, or with a
   filter, the command lists more findings than the copy holds. The
-  headers' Copy buttons are not Tab stops, so the list stays one; Copy
-  all is in the ⋯ menu, which the keyboard reaches.
+  headers' Copy buttons are not Tab stops, so the list stays one; when a
+  screen reader focuses one, Enter copies and the header stays as it
+  was. Copy all is in the ⋯ menu, which the keyboard reaches.
 
 - **Timeline ticks**: the timeline bar of a file marks where its
   findings are in time: a thin, short tick in the group's colour for

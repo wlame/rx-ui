@@ -525,7 +525,9 @@ caches each file's findings per signature.
   fills with Copy (`tabindex="-1"`, so the list stays one Tab stop; its
   `mousedown` is cancelled, so a press leaves the focus and the list's
   keys where they were; its click stops there, so the header neither
-  opens nor closes),
+  opens nor closes; the list leaves Enter to a control in the slot,
+  `data-header-actions`, so a Copy that a script or assistive
+  technology focuses copies on Enter, and the arrows still move),
   and they carry their group's palette mark, so the group view is the
   legend of the timeline's ticks.
 - **Copy a group** (`findingsCopy.ts`): `copyFindings(path, target)`,
@@ -634,7 +636,10 @@ caches each file's findings per signature.
   layout, so a test gives a scroll position or size itself.
 - In a component test `onMount` does not run (vitest resolves `svelte`
   to its server entry), so a window listener belongs in
-  `<svelte:window>`. A test whose component reaches `$lib/stores`
+  `<svelte:window>`. A test that needs it mocks `svelte` with an
+  `onMount` that runs its function in a microtask, once the component
+  is in the page, as `MonacoEditor.test.ts` does to read the options
+  the editor is created with (ESLint forbids `svelte/internal`). A test whose component reaches `$lib/stores`
   imports `$lib/testing/matchMediaStub` first.
 - Names: `describe(unit) / it("scenario returns expected")`.
 - Some tests read the repository's own files and fail when a rule is

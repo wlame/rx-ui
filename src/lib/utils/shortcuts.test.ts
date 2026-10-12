@@ -427,6 +427,14 @@ describe('isShortcut', () => {
     expect(isShortcut('gotoLine', press('g'))).toBe(false);
   });
 
+  // Cmd/Ctrl+Shift+C is another key: the browser's inspector, on some.
+  it('matches Cmd+C and Ctrl+C without Shift as the copy of the selected lines', () => {
+    expect(isShortcut('copySelection', press('c', { metaKey: true }))).toBe(true);
+    expect(isShortcut('copySelection', press('c', { ctrlKey: true }))).toBe(true);
+    expect(isShortcut('copySelection', press('C', { metaKey: true, shiftKey: true }))).toBe(false);
+    expect(isShortcut('copySelection', press('C', { ctrlKey: true, shiftKey: true }))).toBe(false);
+  });
+
   it('matches Enter without Shift as the search key', () => {
     expect(isShortcut('runSearch', press('Enter'))).toBe(true);
     expect(isShortcut('runSearch', press('Enter', { shiftKey: true }))).toBe(false);

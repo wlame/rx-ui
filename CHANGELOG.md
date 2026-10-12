@@ -28,7 +28,8 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   line after it; a drag in the text keeps the editor's highlight, so
   Cmd/Ctrl+C copies the text dragged over. With no text highlighted,
   Cmd/Ctrl+C in the editor copies the selected lines as Copy does, and
-  never the line the cursor is on. Shift+↑ and Shift+↓ extend the
+  never the line the cursor is on; Cmd/Ctrl+Shift+C does not copy them.
+  Shift+↑ and Shift+↓ extend the
   selection from the cursor, and Esc in the editor clears it, as × does,
   with the editor's highlight. Each tab keeps its own selection,
   also when the editor loads other pages of the file.
@@ -120,7 +121,9 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   the Findings panel and scans the file with the picker's choice.
 - Copy a group of findings. In the Findings panel's group view, each
   group and signature header has a Copy button, and Copy all in the ⋯
-  menu copies every finding the panel lists. Each finding goes on the
+  menu copies every finding the panel lists. A header's Copy is no Tab
+  stop; when a screen reader or a script focuses it, Enter copies and
+  leaves the header open or closed as it was. Each finding goes on the
   clipboard under a header with its lines and signature, after the lines
   before it that the menu chose (0 to 3, one by default):
   `==> app.log:120-134  python-traceback  (1 line before) <==`. The text
