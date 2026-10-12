@@ -28,13 +28,14 @@ const WALL_START = Date.UTC(2026, 9, 10, 12, 0, 0);
 const SPAN_MS = 600_000;
 
 /**
- * Tracebacks and SQL statements at 12:05:00.500 and .700 (one column on a
- * 600 px track) and an SQL statement at 12:09:00, as app.log writes them.
+ * A traceback and an SQL statement at 12:05:00.500 and .700 (one column
+ * on a 600 px track) and an SQL statement at 12:09:00.500, as app.log
+ * writes them.
  */
 const APP_FINDINGS = [
   finding('python-traceback', 120, 134, { time_ms: WALL_START + 300_500 }),
   finding('sql-statement', 200, 200, { time_ms: WALL_START + 300_700 }),
-  finding('sql-statement', 900, 900, { time_ms: WALL_START + 540_000 }),
+  finding('sql-statement', 900, 900, { time_ms: WALL_START + 540_500 }),
 ];
 
 /** app.log's time range read in `zone` (`+HH:MM` ahead of UTC): its instants come earlier. */
@@ -170,8 +171,7 @@ describe('the ticks of the findings on the timeline', () => {
     expect(query.has('file_tz')).toBe(false);
     expect(drawnTicks(target).map((t) => t.dataset.group)).toEqual(['traceback', 'sql', 'sql']);
     expect(drawnTicks(target)[0].title).toBe(
-      '2 findings between 2026-10-10 12:05:00 and 2026-10-10 12:05:01: ' +
-        'python-traceback ×1, sql-statement ×1',
+      '2 findings at 2026-10-10 12:05:00: python-traceback ×1, sql-statement ×1',
     );
   });
 
@@ -240,12 +240,12 @@ describe('the ticks of the findings on the timeline', () => {
 
     const [query] = ticksRequests(backend);
     expect(query.get('file_tz')).toBe('+02:00');
-    // The SQL statement written at 12:09:00 is the instant 10:09:00 UTC.
+    // The SQL statement written at 12:09:00.500 is the instant 10:09:00.500 UTC.
     const axis = { startMs: WALL_START - 2 * HOUR_MS, endMs: WALL_START + SPAN_MS - 2 * HOUR_MS };
-    const written = WALL_START + 540_000 - 2 * HOUR_MS;
+    const written = WALL_START + 540_500 - 2 * HOUR_MS;
     const tick = drawnTicks(target).at(-1);
     const left = parseFloat(tick?.style.left ?? 'NaN') / 100;
     expect(Math.abs(left - fractionOf(written, axis))).toBeLessThanOrEqual(1 / 600);
-    expect(tick?.title).toContain('2026-10-10 12:09:00');
+    expect(tick?.title).toBe('1 finding at 2026-10-10 12:09:00: sql-statement ×1');
   });
 });

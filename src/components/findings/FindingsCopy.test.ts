@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '$lib/testing/matchMediaStub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { settings } from '$lib/stores';
 import { findingsBy } from '$lib/stores/layout';
 import { FindingsBackend, TEST_DEFAULT_IDS, finding } from '$lib/testing/fakeFindings';
 import {
@@ -126,6 +127,15 @@ describe('Copy all in the more menu', () => {
 
   it('is disabled while the panel lists no finding', async () => {
     const { target } = await mountByGroup([]);
+
+    await click(buttonNamed(target, 'More scan actions'));
+
+    expect(buttonNamed(target, 'Copy all').disabled).toBe(true);
+  });
+
+  it('is disabled while no signature is picked', async () => {
+    settings.update((s) => ({ ...s, findingsPicker: [] }));
+    const { target } = await mountByGroup();
 
     await click(buttonNamed(target, 'More scan actions'));
 

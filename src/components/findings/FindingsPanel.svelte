@@ -136,7 +136,8 @@
     if (filePath !== null) void copyFindings(filePath, target);
   }
 
-  $: canCopyAll = (tab?.summary?.total ?? 0) > 0;
+  // Copy all copies what the panel lists: nothing while nothing is picked.
+  $: canCopyAll = selection !== null && (tab?.summary?.total ?? 0) > 0;
 
   /** The large Scan button of a file the picked signatures have not scanned. */
   function scanFirst() {

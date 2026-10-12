@@ -100,11 +100,9 @@ describe('tickMarks', () => {
     ]);
   });
 
-  it('names the first and the last time a column covers when the timeline prints them apart', () => {
+  it('names the middle of a wide column, where its tick sits', () => {
     const ticks = ticksOf({ 0: { 'sql-statement': [1, 3] } }, 10);
-    expect(tickMarks(ticks, AXIS, LOOK)[0].title).toBe(
-      '1 finding between 12:00:00 and 12:01:39: sql-statement ×1',
-    );
+    expect(tickMarks(ticks, AXIS, LOOK)[0].title).toBe('1 finding at 12:00:49: sql-statement ×1');
   });
 
   it("opens the column's first finding: the smallest first line of its signatures", () => {

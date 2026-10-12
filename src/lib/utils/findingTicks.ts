@@ -71,21 +71,22 @@ export function columnSpanMs(
   };
 }
 
-/** What a hover on a column's ticks says: "3 findings at 12:00:01: python-traceback ×2, …". */
+/**
+ * What a hover on a column's ticks says: "3 findings at 12:00:01:
+ * python-traceback ×2, …", at `middleMs`, where the ticks sit and where
+ * the track's own label prints the time under the pointer.
+ */
 function columnTitle(
   column: TickColumn,
-  span: { firstMs: number; lastMs: number },
+  middleMs: number,
   timeLabel: (ms: number) => string,
 ): string {
   const counts = Object.entries(column.signatures).sort(
     ([idA, a], [idB, b]) => b.count - a.count || (idA < idB ? -1 : idA > idB ? 1 : 0),
   );
   const total = counts.reduce((sum, [, count]) => sum + count.count, 0);
-  const first = timeLabel(span.firstMs);
-  const last = timeLabel(span.lastMs);
-  const when = first === last ? `at ${first}` : `between ${first} and ${last}`;
   const each = counts.map(([id, count]) => `${id} ×${formatNumber(count.count)}`).join(', ');
-  return `${formatCount(total, 'finding')} ${when}: ${each}`;
+  return `${formatCount(total, 'finding')} at ${timeLabel(middleMs)}: ${each}`;
 }
 
 /** The groups of `columns` by lane: in catalogue order, a group the catalogue lacks after them, '' last. */
@@ -114,8 +115,9 @@ export function tickMarks(ticks: FindingsTicks, axis: TimeAxis, look: TickLook):
   const marks: TickMark[] = [];
   for (const column of ticks.columns) {
     const span = columnSpanMs(ticks, column.column);
-    const title = columnTitle(column, span, look.timeLabel);
-    const fraction = fractionOf((span.firstMs + span.lastMs) / 2, axis);
+    const middleMs = (span.firstMs + span.lastMs) / 2;
+    const title = columnTitle(column, middleMs, look.timeLabel);
+    const fraction = fractionOf(middleMs, axis);
     const firstLine = Math.min(...Object.values(column.signatures).map((c) => c.first_line));
     const groupsHere = new Set(Object.keys(column.signatures).map((id) => groupOf.get(id) ?? ''));
     for (const [lane, group] of lanes.entries()) {

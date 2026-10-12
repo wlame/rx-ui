@@ -381,10 +381,12 @@ line index; the panel reads that cache and never scans unless asked.
   changes, when a scan changes what the file holds and when the file is
   read in another zone (the zone control at the left of the bar), so a
   tick sits where the bar prints its findings' time. A hover says
-  "3 findings at 12:00:01: python-traceback ×2, error-line ×1", or
-  "between" the first and the last time a column covers when the bar
-  prints them apart; a click opens the column's first finding, as a click
-  in the list does. A finding without a time has no tick, and a file
+  "3 findings at 12:00:01: python-traceback ×2, error-line ×1": the
+  findings of the tick's column of pixels, at the time of the column's
+  middle, where the tick sits (a column spans the file's time divided by
+  the bar's width, so on a long file its findings can lie a little before
+  or after that time). A click opens the column's first finding, as a
+  click in the list does. A finding without a time has no tick, and a file
   whose time range the backend cannot read (a compressed file before its
   index) has none.
 
