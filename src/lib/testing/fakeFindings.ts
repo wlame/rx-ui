@@ -302,11 +302,27 @@ export class FindingsBackend {
     const task = this.task(id);
     const file = this.files.get(task.path);
     for (const signature of task.ids) file?.current.add(signature);
-    const result = this.findingsAnswer(
-      task.path,
-      new URLSearchParams({ signatures: task.ids.join(',') }),
-    );
+    Object.assign(task, { status: 'completed', result: this.scanAnswer(task) });
+  }
+
+  /**
+   * The scan `id` ends with the answer for its signatures, but the cache
+   * keeps nothing of it, as rx-go does for a file that grew while it was
+   * scanned: a later summary lists them missing still.
+   */
+  completeUnkept(id: string): void {
+    const task = this.task(id);
+    const file = this.files.get(task.path);
+    const before = new Set(file?.current);
+    for (const signature of task.ids) file?.current.add(signature);
+    const result = this.scanAnswer(task);
+    if (file) file.current = before;
     Object.assign(task, { status: 'completed', result });
+  }
+
+  /** The answer for the signatures of `task`, as the cache holds them now. */
+  private scanAnswer(task: FakeTask): FindingsResponse {
+    return this.findingsAnswer(task.path, new URLSearchParams({ signatures: task.ids.join(',') }));
   }
 
   /** The scan `id` fails with `message`. */

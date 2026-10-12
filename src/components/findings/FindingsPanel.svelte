@@ -108,8 +108,16 @@
     return path.slice(path.lastIndexOf('/') + 1);
   }
 
+  /** What the panel says of a scan that ended for each reason but a failure, which has its own. */
+  const SCAN_END_NOTICES: Readonly<Record<Exclude<ScanEnd['kind'], 'failed'>, string>> = {
+    cancelled: 'Scan cancelled.',
+    notKept:
+      'The file changed while it was scanned, so its findings were not kept. ' +
+      'Scan again when it is quiet.',
+  };
+
   function scanEndText(end: ScanEnd): string {
-    return end.kind === 'failed' ? `Scan failed: ${end.message}` : 'Scan cancelled.';
+    return end.kind === 'failed' ? `Scan failed: ${end.message}` : SCAN_END_NOTICES[end.kind];
   }
 
   /**

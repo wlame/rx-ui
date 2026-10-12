@@ -490,7 +490,11 @@ caches each file's findings per signature.
   show different numbers. A scan is followed there, not in a component,
   so it outlives a tab switch and the file's tab; only `cancelScan`
   stops it, and its end records its `cli_command` and reads the
-  summaries again. When a POST joined another request's scan that left a
+  summaries again. When the summary then lists every requested signature
+  missing although the result checked them all, the backend kept nothing
+  (rx-go answers a file that grew during the scan without caching it):
+  the scan's end is `notKept` and the panel says why, with no second
+  scan. When a POST joined another request's scan that left a
   requested signature out, the store posts once more for what is still
   missing. Pages hold `FINDINGS_PAGE_SIZE` findings; each list (the line
   list `LINE_LIST`, or one signature's in the group view) is a sparse

@@ -7,6 +7,7 @@ import {
   fileSummaryOf,
   isCovered,
   isJoinedScan,
+  isScanNotKept,
   stillMissing,
   type FileSummary,
 } from '../utils/findingsSummary';
@@ -52,8 +53,12 @@ export interface ScanState {
   joined: boolean;
 }
 
-/** How the last scan of a file ended when it did not complete. */
-export type ScanEnd = { kind: 'cancelled' } | { kind: 'failed'; message: string };
+/**
+ * How the last scan of a file ended when its findings did not reach the
+ * cache: cancelled, failed, or completed with nothing kept (`notKept`).
+ */
+export type ScanEnd =
+  { kind: 'cancelled' } | { kind: 'failed'; message: string } | { kind: 'notKept' };
 
 export interface FindingsTabState {
   /** The last summary of the picker's selection, or null before one arrived. */
@@ -311,10 +316,12 @@ function noteProgress(path: string, task: TaskStatus): void {
 
 /**
  * Act on how a scan of `path` ended. A completed scan records its
- * command and reads the summaries again, which updates the tree label. When it
- * was another request's scan (its result left a requested signature
- * out) and the summary still lists one missing, the missing ones are
- * scanned once more, if `mayScanAgain`.
+ * command and reads the summaries again, which updates the tree label.
+ * When the summary still lists every signature it checked missing, the
+ * cache kept nothing of it (the file grew while it was read), and the
+ * panel says so. When it was another request's scan (its result left a
+ * requested signature out) and the summary still lists one missing, the
+ * missing ones are scanned once more, if `mayScanAgain`.
  */
 async function settleScan(
   path: string,
@@ -336,8 +343,12 @@ async function settleScan(
   if (result) commandLog.record(result.cli_command, 'findings');
   patch(path, () => ({ scan: null }));
   await refreshFindings(path);
-  if (!mayScanAgain || (result && isCovered(requested, result))) return;
   const summary = findingsOf(get(state), path).summary;
+  if (result && summary && isScanNotKept(requested, result, summary)) {
+    patch(path, () => ({ scanEnd: { kind: 'notKept' } }));
+    return;
+  }
+  if (!mayScanAgain || (result && isCovered(requested, result))) return;
   const left = summary ? stillMissing(requested, summary) : [];
   if (left.length > 0) await runScan(path, left, false, false);
 }

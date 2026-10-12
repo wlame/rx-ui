@@ -314,8 +314,11 @@ Signatures, "Masking") gives the whole rule.
   shown, and also when its tab is closed; when it ends, the file's label
   in the tree and the panel show what it found. When the backend already
   ran a scan of the file (another request's), the panel joins it, and
-  afterwards scans what that scan left out. A file nothing picked has
-  scanned yet shows a large Scan button.
+  afterwards scans what that scan left out. When the backend keeps
+  nothing of a scan that completed, as for a file that grew while it was
+  read, the panel says the file changed while it was scanned: scan again
+  when it is quiet. A file nothing picked has scanned yet shows a large
+  Scan button.
 - **List**: By line lists the findings in line order: the group's colour,
   the line or lines, the signature's name and the finding's excerpt,
   the start of its first line. By group lists them under each group and

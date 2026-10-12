@@ -83,3 +83,21 @@ export function stillMissing(
 ): string[] {
   return requested.filter((id) => summary.missing.includes(id));
 }
+
+/**
+ * Whether the cache kept nothing of a completed scan: its result checked
+ * every requested signature, and the summary read after it still lists
+ * every one of them missing. rx-go answers a scan of a file that grew
+ * while it was read, but keeps nothing of it.
+ */
+export function isScanNotKept(
+  requested: readonly string[],
+  result: Pick<FindingsResponse, 'checked'>,
+  summary: Pick<FindingsResponse, 'missing'>,
+): boolean {
+  return (
+    requested.length > 0 &&
+    isCovered(requested, result) &&
+    stillMissing(requested, summary).length === requested.length
+  );
+}

@@ -317,6 +317,26 @@ describe('a scan', () => {
     });
   });
 
+  // rx-go answers a scan of a file that grew while it was read, and keeps
+  // nothing of it, so the summary read after it says "not scanned".
+  it('says why when the cache kept nothing of a completed scan, and scans no more', async () => {
+    const backend = await serve();
+    backend.addFile(APP_LOG, manyFindings(2));
+    await refreshFindings(APP_LOG);
+
+    const done = startScan(APP_LOG, ['python-traceback', 'sql-statement'], false);
+    await settle(1);
+    backend.completeUnkept(backend.lastTask()?.id ?? '');
+    await settle();
+    await done;
+
+    const state = findingsOf(get(findingsByFile), APP_LOG);
+    expect(state.scan).toBeNull();
+    expect(state.summary?.missing).toEqual(TEST_DEFAULT_IDS);
+    expect(state.scanEnd).toEqual({ kind: 'notKept' });
+    expect(backend.requestsTo('POST', '/v1/findings')).toHaveLength(1);
+  });
+
   it('starts no second scan of a file while one runs', async () => {
     const backend = await serve();
     backend.addFile(APP_LOG);

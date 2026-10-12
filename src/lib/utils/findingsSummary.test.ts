@@ -5,6 +5,7 @@ import {
   findingsCount,
   isCovered,
   isJoinedScan,
+  isScanNotKept,
   scanLabel,
   stateLine,
   stillMissing,
@@ -120,5 +121,31 @@ describe('stillMissing', () => {
     const summary = findingsAnswer({ missing: ['email-address', 'phone-number'] });
 
     expect(stillMissing(['python-traceback', 'email-address'], summary)).toEqual(['email-address']);
+  });
+});
+
+describe('isScanNotKept', () => {
+  const REQUESTED = ['python-traceback', 'sql-statement'];
+  const RESULT = findingsAnswer({ checked: REQUESTED });
+
+  // rx-go answers a scan of a file that grew while it was read, and keeps nothing of it.
+  it('is true when the summary after a covering scan lists every requested signature missing', () => {
+    const summary = findingsAnswer({ missing: [...REQUESTED, 'java-exception'] });
+
+    expect(isScanNotKept(REQUESTED, RESULT, summary)).toBe(true);
+  });
+
+  it('is false when the summary lists a requested signature as current', () => {
+    const summary = findingsAnswer({ checked: ['sql-statement'], missing: ['python-traceback'] });
+
+    expect(isScanNotKept(REQUESTED, RESULT, summary)).toBe(false);
+  });
+
+  // A joined scan that left a signature out is scanned again instead.
+  it('is false when the result left a requested signature out', () => {
+    const result = findingsAnswer({ checked: ['python-traceback'] });
+    const summary = findingsAnswer({ missing: REQUESTED });
+
+    expect(isScanNotKept(REQUESTED, result, summary)).toBe(false);
   });
 });

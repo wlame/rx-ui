@@ -82,8 +82,11 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   goes on while another tab is shown or its tab is closed, and when it
   ends the file's label in the tree and the panel show what it found.
   A scan that joined one already running for the file scans, once more,
-  what that scan left out. The scan's `rx trace --signatures=…` command
-  goes to the recent commands.
+  what that scan left out. When the backend keeps nothing of a scan that
+  completed, as for a file that grew while it was read, the panel says
+  "The file changed while it was scanned, so its findings were not kept.
+  Scan again when it is quiet." rather than only "not scanned". The
+  scan's `rx trace --signatures=…` command goes to the recent commands.
 - `tab=findings` and `findings_by=group` in the link: the Findings panel
   and its order by group.
 - Findings in the editor. The findings the Findings panel lists that

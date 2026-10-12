@@ -247,6 +247,23 @@ describe('the scan button', () => {
     expect(target.querySelector('[data-scan-end]')?.textContent?.trim()).toBe('Scan cancelled.');
   });
 
+  it('says the file changed while it was scanned when the cache kept nothing of the scan', async () => {
+    const backend = new FindingsBackend();
+    backend.addFile(APP_LOG, APP_FINDINGS);
+    const target = await mountFindingsPanel(backend, [APP_LOG]);
+
+    await click(buttonNamed(target, 'Scan with Default (4)'));
+    backend.completeUnkept(backend.lastTask()?.id ?? '');
+    await settle(POLL_INTERVAL_MS);
+    await settle(POLL_INTERVAL_MS);
+
+    expect(stateText(target)).toBe('not scanned');
+    expect(target.querySelector('[data-scan-end]')?.textContent?.trim()).toBe(
+      'The file changed while it was scanned, so its findings were not kept. ' +
+        'Scan again when it is quiet.',
+    );
+  });
+
   it('reads the cache again when the scan completes, and lists what it found', async () => {
     const backend = new FindingsBackend();
     backend.addFile(APP_LOG, APP_FINDINGS);
