@@ -89,20 +89,21 @@ older viewers.
 | `src/lib/utils/processContent.ts`, `editorDecorations.ts` | The editor's regex filter: hide and show rewrite the text, highlight draws decorations                                                                   |
 | `src/lib/stores/chainTabs.ts`, `src/lib/utils/chain*.ts`  | Log chains: a chain's tab, its pages, zones, gutter, timeline and search marks, the files panel's chain rows and the mode switch                         |
 | `src/lib/utils/urlState.ts`, `src/lib/viewState.ts`       | The view in the URL (no router): one parse/serialize table per key; URL written from stores                                                              |
-| `src/lib/utils/lineSelection.ts`, `copyFormat.ts`         | The selected lines as ranges, the URL's `sel`, and the text a copy of lines puts on the clipboard                                                        |
+| `src/lib/utils/lineSelection.ts`, `copyFormat.ts`         | The selected lines as ranges, the URL's `sel`, and the text a copy of lines or of findings puts on the clipboard                                         |
 | `src/lib/utils/monacoLanguage.ts`, `monacoLogLanguage.ts` | Monaco language registration and the log grammar                                                                                                         |
 | `src/components/editor/`                                  | `MonacoEditor.svelte`, `EditorPane.svelte` (paged large-file viewing), `EditorHeader.svelte` (name, line readout, chips, toolbar)                        |
 | `src/components/tree/`, `search/`, `layout/`, `common/`   | Tree, search form and results, chrome (the activity bar, `Sidebar.svelte`), shared widgets                                                               |
 | `src/lib/stores/filesView.ts`, `treeFocus.ts`             | The files panel's labels, value and sort; the file tree's current row and Tab stop                                                                       |
 | `src/lib/stores/searchDraft.ts`, `trace.ts`               | The search form as the user left it; the search the URL names                                                                                            |
 | `src/lib/utils/shortcuts.ts`, `panels.ts`                 | The one shortcut table with its scoped key handlers; the side panel's panels, which the activity bar draws                                               |
-| `src/lib/actions/`                                        | Svelte actions: `tooltip` (label and keys), `modal` (counts an open modal), `takeFocus` (focus to a dialog and back), `captureKeydown` (keys first)      |
+| `src/lib/actions/`                                        | Svelte actions: `tooltip`, `modal` (counts an open modal), `takeFocus`, `captureKeydown` (keys first), `measureSize` (an element's height or width)      |
 | `src/lib/utils/icons.ts`                                  | The icon table (Lucide outlines); `src/components/common/Icon.svelte` draws it                                                                           |
 | `src/lib/utils/treeSort.ts`, `treeRows.ts`, `treeNav.ts`  | The files panel's sort, the rows the tree shows as one list, and the tree's key rules                                                                    |
 | `src/lib/utils/tabOrder.ts`, `recentSwitch.ts`            | The open tabs' strip and recent orders; the recent-tab switcher's state machine                                                                          |
 | `src/lib/stores/signatures.ts`, `utils/groupStyle.ts`     | The signature catalogue and the colours of its groups (see "Signatures and findings")                                                                    |
 | `src/components/findings/`, `src/lib/stores/findings.ts`  | The Findings panel and each file's findings and scans; the pure rules in `utils/findingRows.ts`, `findingsNav.ts`, `findingsPicker.ts`, `virtualList.ts` |
 | `stores/editorFindings.ts`, `utils/findingsLabel.ts`      | The findings the editor marks and F8 steps through; the tree label of a scanned file and its tooltip                                                     |
+| `src/lib/findingsCopy.ts`, `stores/findingTicks.ts`       | A copy of a group of findings; the ticks of the findings on the timeline (`utils/findingTicks.ts`, `components/layout/FindingTimeline*.svelte`)          |
 | `vite.config.ts`                                          | Dev proxy `/v1`, `/health` → `localhost:8080`; Monaco manual chunk                                                                                       |
 | `.github/workflows/`                                      | `ci.yml` (build) and `release.yml` (tag → `dist.tar.gz` release)                                                                                         |
 
@@ -278,7 +279,13 @@ role="tab">` that also carries the drag handlers; its close button is a
 - The status bar's equivalent command comes from `stores/commands.ts`,
   which records the backend's `cli_command` of each answer to a user
   action (search, file window, index). Record a new action's
-  command there; never build a command in the viewer.
+  command there; never build a command in the viewer. The one exception
+  is a copy of findings: the backend's command of a findings answer
+  names the picker's selection, not the group or signature a header
+  narrows it to, so `findingsCopyCommand` (`findingsCopy.ts`) writes
+  `rx trace --signatures=group:<g> -B <N> <path>` (a signature's id, or
+  the picked signatures for Copy all), quoting each word as rx quotes
+  its own commands.
 - Every keyboard shortcut and mouse gesture is a row of one table,
   `src/lib/utils/shortcuts.ts`. The key handlers ask it whether a key is
   theirs and the help dialog (Cmd/Ctrl+/) lists it, so add a shortcut
@@ -487,7 +494,8 @@ caches each file's findings per signature.
   line says `fileSummary` ("partial · K of M default signatures · N
   findings"); its scan button speaks of the selection sent ("Scan N
   missing", from its `missing`). The list measures its own height
-  (`actions/measureHeight.ts`) to know which rows are on screen.
+  (`measureHeight` in `actions/measureSize.ts`) to know which rows are
+  on screen.
   `findings_by=group` is `ViewState.findingsBy` (`stores/layout.ts`
   `findingsBy`). The picker and the ⋯ menu are popovers, not dialogs:
   they carry no `use:modal`, and the panel opens no modal dialog. The
@@ -495,7 +503,40 @@ caches each file's findings per signature.
   `utils/virtualList.ts`) with one Tab stop that is always drawn; its key
   rules are `utils/findingsNav.ts`, under the `findingsPanel` scope,
   silenced by `modalOpen`. Group and signature headers have a
-  `header-actions` slot for actions on the whole header.
+  `header-actions` slot for actions on the whole header, which the panel
+  fills with Copy (`tabindex="-1"`, so the list stays one Tab stop; its
+  click and keys stop there, so the header neither opens nor closes),
+  and they carry their group's palette mark, so the group view is the
+  legend of the timeline's ticks.
+- **Copy a group** (`findingsCopy.ts`): `copyFindings(path, target)`,
+  the target a group, a signature or all, with the panel's filters, the
+  ⋯ menu's `copyLinesBefore` and `text=true`. The text comes only from
+  `GET /v1/findings?text=true` (masked and clipped by the backend),
+  never from `/v1/samples`. Pages of `FINDINGS_COPY_PAGE_SIZE` (10,000),
+  each with `max_bytes` set to what is left of `COPY_BUDGET_BYTES`
+  (8 MiB), until the list ends, a finding comes back `lines_truncated`
+  or the budget is spent: the backend's budget counts per request.
+  `formatCopyBlocks` (`utils/copyFormat.ts`, shared with the selection
+  copy) writes `==> file:A-B  <signature>  (N lines before) <==` with
+  the lines before the finding has, and a last line when the copy is cut
+  (`total`: the answer's) or a signature is capped (`cap`).
+- **Ticks on the timeline**: `TimelineBar` draws `FindingTimelineLayer`
+  on a file's track (never a chain's), so a hidden timeline asks
+  nothing. The layer measures the track (`measureWidth`), takes a new
+  width after `RESIZE_WAIT_MS`, and asks `ticksRequestOf`
+  (`stores/findingTicks.ts`): `ticks=<width>` (at most 4,000),
+  `limit=1`, the panel's filters and `file_tz` when the tab reads the
+  file in a chosen zone, keyed by the width, the filters, the zone, the
+  axis and the file's `fileSummary` and tree label, and none for a file
+  known to hold no findings (`holdsNoFindings`, shared with the editor
+  marks). `FindingTimelineMarks` draws `tickMarks` (`utils/findingTicks.ts`):
+  one tick per group per column at the middle of the column's instants
+  placed with `fractionOf`, so it sits where the axis prints its
+  findings' times; a lane per group present, in catalogue order. A
+  tick's `pointerdown` stops there (the track would scrub and jump on
+  release); its click is `openTickFinding`: `after_line=<first line - 1>`
+  and `limit=1` with the panel's filters, then `openFinding`. Ticks are
+  buttons with `tabindex="-1"`.
 - **In the editor** (`stores/editorFindings.ts`): `requestWindowFindings`
   asks `GET /v1/findings` with `lines=<window>`, `limit=10000` and the
   panel's filters (`panelFilters` in `stores/findings.ts`: the picker's

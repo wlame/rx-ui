@@ -4,10 +4,13 @@ import { derived, writable } from 'svelte/store';
  * The `rx` commands that give the answers the user asked for, newest
  * first: the equivalent command line of what they did in the viewer.
  *
- * Every command comes from the backend's `cli_command`; the viewer never
- * writes one itself, and an answer without one adds nothing. Only
- * answers to a user's action are recorded (a search, a file opened, a
- * jump, a copy of selected lines, an index, a findings scan), not the
+ * Every command comes from the backend's `cli_command`, and an answer
+ * without one adds nothing, with one exception: a copy of findings
+ * records the `rx trace` command `findingsCopy.ts` writes, since the
+ * backend's command of a findings answer names the picker's selection,
+ * not the group or signature a header narrows it to. Only answers to a
+ * user's action are recorded (a search, a file opened, a jump, a copy of
+ * selected lines or of findings, an index, a findings scan), not the
  * pages loaded while scrolling.
  */
 

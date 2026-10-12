@@ -99,9 +99,11 @@ way.
 - **Findings.** On a backend that serves signatures (rx-go 0.8.0 and
   later), the Findings panel lists the places in the open file that the
   backend's signatures found: tracebacks, secrets, SQL statements and
-  more. The editor marks them, F8 and Shift+F8 step through them, a
-  yellow label in the tree says which files were scanned, and the tree's
-  context menu scans a file. See [Findings](#findings).
+  more. The editor marks them, F8 and Shift+F8 step through them, the
+  timeline ticks them in their groups' colours, a group of them copies
+  to the clipboard, a yellow label in the tree says which files were
+  scanned, and the tree's context menu scans a file. See
+  [Findings](#findings).
 - **Log chains.** On a backend that serves them, the rotated files of one
   log (`app.log`, `app.log.1`, `app.log.2.gz`, …) open as one text, in
   time order: see [Log chains](#log-chains).
@@ -113,7 +115,8 @@ way.
   [Link parameters](#link-parameters).
 - **The equivalent command.** The status bar shows the `rx` command the
   backend reports for the last answer, with a copy button and a list of
-  recent commands.
+  recent commands. A copy of findings records the `rx trace` command
+  that lists them (see [Findings](#findings)).
 - **Themes**: system, light and dark for the app (each click on the
   header button changes the look: it switches between system and the
   theme the system does not show), and a choice of editor themes.
@@ -335,6 +338,55 @@ line index; the panel reads that cache and never scans unless asked.
 - **Scan for findings** in a text file's context menu in the files panel
   opens the file, shows this panel and scans the file with the picker's
   choice, as the panel's Scan button does.
+- **Copy**: By group, each group and signature header has a Copy button,
+  and the ⋯ menu's Copy all copies every finding the panel lists. A
+  copy takes the findings the panel lists under it (the picker's choice
+  and the filter) and puts each on the clipboard under a header with its
+  lines and signature, and with the lines before it that the ⋯ menu
+  chose (0 to 3, one by default), an empty line between findings:
+
+  ```
+  ==> app.log:120-134  python-traceback  (1 line before) <==
+  2026-10-10 12:00:01 ERROR job 7 failed
+  Traceback (most recent call last):
+  …
+  ```
+
+  The header names the lines before only when the finding has some (a
+  finding on line 1 has none). The text comes from the backend, masked
+  as everywhere: a secret value stays masked and a line of a key block
+  reads `[masked, N bytes]`. A copy holds at most 8 MiB, in whole
+  findings; when the findings do not all fit, its last line says
+  "[37 of 120 findings copied: the copy stops at 8.0 MB]". A signature
+  that stores fewer findings than it found (the backend keeps the first
+  10,000 by default) copies those it stores, and the last line says
+  "(of 48,210 found, 10,000 stored)". A notification says what was
+  copied: "Copied 120 findings (1.2 MB)". The recent commands record
+  the `rx trace` command that lists the same findings:
+  `rx trace --signatures=group:traceback -B 1 app.log` for a group,
+  `--signatures=python-traceback` for a signature, and the picked
+  signatures for Copy all (`--signatures=default` for the default set);
+  `-B` is left out with no line before. The filter text has no `rx`
+  flag, so with a filter the command lists more than the copy holds. The
+  headers' Copy buttons are not Tab stops, so the list stays one; Copy
+  all is in the ⋯ menu, which the keyboard reaches.
+
+- **Timeline ticks**: the timeline bar of a file marks where its
+  findings are in time: a thin, short tick in the group's colour for
+  each group with findings in a column of the bar's pixels, each group
+  on a line of its own above the band. The group view's headers carry
+  the same colours, so the panel reads as the legend. The ticks show the
+  findings the panel lists (the picker's choice and the filter), also
+  while the panel is hidden, and come again when the bar's width
+  changes, when a scan changes what the file holds and when the file is
+  read in another zone (the zone control at the left of the bar), so a
+  tick sits where the bar prints its findings' time. A hover says
+  "3 findings at 12:00:01: python-traceback ×2, error-line ×1", or
+  "between" the first and the last time a column covers when the bar
+  prints them apart; a click opens the column's first finding, as a click
+  in the list does. A finding without a time has no tick, and a file
+  whose time range the backend cannot read (a compressed file before its
+  index) has none.
 
 Alt+3 has no second key: the browsers keep most Cmd/Ctrl+Shift letters
 for themselves. Firefox on Linux takes Alt+1 to Alt+8 for its own tabs;

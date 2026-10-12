@@ -107,6 +107,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "Scan for findings" in the context menu of a text file in the files
   panel, on a backend that serves signatures: it opens the file, shows
   the Findings panel and scans the file with the picker's choice.
+- Copy a group of findings. In the Findings panel's group view, each
+  group and signature header has a Copy button, and Copy all in the ⋯
+  menu copies every finding the panel lists. Each finding goes on the
+  clipboard under a header with its lines and signature, after the lines
+  before it that the menu chose (0 to 3, one by default):
+  `==> app.log:120-134  python-traceback  (1 line before) <==`. The text
+  comes from the backend's findings, masked as everywhere, never from
+  the file's raw lines. A copy holds at most 8 MiB in whole findings;
+  when cut, its last line and the notification say "37 of 120 findings
+  copied", and a signature that stores fewer findings than it found says
+  "of 48,210 found, 10,000 stored". The recent commands record the
+  `rx trace --signatures=group:traceback -B 1 app.log` command that
+  lists the same findings.
+- Ticks of the findings on the timeline. A file's timeline bar has a
+  thin tick in the group's colour for each group with findings in a
+  column of its pixels, for the findings the Findings panel lists, in
+  the zone the file is read in. A hover says "3 findings at 12:00:01:
+  python-traceback ×2, error-line ×1"; a click opens the column's first
+  finding, as a click in the list does. The group view's headers carry
+  the same colours, as the ticks' legend.
 
 ### Changed
 
