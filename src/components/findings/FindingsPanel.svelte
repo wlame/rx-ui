@@ -16,7 +16,6 @@
 -->
 <script lang="ts">
   import { tick } from 'svelte';
-  import { tooltip } from '$lib/actions/tooltip';
   import { copyFindings, type FindingsCopyTarget } from '$lib/findingsCopy';
   import { backendHas, files, health, settings, tree } from '$lib/stores';
   import { activeOpenFile } from '$lib/stores/files';
@@ -41,8 +40,8 @@
   import { pickedIds, pickerSummary, selectionOf } from '$lib/utils/findingsPicker';
   import { stateLine } from '$lib/utils/findingsSummary';
   import { isChainKey } from '$lib/utils/tabKey';
-  import Icon from '../common/Icon.svelte';
   import Spinner from '../common/Spinner.svelte';
+  import FindingsHeaderCopy from './FindingsHeaderCopy.svelte';
   import FindingsList from './FindingsList.svelte';
   import FindingsPicker from './FindingsPicker.svelte';
   import FindingsScanBar from './FindingsScanBar.svelte';
@@ -159,28 +158,32 @@
     return end.kind === 'failed' ? `Scan failed: ${end.message}` : SCAN_END_NOTICES[end.kind];
   }
 
+  /** What a header's Copy can take: a group or a signature. */
+  type HeaderCopyTarget = Exclude<FindingsCopyTarget, { kind: 'all' }>;
+
   /**
    * What Copy on a header takes: its group or its signature. A group the
    * catalogue does not name has no name the backend filters by, and no Copy.
    */
-  function copyTargetOf(row: FindingRow): FindingsCopyTarget | null {
+  function copyTargetOf(row: FindingRow): HeaderCopyTarget | null {
     if (row.kind === 'signature') return { kind: 'signature', id: row.id };
     if (row.kind === 'group' && row.group !== '') return { kind: 'group', group: row.group };
     return null;
   }
 
-  /** The label of a header's Copy: what it copies. */
-  function copyLabelOf(target: FindingsCopyTarget): string {
-    if (target.kind === 'group') return `Copy the findings of the group ${target.group}`;
-    if (target.kind === 'signature') {
-      const name = $signatures.list.find((s) => s.id === target.id)?.name ?? target.id;
-      return `Copy the findings of ${name}`;
-    }
-    return 'Copy all';
+  /** Whose findings a header's Copy takes: "the group traceback", or a signature's name. */
+  function subjectOf(target: HeaderCopyTarget): string {
+    if (target.kind === 'group') return `the group ${target.group}`;
+    return $signatures.list.find((s) => s.id === target.id)?.name ?? target.id;
   }
 
-  function isHiddenHeader(row: FindingRow): boolean {
-    return (row.kind === 'group' || row.kind === 'signature') && row.hidden;
+  /**
+   * Why a header's Copy is off: its findings are all hidden, and showing
+   * them is how to copy them. Null while it copies.
+   */
+  function copyOffReasonOf(row: FindingRow, target: HeaderCopyTarget): string | null {
+    const isHidden = (row.kind === 'group' || row.kind === 'signature') && row.hidden;
+    return isHidden ? `Show the findings of ${subjectOf(target)} to copy them` : null;
   }
 
   function copy(target: FindingsCopyTarget) {
@@ -279,34 +282,24 @@
           {/if}
         </div>
       {:else if listNotice === 'noFindings'}
-        <p class="px-3 py-4 text-sm {MUTED}">
-          {$findingsFilter === '' ? 'No findings.' : 'No finding matches the filter.'}
+        <!-- It speaks of the picked signatures: the group view can list
+             hidden ones under it. -->
+        <p class="px-3 py-4 text-sm {MUTED}" data-findings-empty>
+          {$findingsFilter === ''
+            ? 'No finding of the picked signatures.'
+            : 'No finding of the picked signatures matches the filter.'}
         </p>
       {/if}
       {#if isListShown}
         <FindingsList path={filePath} {tab} view={$findingsBy} catalogue={$signatures}>
-          <!-- A Copy is not a Tab stop, so the list stays one, and a press on
-               it leaves the focus where it was, so the list's keys stay the
-               list's. Its click stays with it: the header neither opens nor
-               closes. A header whose findings are all hidden copies nothing. -->
           <svelte:fragment slot="header-actions" let:row>
             {@const target = copyTargetOf(row)}
             {#if target}
-              {@const label = copyLabelOf(target)}
-              <button
-                type="button"
-                tabindex="-1"
-                class="p-0.5 rounded {MUTED} disabled:opacity-50
-                       hover:bg-gh-canvas-inset dark:hover:bg-gh-canvas-dark-inset
-                       hover:text-gh-fg-default dark:hover:text-gh-fg-dark-default"
-                aria-label={label}
-                disabled={isHiddenHeader(row)}
-                use:tooltip={{ label }}
-                on:mousedown|preventDefault
-                on:click|stopPropagation={() => copy(target)}
-              >
-                <Icon name="copy" size={14} />
-              </button>
+              <FindingsHeaderCopy
+                label="Copy the findings of {subjectOf(target)}"
+                offReason={copyOffReasonOf(row, target)}
+                copy={() => copy(target)}
+              />
             {/if}
           </svelte:fragment>
         </FindingsList>

@@ -10,6 +10,7 @@ import {
   windowFindings,
   windowFindingsOf,
 } from '$lib/stores/editorFindings';
+import { findingsFilter } from '$lib/stores/findings';
 import { ticksRequestOf } from '$lib/stores/findingTicks';
 import { findingsBy } from '$lib/stores/layout';
 import { signatures } from '$lib/stores/signatures';
@@ -24,6 +25,7 @@ import {
   settle,
   unmountFindingsPanels,
 } from '$lib/testing/findingsPanel';
+import { hoverTooltipText } from '$lib/testing/tooltipText';
 import { findingDecorations } from '$lib/utils/editorDecorations';
 
 /** Two tracebacks and an SQL statement in app.log. */
@@ -254,6 +256,32 @@ describe('a hidden signature', () => {
     expect(pageOf('python-traceback')?.get('signatures')).toBe('all');
   });
 
+  it('says on its disabled Copy how to copy its findings', async () => {
+    const { target } = await mountByGroup();
+
+    await click(eyeOf(signatureRow(target, 'python-traceback')));
+
+    const copyOf = (row: HTMLElement, label: string) => {
+      const frame = buttonNamed(row, label).closest<HTMLElement>('[data-copy-off]');
+      if (!frame) throw new Error(`no frame around ${label}`);
+      return frame;
+    };
+    const signatureCopy = copyOf(
+      signatureRow(target, 'python-traceback'),
+      'Copy the findings of Python traceback',
+    );
+    const groupCopy = copyOf(
+      groupRow(target, 'traceback'),
+      'Copy the findings of the group traceback',
+    );
+    expect(hoverTooltipText(signatureCopy)).toBe(
+      'Show the findings of Python traceback to copy them',
+    );
+    expect(hoverTooltipText(groupCopy)).toBe(
+      'Show the findings of the group traceback to copy them',
+    );
+  });
+
   it('opens nothing from its expanded rows, on a click or on Enter', async () => {
     const { backend, target } = await mountByGroup();
     await click(eyeOf(signatureRow(target, 'python-traceback')));
@@ -312,6 +340,23 @@ describe('a hidden signature', () => {
     expect(new Set(decorations.map((d) => d.range.startLineNumber))).toEqual(new Set([200]));
     expect(get(files).openFiles[0].selectedLines).toEqual([{ start: 200, end: 200 }]);
     expect(ticks?.query.signatures).toEqual(WITHOUT_TRACEBACK);
+  });
+});
+
+describe('the notice over the group view of hidden signatures', () => {
+  it('speaks of the picked signatures, whose findings it says there are none of', async () => {
+    settings.update((s) => ({ ...s, findingsPicker: ['java-exception'] }));
+    const { target } = await mountByGroup();
+    const notice = () =>
+      target.querySelector('[data-findings-empty]')?.textContent?.replace(/\s+/g, ' ').trim();
+
+    expect(notice()).toBe('No finding of the picked signatures.');
+    expect(signatureRow(target, 'python-traceback').hasAttribute('data-hidden')).toBe(true);
+
+    findingsFilter.set('timeout');
+    await settle();
+
+    expect(notice()).toBe('No finding of the picked signatures matches the filter.');
   });
 });
 
