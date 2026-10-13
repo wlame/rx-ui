@@ -35,6 +35,7 @@ function building(taskId = 't1'): SamplesAnswer {
     message: 'Building the line index',
     path: PATH,
     started_at: '2026-10-03T00:00:00.000000Z',
+    cli_command: '',
   };
   return { kind: 'building', task };
 }
@@ -53,6 +54,9 @@ function status(progress: number | null): TaskStatus {
     progress,
     bytes_read: null,
     bytes_total: null,
+    files_done: null,
+    files_total: null,
+    cli_command: '',
     result: null,
   };
 }

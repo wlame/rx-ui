@@ -58,8 +58,8 @@ export interface paths {
         get: operations["findings"];
         put?: never;
         /**
-         * Scan one file for signatures (background task)
-         * @description Starts a task (operation findings) that scans the file for the selected signatures the findings cache does not hold (with force, for all of them) and caches what it finds; a scan of the same file already running is returned instead, and it scans what it was started for. Poll GET /v1/tasks/{task_id}: bytes_read and bytes_total say how far it read; its result is the answer GET /v1/findings gives without filters, with the first page. DELETE /v1/tasks/{task_id} cancels it. At most RX_MAX_SIGNATURE_SCANS scans read files at once; later ones wait, queued.
+         * Scan a file, or every file of a directory, for signatures (background task)
+         * @description Starts a task (operation findings) that scans the file for the selected signatures the findings cache does not hold (with force, for all of them) and caches what it finds; a scan of the same file already running is returned instead, and it scans what it was started for. Poll GET /v1/tasks/{task_id}: bytes_read and bytes_total say how far it read; its result is the answer GET /v1/findings gives without filters, with the first page. DELETE /v1/tasks/{task_id} cancels it. At most RX_MAX_SIGNATURE_SCANS scans read files at once; later ones wait, queued. For a directory, one task scans every file the file tree lists under it, recursively, one at a time, as rx scan DIR --recursive does: a file that is not text, and a file whose findings are current for every selected signature (unless force), is skipped, a file whose scan fails is recorded and the task goes on. Its status has files_done and files_total (bytes_read and bytes_total follow the file it reads), its result is a FolderTaskResult, and DELETE cancels it between two files or inside one; the files scanned before the cancel keep their findings.
          */
         post: operations["findings-scan"];
         delete?: never;
@@ -82,8 +82,8 @@ export interface paths {
         get: operations["index-get"];
         put?: never;
         /**
-         * Build line index for file (background task)
-         * @description Creates a background task that indexes the file. Poll /v1/tasks/{id} for progress.
+         * Build the line index of a file, or of every file of a directory (background task)
+         * @description Creates a background task that indexes the file. Poll /v1/tasks/{id} for progress. For a directory, one task indexes every file the file tree lists under it, recursively, one at a time, as rx index DIR --recursive does: a file below the threshold, a file that is not text and a file whose index is current (unless force) is skipped, a file whose build fails is recorded and the task goes on. Its status has files_done and files_total, its result is a FolderTaskResult, and DELETE /v1/tasks/{task_id} cancels it between two files.
          */
         post: operations["index-post"];
         delete?: never;
@@ -247,8 +247,8 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Cancel a findings scan
-         * @description Cancels a queued or running findings task (POST /v1/findings): the scan stops and caches nothing, and the task ends at once with status cancelled, which this answer shows. A client that joined the same scan sees it cancelled and may start it again. 409 for a task of another operation, for a task that has already ended, and for one whose scan has finished reading and is writing its answer (a task never ends cancelled with findings written).
+         * Cancel a findings scan or a task over a directory
+         * @description Cancels a queued or running findings task (POST /v1/findings): the scan stops and caches nothing, and the task ends at once with status cancelled, which this answer shows. A client that joined the same scan sees it cancelled and may start it again. A task over a directory (POST /v1/index or POST /v1/findings given a directory) stops between two files, a findings one inside a file's scan too: the files ended before the cancel keep their index or findings, the file a cancel stops writes nothing, and no later file is read. 409 for a task of another operation (an index task over one file, compress, chain_index), for a task that has already ended, and for a findings task over one file whose scan has finished reading and is writing its answer (such a task never ends cancelled with findings written).
          */
         delete: operations["task-cancel"];
         options?: never;
@@ -745,6 +745,10 @@ export interface components {
              */
             line?: number;
         } | null;
+        FailedFile: {
+            error: string;
+            path: string;
+        };
         FileFindingSummary: {
             /** @description Findings counts of each selected signature, by id. */
             signatures: {
@@ -768,7 +772,7 @@ export interface components {
              * @description Byte offset in the text just past the last line and its line ending (exclusive).
              */
             end_offset: number;
-            /** @description The first line, with redacted values masked, cut to 200 bytes on a character boundary. */
+            /** @description The first line, with redacted values masked when the server masks secrets, cut to 200 bytes on a character boundary. */
             excerpt: string;
             /** @description Id of the file in the answer's files map; left out where an answer holds one file. */
             file?: string;
@@ -776,7 +780,7 @@ export interface components {
             lines?: string[];
             /** @description True when the answer's text budget ran out at or before this finding, so lines, before and after are left out. */
             lines_truncated?: boolean;
-            /** @description True when a value in the excerpt, the lines, or the lines before and after was masked, or the signature redacts. */
+            /** @description True when a value in the excerpt, the lines, or the lines before and after was masked, or the signature redacts and the server masks secrets. Never true on a server that does not mask them, the default. */
             masked?: boolean;
             /** @description Id of the signature that matched. */
             signature: string;
@@ -864,11 +868,11 @@ export interface components {
         };
         FindingsScanRequest: {
             /**
-             * @description Scan every selected signature again, those with a current cache entry too.
+             * @description Scan every selected signature again, those with a current cache entry too; over a directory, scan the files whose findings are current too.
              * @default false
              */
             force: boolean;
-            /** @description The file to scan. Must be inside a configured --search-root. */
+            /** @description The file to scan, or a directory: every file the file tree lists under it is scanned, recursively, one at a time. Must be inside a configured --search-root. */
             path: string;
             /**
              * @description The selection, as rx trace --signatures= takes it: comma-separated ids, groups and tags, all, default, -word to remove (traceback,sql; all,-pii). Default: the default set.
@@ -895,6 +899,46 @@ export interface components {
              */
             width: number;
         } | null;
+        FolderTaskResult: {
+            /** @description The rx command that does what the task did: rx index DIR --recursive, or rx scan DIR --recursive --signatures=SEL. */
+            cli_command: string;
+            /**
+             * Format: int64
+             * @description How many of skipped were passed over because their index, or the findings of every selected signature, were current.
+             */
+            current: number;
+            /**
+             * Format: int64
+             * @description The files indexed (an index task) or scanned (a findings task) by the task.
+             */
+            done: number;
+            /**
+             * Format: int64
+             * @description The files whose index build or scan failed; the task went on with the next file.
+             */
+            failed: number;
+            /** @description The files that failed, each with its error, in the walk's order; the first 1000 of failed. */
+            failed_files: components["schemas"]["FailedFile"][];
+            /**
+             * Format: int64
+             * @description The entries the walk listed under the directory: every file the file tree lists below it, recursively, and the entries the walk passed over (a refused link, a subdirectory it could not list).
+             */
+            files_total: number;
+            /**
+             * Format: int64
+             * @description A findings task: the findings of every file scanned or current, summed over the selected signatures. Null for an index task.
+             */
+            findings: number | null;
+            /** @description The directory, as validated. */
+            path: string;
+            /**
+             * Format: int64
+             * @description The entries passed over: those whose index or findings were current (current counts them; force passes none over that way), and those skipped_files lists.
+             */
+            skipped: number;
+            /** @description The entries skipped for another reason than being current, each with the reason (not a text file, below the index threshold, a refused link, cannot be read), in the walk's order; the first 1000 of skipped - current. */
+            skipped_files: components["schemas"]["SkippedFile"][];
+        };
         GroupInfo: {
             /** @description A built-in group; false for one a user file declares. */
             builtin: boolean;
@@ -944,9 +988,14 @@ export interface components {
             };
         };
         IndexRequest: {
+            /** @description Build the index again even when a valid one is stored; over a directory, for every file. */
             force?: boolean;
+            /** @description The file to index, or a directory: every file the file tree lists under it is indexed, recursively, one at a time. Must be inside a configured --search-root. */
             path: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description The smallest file indexed, in MB; RX_LARGE_FILE_MB when absent. A single file below it is refused with 400; under a directory it is skipped with the reason.
+             */
             threshold?: number;
         };
         IndexResponse: {
@@ -1246,7 +1295,7 @@ export interface components {
             name: string;
             /** @description A user signature that replaced the built-in of the same id. */
             overrides: boolean;
-            /** @description The values it finds are masked in every output and in the cache. */
+            /** @description When the server masks secrets (rx serve --mask-secrets or RX_MASK_SECRETS; off by default), the values it finds are masked in every output and in the cache. */
             redact: boolean;
             /** @description The definition of a regex signature; null for another kind. */
             regex: components["schemas"]["RegexDefinition"];
@@ -1320,6 +1369,8 @@ export interface components {
             task_id: string;
         };
         TaskResponse: {
+            /** @description The rx command that does what the task does: rx index for a task of POST /v1/index, rx scan for a task of POST /v1/findings, with --recursive for a directory (rx index DIR --recursive, rx scan DIR --recursive --signatures=SEL), --force when the request forced, and --mask-secrets when the server masks secrets. Empty for a compress task. A request that joined a running task gets that task's command. */
+            cli_command: string;
             message: string;
             path: string;
             started_at: string | null;
@@ -1329,28 +1380,40 @@ export interface components {
         TaskStatusResponse: {
             /**
              * Format: int64
-             * @description Bytes of the file a findings task has read so far, as stored on disk. Null for a task of another operation, and for a findings task that has not started reading.
+             * @description Bytes of the file a findings task has read so far, as stored on disk; for a findings task over a directory, of the file it reads now (0 between files). Null for a task of another operation (an index task over a directory too), and for a findings task over one file that has not started reading.
              */
             bytes_read: number | null;
             /**
              * Format: int64
-             * @description The size of the file a findings task reads, as stored on disk. Null when bytes_read is.
+             * @description The size of the file a findings task reads, as stored on disk; for a findings task over a directory, of the file it reads now (0 between files). Null when bytes_read is.
              */
             bytes_total: number | null;
+            /** @description The rx command that does what the task does: rx index for an index task started by POST /v1/index, rx scan for a findings task, with --recursive for a directory, --force when the request forced, and --mask-secrets when the server masks secrets. Empty for other tasks: compress, chain_index, and the index builds GET /v1/samples and the log chains start. */
+            cli_command: string;
             completed_at: string | null;
             error: string | null;
+            /**
+             * Format: int64
+             * @description For a task over a directory: the entries of files_total the task has ended (indexed or scanned, skipped, or failed). Null for a task over one file, and while the task lists the directory.
+             */
+            files_done: number | null;
+            /**
+             * Format: int64
+             * @description For a task over a directory: the entries its walk listed (every file under the directory by the file tree's rules, and the entries the walk passed over). Null when files_done is.
+             */
+            files_total: number | null;
             /** @description index, compress, chain_index or findings. */
             operation: string;
             path: string;
             /**
              * Format: double
-             * @description Share of the task's input read so far, from 0 to 1. Null for a task that does not report it: a compress task, an index task that reused a stored index, or one that has not started reading.
+             * @description Share of the task's input read so far, from 0 to 1. For a task over a directory: the files ended plus the share of the current file read, over files_total. Null for a task that does not report it: a compress task, an index task that reused a stored index, or one that has not started reading.
              */
             progress: number | null;
-            /** @description The task's result once it completes: IndexTaskResult for an index task, CompressTaskResult for a compress task, ChainIndexTaskResult for a chain_index task, FindingsResponse for a findings task. Null until then. */
-            result: components["schemas"]["IndexTaskResult"] | components["schemas"]["CompressTaskResult"] | components["schemas"]["ChainIndexTaskResult"] | components["schemas"]["FindingsResponse"] | null;
+            /** @description The task's result once it completes: IndexTaskResult for an index task, CompressTaskResult for a compress task, ChainIndexTaskResult for a chain_index task, FindingsResponse for a findings task, FolderTaskResult for an index or findings task over a directory (files_total is set in its status). Null until then. */
+            result: components["schemas"]["IndexTaskResult"] | components["schemas"]["CompressTaskResult"] | components["schemas"]["ChainIndexTaskResult"] | components["schemas"]["FindingsResponse"] | components["schemas"]["FolderTaskResult"] | null;
             started_at: string | null;
-            /** @description queued, running, completed, failed, or cancelled (a findings task stopped by DELETE /v1/tasks/{task_id}). */
+            /** @description queued, running, completed, failed, or cancelled (a findings task, or an index task over a directory, stopped by DELETE /v1/tasks/{task_id}). */
             status: string;
             task_id: string;
         };
@@ -1661,7 +1724,7 @@ export interface operations {
                 signature?: string[] | null;
                 /** @description Only the findings of signatures of these groups (repeatable, at most 256). */
                 group?: string[] | null;
-                /** @description Only the findings whose excerpt or signature name holds this text, compared without case. The excerpt is masked already, so a masked value is never matched. */
+                /** @description Only the findings whose excerpt or signature name holds this text, compared without case. On a server that masks secrets the excerpt is masked already, so a masked value is never matched. */
                 q?: string;
                 /** @description Only the findings that overlap lines A-B (1-based, inclusive); one number N means N-N. */
                 lines?: string;
@@ -1673,7 +1736,7 @@ export interface operations {
                 offset?: number;
                 /** @description The most findings in the page. */
                 limit?: number;
-                /** @description Fill lines (and before) of the page's findings, read from the file and masked as every output of findings is: a value a redacting signature matches is masked, a body line of a redacting block or run shows as [masked, N bytes], and no line past the text the scan read is shown. */
+                /** @description Fill lines (and before) of the page's findings, read from the file and, on a server that masks secrets, masked as every output of findings is: a value a redacting signature matches is masked and a body line of a redacting block or run shows as [masked, N bytes]. No line past the text the scan read is shown. */
                 text?: boolean;
                 /** @description With text: how many lines before each finding to give in before. */
                 before?: number;
@@ -2809,7 +2872,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description The task cannot be cancelled: it is not a findings scan, it has already ended, or its scan has finished reading and is writing its answer; task_id names it. */
+            /** @description The task cannot be cancelled: it is not a findings scan or a task over a directory, it has already ended, or the scan of its one file has finished reading and is writing its answer; task_id names it. */
             409: {
                 headers: {
                     [name: string]: unknown;

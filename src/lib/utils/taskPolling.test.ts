@@ -60,6 +60,9 @@ function task(status: string, result: TaskStatus['result'] = null, error?: strin
     progress: null,
     bytes_read: null,
     bytes_total: null,
+    files_done: null,
+    files_total: null,
+    cli_command: '',
     result,
   };
 }

@@ -665,6 +665,9 @@ export class FakeChain {
       progress,
       bytes_read: null,
       bytes_total: null,
+      files_done: null,
+      files_total: null,
+      cli_command: '',
       result:
         status === 'completed'
           ? { path: this.handle, built: [], cli_command: `rx logs index ${this.handle}` }

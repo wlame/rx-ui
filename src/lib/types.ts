@@ -135,16 +135,30 @@ export type TaskConflictError = Schemas['TaskConflictError'];
 /**
  * `GET /v1/tasks/{id}`. `result` is null until the task completes, then
  * the result of its operation: an `IndexTaskResult`, a
- * `CompressTaskResult`, a `ChainIndexTaskResult` or, for a findings
- * scan, a `FindingsResponse`. `bytes_read` and `bytes_total` follow a
- * findings scan; they are null for any other task.
+ * `CompressTaskResult`, a `ChainIndexTaskResult`, for a findings scan a
+ * `FindingsResponse`, and for an index or findings task over a folder a
+ * `FolderTaskResult`. `bytes_read` and `bytes_total` follow a findings
+ * scan (over a folder, the file it reads now); they are null for any
+ * other task. `files_done` and `files_total` count the files of a task
+ * over a folder, once it has listed them; they are null for any other
+ * task. `cli_command` is the `rx index` or `rx scan` command of an index
+ * or findings task started by a POST, empty for any other task.
  */
 export type TaskStatus = Schemas['TaskStatusResponse'];
 
 /**
+ * The result of an index or findings task over a folder: how many files
+ * it listed, indexed or scanned (`done`), passed over (`skipped`, of
+ * which `current` were up to date) and failed on, with the findings it
+ * counted (null for an index task) and its `rx` command.
+ */
+export type FolderTaskResult = Schemas['FolderTaskResult'];
+
+/**
  * The statuses a task reports in `TaskStatus.status`, which the contract
- * types as a plain string. `cancelled` ends a findings scan stopped by
- * `DELETE /v1/tasks/{task_id}`; no other task is cancelled.
+ * types as a plain string. `cancelled` ends a findings scan or a task
+ * over a folder stopped by `DELETE /v1/tasks/{task_id}`; no other task
+ * is cancelled.
  */
 export type TaskState = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
@@ -156,7 +170,9 @@ export type ChainIndexTaskResult = Schemas['ChainIndexTaskResult'];
 
 /**
  * `POST /v1/index`: the task that builds the index. `POST /v1/findings`
- * answers a findings scan's task in the same shape.
+ * answers a findings scan's task in the same shape. Its `cli_command` is
+ * the task's `rx index` or `rx scan` command; a request that joined a
+ * running task gets that task's.
  */
 export type IndexTaskResponse = Schemas['TaskResponse'];
 

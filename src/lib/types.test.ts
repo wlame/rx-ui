@@ -18,6 +18,7 @@ import type {
   Finding,
   FindingsResponse,
   FindingsTicks,
+  FolderTaskResult,
   GroupInfo,
   HealthResponse,
   IndexResponse,
@@ -90,12 +91,18 @@ describe('wire types', () => {
   it('type a task result as the contract union, null until the task completes', () => {
     expectTypeOf<TaskStatus>().toEqualTypeOf<Schemas['TaskStatusResponse']>();
     expectTypeOf<TaskStatus['result']>().toEqualTypeOf<
-      IndexTaskResult | CompressTaskResult | ChainIndexTaskResult | FindingsResponse | null
+      | IndexTaskResult
+      | CompressTaskResult
+      | ChainIndexTaskResult
+      | FindingsResponse
+      | FolderTaskResult
+      | null
     >();
+    expectTypeOf<FolderTaskResult>().toEqualTypeOf<Schemas['FolderTaskResult']>();
   });
 
-  // The contract types the status as a string; a findings scan stopped by
-  // DELETE /v1/tasks/{task_id} ends `cancelled`.
+  // The contract types the status as a string; a findings scan or a task
+  // over a folder stopped by DELETE /v1/tasks/{task_id} ends `cancelled`.
   it('name every task status, cancelled included', () => {
     expectTypeOf<TaskState>().toMatchTypeOf<TaskStatus['status']>();
     expectTypeOf<'cancelled'>().toMatchTypeOf<TaskState>();
