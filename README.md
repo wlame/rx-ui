@@ -130,8 +130,9 @@ way.
   [Link parameters](#link-parameters).
 - **The equivalent command.** The status bar shows the `rx` command the
   backend reports for the last answer, with a copy button (the copy
-  icon) and a list of recent commands. A copy of findings records the `rx trace` command
-  that lists them (see [Findings](#findings)).
+  icon) and a list of recent commands, each with its own copy button. A
+  copy of findings records the `rx trace` command that lists them (see
+  [Findings](#findings)).
 - **Themes**: system, light and dark for the app (each click on the
   header button changes the look: it switches between system and the
   theme the system does not show), and a choice of editor themes.
@@ -336,18 +337,23 @@ Signatures, "Masking") gives the whole rule.
   shuts) or shows them again: it unchecks or checks the signature's box
   in the picker, so the eye and the box always agree, and a Default
   choice becomes the list of the signatures still picked. A group's eye
-  is the group's box in the picker: open while every signature of the
-  group is picked, shut while none is, faint while some are; a click
-  hides the whole group when all of it is shown, and shows all of it
-  otherwise. Space on a header does what its eye does. A hidden
-  signature is not listed By line, has no marks in the editor, F8 and
-  Shift+F8 pass over it, it has no ticks on the timeline, and
-  "Scan N missing" does not scan it. By group it stays in its place,
-  greyed, with its count, also when nothing is picked, so its eye can
-  show it again: it still opens to list its findings, but a click or
-  Enter on one of them opens nothing, and its Copy is off. The group
-  view lists a hidden signature only when the cache holds findings of it
-  for the file; one never scanned for the file is not listed.
+  speaks of the signatures listed under it, as their rows do: open while
+  all of them are shown, shut while none is, faint while some are; a
+  click hides them all when all are shown, and shows them all otherwise.
+  It leaves the group's other members (those without findings in the
+  file) as they are, so the group's box in the picker, which covers
+  every member, can still read partly picked. Space on a header does
+  what its eye does. A hidden signature is not listed By line, has no
+  marks in the editor, F8 and Shift+F8 pass over it, it has no ticks on
+  the timeline, and "Scan N missing" does not scan it. By group it stays
+  in its place, greyed, with its count, also when nothing is picked, so
+  its eye can show it again: it still opens to list its findings, but a
+  click or Enter on one of them opens nothing, and its Copy is off, with
+  a tooltip that says "Show the findings of Python traceback to copy
+  them". When none of the picked signatures has a finding, the notice
+  says "No finding of the picked signatures." above the hidden ones. The
+  group view lists a hidden signature only when the cache holds findings
+  of it for the file; one never scanned for the file is not listed.
 - **Keys**: the list is one Tab stop. ↑ and ↓ move, Home and End go to
   the ends, Enter opens; By group, → opens a group or signature (or goes
   into it), ← closes it (or goes to the one above) and Space hides or

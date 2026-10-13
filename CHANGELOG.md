@@ -148,16 +148,19 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   group and signature header has an eye beside its count, which checks
   or unchecks the same boxes as the signature picker, so the two are one
   choice: a signature's eye hides or shows it; a group's eye is open,
-  shut or faint as the group's box is all, none or partly picked, and a
-  click hides the whole group when it is all shown and shows all of it
-  otherwise. Space on a focused header does the same; Enter and the
+  shut or faint as the signatures listed under it are all, none or
+  partly shown, and a click hides them when all are shown and shows them
+  all otherwise, leaving the group's members without findings as they
+  are. Space on a focused header does the same; Enter and the
   arrows keep their meaning. A hidden signature is gone from By line,
   from the editor's marks, from F8 and Shift+F8 and from the timeline's
   ticks, and "Scan N missing" leaves it out. By group it keeps its
   place, greyed, with its count from the cache, also when nothing is
   picked: it opens to list its findings, which open nothing, and its
-  Copy is off. A hidden signature the file's cache holds no finding of
-  is not listed.
+  Copy is off, with a tooltip that says to show its findings to copy
+  them. With no finding of the picked signatures, the notice above says
+  so. A hidden signature the file's cache holds no finding of is not
+  listed.
 - Ticks of the findings on the timeline. A file's timeline bar has a
   thin tick in the group's colour for each group with findings in a
   column of its pixels, for the findings the Findings panel lists, in
@@ -179,8 +182,10 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   that line to the selected lines.
 - Index and Re-index in the file tree send only `path`, `force` and
   `threshold`; a re-index no longer reads the stored index first.
-- The status bar's copy of the equivalent command is the copy icon, with
-  the tooltip "Copy the equivalent command", in place of the word Copy.
+- The status bar's copy of the equivalent command, and each copy button
+  of the recent commands panel, is the copy icon with a tooltip ("Copy
+  the equivalent command", "Copy the command"), in place of the word
+  Copy.
 
 ### Removed
 

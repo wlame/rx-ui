@@ -503,8 +503,9 @@ caches each file's findings per signature.
   list `LINE_LIST`, or one signature's in the group view) is a sparse
   array as long as the list, and each page is asked once per summary,
   never while a new summary is on its way. A signature's pages are read
-  with `signatures=all&signature=<id>` and `q` (`pageQuery`), so the
-  list of a hidden signature, which the selection leaves out, reads too.
+  with the panel's selection and `signature=<id>` (`pageQuery`); a
+  signature the choice hides (`hidesSignature`), which the selection
+  leaves out, is read with `signatures=all` instead.
   The panel drops the findings of closed tabs (`forgetFindings`), never
   those of a running scan.
 - **The Findings panel** (`components/findings/`) asks only while it is
@@ -548,10 +549,13 @@ caches each file's findings per signature.
   like Copy; `aria-pressed` true, mixed or false). A click on it, or
   Space on the focused header (`findingsToggleShown`), stores
   `choiceAfterEye` (`utils/findingRows.ts`): the picker's own
-  `toggleSignature`, or `toggleGroup` over every active signature of
-  the group (`activeIdsOfGroup`), then `pickerChoice`, so a group's eye
-  is its box in the picker (`groupCheckState`) and the presets keep
-  working. The marks, F8, the ticks and the scan follow `panelFilters`,
+  `toggleSignature`, or `toggleGroup` over the signatures the group
+  lists that a choice can pick (the group row's `ids`), then
+  `pickerChoice`, so the presets keep working. A group's eye
+  (`groupCheckState` over those `ids`) says what the rows under it
+  show; a member without findings in the file is not listed and the
+  eye leaves it as it is, so the group's box in the picker, which
+  covers every member, can read otherwise. The marks, F8, the ticks and the scan follow `panelFilters`,
   so a hidden signature leaves them with no code of its own.
   `groupRows(counts, shown, pages, collapsed, catalogue)` lists from
   `fileCounts`: each shown signature with findings (`shownSignatures`:
@@ -561,11 +565,13 @@ caches each file's findings per signature.
   scanned for the file is not listed. A hidden row is greyed
   (`data-hidden`, `opacity-50` on all but its eye), its findings are
   inert (a click gives the focus only, Enter does nothing, never
-  current) and its header's Copy is disabled; a group is greyed when
-  every signature it lists is hidden. While the group view lists a
-  hidden signature (`holdsHiddenFindings`), the panel draws the list
-  under its notice (nothing picked, not scanned, no findings), so the
-  eyes stay reachable.
+  current) and its header's Copy is off (`FindingsHeaderCopy.svelte`:
+  the disabled button lets the pointer through to a `data-copy-off`
+  frame whose tooltip says to show the findings to copy them); a group
+  is greyed when every signature it lists is hidden. While the group
+  view lists a hidden signature (`holdsHiddenFindings`), the panel
+  draws the list under its notice (nothing picked, not scanned, or "No
+  finding of the picked signatures"), so the eyes stay reachable.
 - **Copy a group** (`findingsCopy.ts`): `copyFindings(path, target)`,
   the target a group, a signature or all, with the panel's filters, the
   ⋯ menu's `copyLinesBefore` and `text=true` (see "Finding text").
