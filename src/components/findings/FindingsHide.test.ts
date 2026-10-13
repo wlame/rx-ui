@@ -167,6 +167,56 @@ describe('the eye of a group header', () => {
   });
 });
 
+describe('the actions of a header', () => {
+  /** Whether `first` comes before `second` in the document. */
+  const isBefore = (first: Node, second: Node) =>
+    (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
+  /** What a header's right-hand end holds: its slots, its Copy and its eye. */
+  function actionsOf(row: HTMLElement) {
+    const actions = row.querySelector<HTMLElement>('[data-header-actions]');
+    const copy = row.querySelector<HTMLButtonElement>('button[aria-label^="Copy the findings of"]');
+    if (!actions || !copy) throw new Error('no actions or no Copy on the row');
+    return { actions, copy, eye: eyeOf(row) };
+  }
+
+  function expectCopyThenEye(row: HTMLElement) {
+    const { actions, copy, eye } = actionsOf(row);
+    const [copySlot, eyeSlot, ...others] = [...actions.children];
+    expect(row.lastElementChild).toBe(actions);
+    expect(others).toHaveLength(0);
+    expect(copySlot.contains(copy)).toBe(true);
+    expect(eyeSlot.contains(eye)).toBe(true);
+    expect(isBefore(copy, eye)).toBe(true);
+    // One class for both slots: the Copy column and the eye column share a width.
+    expect(copySlot.className).toBe(eyeSlot.className);
+  }
+
+  it('puts Copy before the eye, both in the right-hand slot of every group and signature header', async () => {
+    const { target } = await mountByGroup();
+
+    const headers = [
+      groupRow(target, 'traceback'),
+      signatureRow(target, 'python-traceback'),
+      groupRow(target, 'sql'),
+      signatureRow(target, 'sql-statement'),
+    ];
+    for (const row of headers) expectCopyThenEye(row);
+  });
+
+  it('keeps the layout of a hidden header, its Copy off and its eye shut', async () => {
+    const { target } = await mountByGroup();
+
+    await click(eyeOf(signatureRow(target, 'python-traceback')));
+
+    for (const row of [groupRow(target, 'traceback'), signatureRow(target, 'python-traceback')]) {
+      expectCopyThenEye(row);
+      expect(actionsOf(row).copy.disabled).toBe(true);
+      expect(eyeState(row).icon).toBe('eye-off');
+    }
+  });
+});
+
 describe('the eye of a group header, over the signatures the group view lists', () => {
   // java-exception and the opt-in phone-number hold no finding, so the
   // group view does not list them; the picker lists them.

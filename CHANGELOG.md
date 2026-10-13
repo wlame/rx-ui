@@ -145,7 +145,8 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   so with a picker that narrows the group, or with a filter, it lists
   more findings than the copy holds.
 - Hide and show signatures from the Findings panel's group view. Each
-  group and signature header has an eye beside its count, which checks
+  group and signature header has an eye at its right end, after its Copy
+  button, so the eyes form one column, which checks
   or unchecks the same boxes as the signature picker, so the two are one
   choice: a signature's eye hides or shows it; a group's eye is open,
   shut or faint as the signatures listed under it are all, none or

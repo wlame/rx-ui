@@ -333,7 +333,8 @@ Signatures, "Masking") gives the whole rule.
   editor and goes to its first line; the link then holds `sel` and
   `line`.
 - **Hide and show**: By group, each group and signature header has an
-  eye beside its count. A signature's eye hides its findings (the eye
+  eye at its right end, after its Copy button, so the eyes stand in one
+  column and the Copy buttons in the column before it. A signature's eye hides its findings (the eye
   shuts) or shows them again: it unchecks or checks the signature's box
   in the picker, so the eye and the box always agree, and a Default
   choice becomes the list of the signatures still picked. A group's eye

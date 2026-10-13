@@ -2,25 +2,22 @@
   What one row of the findings list shows. A finding: its group's colour
   bar, its line or lines, its signature's name and its excerpt (masked by
   the backend where a value is secret). A header: its group's colour
-  mark, its group or signature, its count, the eye that hides or shows
-  its findings, and for a capped signature how many it shows; the marks
-  make the group view the legend of the timeline's ticks. A row whose
-  finding has not arrived: an ellipsis. A hidden row is greyed, all but
-  its eye.
+  mark, its group or signature, its count, and for a capped signature
+  how many it shows; the marks make the group view the legend of the
+  timeline's ticks. The header's Copy and eye stand at its right end
+  (`FindingsHeaderActions`). A row whose finding has not arrived: an
+  ellipsis. A hidden row is greyed, all but its eye.
 -->
 <script lang="ts">
   import type { SignaturesState } from '$lib/stores/signatures';
   import type { Finding, SignatureInfo } from '$lib/types';
   import type { FindingRow, HeaderRow } from '$lib/utils/findingRows';
   import { groupStyle } from '$lib/utils/groupStyle';
-  import FindingsEye from './FindingsEye.svelte';
 
   export let row: FindingRow;
   /** The catalogue's signatures, by id. */
   export let signatureOf: ReadonlyMap<string, SignatureInfo>;
   export let catalogue: Pick<SignaturesState, 'groups'>;
-  /** Hide or show the findings of a header, as a click on its eye does. */
-  export let toggleShown: (header: HeaderRow) => void;
 
   const MUTED = 'text-gh-fg-muted dark:text-gh-fg-dark-muted';
 
@@ -31,12 +28,6 @@
     const group =
       header.kind === 'group' ? header.group : (signatureOf.get(header.id)?.group ?? '');
     return groupStyle(group, catalogue.groups).className;
-  }
-
-  /** Whose findings a header holds, as its eye names them. */
-  function subjectOf(header: HeaderRow): string {
-    if (header.kind === 'group') return `the group ${header.group}`;
-    return signatureOf.get(header.id)?.name ?? header.id;
   }
 
   function lineText(finding: Finding): string {
@@ -65,7 +56,6 @@
 {:else if row.kind === 'placeholder'}
   <span class="text-gh-fg-subtle dark:text-gh-fg-dark-subtle">…</span>
 {:else}
-  {@const header = row}
   <span class="w-3 flex-shrink-0 {MUTED} {dim}" aria-hidden="true">
     {row.collapsed ? '▸' : '▾'}
   </span>
@@ -81,9 +71,6 @@
     <span class="font-medium truncate {dim}">{signatureOf.get(row.id)?.name ?? row.id}</span>
   {/if}
   <span class="{MUTED} {dim}">{row.count.toLocaleString()}</span>
-  {#if row.eye !== null}
-    <FindingsEye state={row.eye} subject={subjectOf(header)} toggle={() => toggleShown(header)} />
-  {/if}
   {#if row.kind === 'signature' && row.stored < row.count}
     <span class="text-gh-attention-fg dark:text-gh-attention-dark-fg {dim}">
       showing {row.stored.toLocaleString()} of {row.count.toLocaleString()}

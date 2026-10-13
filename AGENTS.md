@@ -530,9 +530,12 @@ caches each file's findings per signature.
   `FindingsList.svelte`, the rows on screen from `utils/virtualList.ts`)
   with one Tab stop that is always drawn; its key rules are
   `utils/findingsNav.ts`, under the `findingsPanel` scope,
-  silenced by `modalOpen`. Group and signature headers have a
-  `header-actions` slot for actions on the whole header, which the panel
-  fills with Copy, the `copy` icon with a `use:tooltip` that says what
+  silenced by `modalOpen`. Group and signature headers end in
+  `FindingsHeaderActions`: a Copy slot and then an eye slot, each of one
+  fixed width and drawn even when empty, so the Copy buttons stand in
+  one column and the eyes in the next, whatever a row's name or depth.
+  Its `header-actions` slot is for the action on the whole header, which
+  the panel fills with Copy, the `copy` icon with a `use:tooltip` that says what
   it copies (`tabindex="-1"`, so the list stays one Tab stop; its
   `mousedown` is cancelled, so a press leaves the focus and the list's
   keys where they were; its click stops there, so the header neither
@@ -545,8 +548,8 @@ caches each file's findings per signature.
 - **Hiding a signature** is unchecking it: the picker's choice stays
   the one setting, so nothing else stores what is hidden. Each header of
   the group view has an eye (`FindingsEye.svelte`, which
-  `FindingRowContent` draws after the count, in `data-header-actions`
-  like Copy; `aria-pressed` true, mixed or false). A click on it, or
+  `FindingsHeaderActions` draws after Copy, in `data-header-actions`;
+  `aria-pressed` true, mixed or false). A click on it, or
   Space on the focused header (`findingsToggleShown`), stores
   `choiceAfterEye` (`utils/findingRows.ts`): the picker's own
   `toggleSignature`, or `toggleGroup` over the signatures the group

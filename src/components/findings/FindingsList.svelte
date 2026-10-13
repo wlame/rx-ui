@@ -60,6 +60,7 @@
   import { isShortcut, type ShortcutId } from '$lib/utils/shortcuts';
   import { pagesInWindow, visibleWindow } from '$lib/utils/virtualList';
   import FindingRowContent from './FindingRowContent.svelte';
+  import FindingsHeaderActions from './FindingsHeaderActions.svelte';
 
   /** The open file. */
   export let path: string;
@@ -355,11 +356,11 @@
             ROW_PADDING_PX}px"
           on:click={(event) => handleClick(index, event)}
         >
-          <FindingRowContent {row} {signatureOf} {catalogue} {toggleShown} />
+          <FindingRowContent {row} {signatureOf} {catalogue} />
           {#if isHeader(row)}
-            <span class="ml-auto flex-shrink-0" data-header-actions>
+            <FindingsHeaderActions header={row} {signatureOf} {toggleShown}>
               <slot name="header-actions" {row} />
-            </span>
+            </FindingsHeaderActions>
           {/if}
         </div>
       {/each}
@@ -389,7 +390,7 @@
             ROW_HEIGHT_PX}px; height: {ROW_HEIGHT_PX}px; padding-left: {ROW_PADDING_PX}px"
           on:click={(event) => handleClick(index, event)}
         >
-          <FindingRowContent {row} {signatureOf} {catalogue} {toggleShown} />
+          <FindingRowContent {row} {signatureOf} {catalogue} />
         </div>
       {/each}
     </div>
