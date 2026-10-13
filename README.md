@@ -78,9 +78,9 @@ way.
 - **Go to a line of the file** with `:` or Cmd/Ctrl+G, or jump to the end.
 - **Select lines** in the open file with the mouse or the keys (see the
   table below): whole lines, in up to 100 ranges per tab. The editor
-  header counts them, "3 ranges · 21 lines", with Copy and × (clear).
-  Copy, or Cmd/Ctrl+C (without Shift) in the editor while no text is
-  highlighted, asks the backend for every range in one samples request
+  header counts them, "3 ranges · 21 lines", with Copy (the copy icon)
+  and × (clear). Copy, or Cmd/Ctrl+C (without Shift) in the editor while
+  no text is highlighted, asks the backend for every range in one samples request
   and copies each range under a header that names the file and its lines,
   `==> app.log:120-134 <==`, an empty line between ranges, at most
   8 MiB in whole ranges; the recent commands record the request's
@@ -129,8 +129,8 @@ way.
   switched in the activity bar. See
   [Link parameters](#link-parameters).
 - **The equivalent command.** The status bar shows the `rx` command the
-  backend reports for the last answer, with a copy button and a list of
-  recent commands. A copy of findings records the `rx trace` command
+  backend reports for the last answer, with a copy button (the copy
+  icon) and a list of recent commands. A copy of findings records the `rx trace` command
   that lists them (see [Findings](#findings)).
 - **Themes**: system, light and dark for the app (each click on the
   header button changes the look: it switches between system and the
@@ -331,10 +331,27 @@ Signatures, "Masking") gives the whole rule.
 - **Open a finding**: a click or Enter selects the finding's lines in the
   editor and goes to its first line; the link then holds `sel` and
   `line`.
+- **Hide and show**: By group, each group and signature header has an
+  eye beside its count. A signature's eye hides its findings (the eye
+  shuts) or shows them again: it unchecks or checks the signature's box
+  in the picker, so the eye and the box always agree, and a Default
+  choice becomes the list of the signatures still picked. A group's eye
+  is the group's box in the picker: open while every signature of the
+  group is picked, shut while none is, faint while some are; a click
+  hides the whole group when all of it is shown, and shows all of it
+  otherwise. Space on a header does what its eye does. A hidden
+  signature is not listed By line, has no marks in the editor, F8 and
+  Shift+F8 pass over it, it has no ticks on the timeline, and
+  "Scan N missing" does not scan it. By group it stays in its place,
+  greyed, with its count, also when nothing is picked, so its eye can
+  show it again: it still opens to list its findings, but a click or
+  Enter on one of them opens nothing, and its Copy is off. The group
+  view lists a hidden signature only when the cache holds findings of it
+  for the file; one never scanned for the file is not listed.
 - **Keys**: the list is one Tab stop. ↑ and ↓ move, Home and End go to
   the ends, Enter opens; By group, → opens a group or signature (or goes
-  into it) and ← closes it (or goes to the one above). Esc closes the
-  picker and the ⋯ menu.
+  into it), ← closes it (or goes to the one above) and Space hides or
+  shows it. Esc closes the picker and the ⋯ menu.
 - The panel says why it lists nothing on a backend without signatures,
   on a log chain's tab (findings are per file: open one of its parts), and
   for a file that is not text.
@@ -373,8 +390,10 @@ Signatures, "Masking") gives the whole rule.
 - **Scan for findings** in a text file's context menu in the files panel
   opens the file, shows this panel and scans the file with the picker's
   choice, as the panel's Scan button does.
-- **Copy**: By group, each group and signature header has a Copy button,
-  and the ⋯ menu's Copy all copies every finding the panel lists. A
+- **Copy**: By group, each group and signature header has a Copy button
+  (the copy icon; its tooltip says what it copies, "Copy the findings of
+  the group traceback"), and the ⋯ menu's Copy all copies every finding
+  the panel lists. A
   copy takes the findings the panel lists under it (the picker's choice
   and the filter) and puts each on the clipboard under a header with its
   lines and signature, and with the lines before it that the ⋯ menu
@@ -404,9 +423,10 @@ Signatures, "Masking") gives the whole rule.
   the whole group, and the filter text has no `rx` flag, so with a
   picker that leaves out some of the group's signatures, or with a
   filter, the command lists more findings than the copy holds. The
-  headers' Copy buttons are not Tab stops, so the list stays one; when a
-  screen reader focuses one, Enter copies and the header stays as it
-  was. Copy all is in the ⋯ menu, which the keyboard reaches.
+  headers' Copy buttons and eyes are not Tab stops, so the list stays
+  one; when a screen reader focuses one, Enter or Space presses it and
+  the header stays as it was. Copy all is in the ⋯ menu, which the
+  keyboard reaches.
 
 - **Timeline ticks**: the timeline bar of a file marks where its
   findings are in time: a thin, short tick in the group's colour for

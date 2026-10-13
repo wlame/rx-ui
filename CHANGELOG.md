@@ -34,7 +34,8 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   with the editor's highlight. Each tab keeps its own selection,
   also when the editor loads other pages of the file.
 - A chip in the editor header for the selected lines, "3 ranges · 21
-  lines", with Copy and × (clear). Copy asks the backend for every range
+  lines", with Copy (the copy icon, whose tooltip says "Copy the
+  selected lines") and × (clear). Copy asks the backend for every range
   in one samples request without context lines and copies each range
   under a header that names the file and its lines,
   `==> app.log:120-134 <==`, with an empty line between ranges; in a
@@ -123,8 +124,10 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   panel, on a backend that serves signatures: it opens the file, shows
   the Findings panel and scans the file with the picker's choice.
 - Copy a group of findings. In the Findings panel's group view, each
-  group and signature header has a Copy button, and Copy all in the ⋯
-  menu copies every finding the panel lists. A header's Copy is no Tab
+  group and signature header has a Copy button, the copy icon with a
+  tooltip that says what it copies ("Copy the findings of the group
+  traceback"), and Copy all in the ⋯ menu, its words after the icon,
+  copies every finding the panel lists. A header's Copy is no Tab
   stop; when a screen reader or a script focuses it, Enter copies and
   leaves the header open or closed as it was. Each finding goes on the
   clipboard under a header with its lines and signature, after the lines
@@ -141,6 +144,20 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   group. It names the whole group and has no flag for the filter text,
   so with a picker that narrows the group, or with a filter, it lists
   more findings than the copy holds.
+- Hide and show signatures from the Findings panel's group view. Each
+  group and signature header has an eye beside its count, which checks
+  or unchecks the same boxes as the signature picker, so the two are one
+  choice: a signature's eye hides or shows it; a group's eye is open,
+  shut or faint as the group's box is all, none or partly picked, and a
+  click hides the whole group when it is all shown and shows all of it
+  otherwise. Space on a focused header does the same; Enter and the
+  arrows keep their meaning. A hidden signature is gone from By line,
+  from the editor's marks, from F8 and Shift+F8 and from the timeline's
+  ticks, and "Scan N missing" leaves it out. By group it keeps its
+  place, greyed, with its count from the cache, also when nothing is
+  picked: it opens to list its findings, which open nothing, and its
+  Copy is off. A hidden signature the file's cache holds no finding of
+  is not listed.
 - Ticks of the findings on the timeline. A file's timeline bar has a
   thin tick in the group's colour for each group with findings in a
   column of its pixels, for the findings the Findings panel lists, in
@@ -162,6 +179,8 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   that line to the selected lines.
 - Index and Re-index in the file tree send only `path`, `force` and
   `threshold`; a re-index no longer reads the stored index first.
+- The status bar's copy of the equivalent command is the copy icon, with
+  the tooltip "Copy the equivalent command", in place of the word Copy.
 
 ### Removed
 

@@ -381,7 +381,8 @@ role="tab">` that also carries the drag handlers; its close button is a
   closes.
 - Icons are rows of `ICONS` in `utils/icons.ts`: Lucide 24×24 outlines as
   data (a tag and its attributes), drawn by `components/common/Icon.svelte`
-  with `<svelte:element>`, never `{@html}`. The file's header holds
+  with `<svelte:element>`, never `{@html}`; its `data-icon` names the
+  icon drawn, for tests. The file's header holds
   Lucide's ISC notice, the Lucide version the shapes come from, and the
   MIT notice of Feather, from which `search`, `arrow-up` and `arrow-down`
   derive. The header is a legal comment (`/*! … */`), which the build
@@ -485,9 +486,11 @@ caches each file's findings per signature.
   (`signatures=all&limit=1`), from which `fileSummary` holds what the
   file holds, whatever is picked: its state, K of the M default
   signatures current, and N, the findings of every current entry
-  (`utils/findingsSummary.ts` `fileSummaryOf`); it also labels the file
-  in the tree (`tree.markFindings`), so the panel and the label never
-  show different numbers. A scan is followed there, not in a component,
+  (`utils/findingsSummary.ts` `fileSummaryOf`), and `fileCounts` keeps
+  that read's `counts`, the findings of every current signature, picked
+  or not, from which the group view lists the hidden ones; it also
+  labels the file in the tree (`tree.markFindings`), so the panel and
+  the label never show different numbers. A scan is followed there, not in a component,
   so it outlives a tab switch and the file's tab; only `cancelScan`
   stops it, and its end records its `cli_command` and reads the
   summaries again. When the summary then lists every requested signature
@@ -499,7 +502,9 @@ caches each file's findings per signature.
   missing. Pages hold `FINDINGS_PAGE_SIZE` findings; each list (the line
   list `LINE_LIST`, or one signature's in the group view) is a sparse
   array as long as the list, and each page is asked once per summary,
-  never while a new summary is on its way.
+  never while a new summary is on its way. A signature's pages are read
+  with `signatures=all&signature=<id>` and `q` (`pageQuery`), so the
+  list of a hidden signature, which the selection leaves out, reads too.
   The panel drops the findings of closed tabs (`forgetFindings`), never
   those of a running scan.
 - **The Findings panel** (`components/findings/`) asks only while it is
@@ -526,14 +531,41 @@ caches each file's findings per signature.
   `utils/findingsNav.ts`, under the `findingsPanel` scope,
   silenced by `modalOpen`. Group and signature headers have a
   `header-actions` slot for actions on the whole header, which the panel
-  fills with Copy (`tabindex="-1"`, so the list stays one Tab stop; its
+  fills with Copy, the `copy` icon with a `use:tooltip` that says what
+  it copies (`tabindex="-1"`, so the list stays one Tab stop; its
   `mousedown` is cancelled, so a press leaves the focus and the list's
   keys where they were; its click stops there, so the header neither
-  opens nor closes; the list leaves Enter to a control in the slot,
+  opens nor closes; the list leaves Enter and Space to a control in
   `data-header-actions`, so a Copy that a script or assistive
-  technology focuses copies on Enter, and the arrows still move),
+  technology focuses copies on Enter, and the arrows still move; a
+  click in it never reaches the row, a disabled Copy's included),
   and they carry their group's palette mark, so the group view is the
   legend of the timeline's ticks.
+- **Hiding a signature** is unchecking it: the picker's choice stays
+  the one setting, so nothing else stores what is hidden. Each header of
+  the group view has an eye (`FindingsEye.svelte`, which
+  `FindingRowContent` draws after the count, in `data-header-actions`
+  like Copy; `aria-pressed` true, mixed or false). A click on it, or
+  Space on the focused header (`findingsToggleShown`), stores
+  `choiceAfterEye` (`utils/findingRows.ts`): the picker's own
+  `toggleSignature`, or `toggleGroup` over every active signature of
+  the group (`activeIdsOfGroup`), then `pickerChoice`, so a group's eye
+  is its box in the picker (`groupCheckState`) and the presets keep
+  working. The marks, F8, the ticks and the scan follow `panelFilters`,
+  so a hidden signature leaves them with no code of its own.
+  `groupRows(counts, shown, pages, collapsed, catalogue)` lists from
+  `fileCounts`: each shown signature with findings (`shownSignatures`:
+  the picked ones, and ids the catalogue does not name that the summary
+  lists, which have no eye) and each active signature the choice hides
+  that holds findings, `hidden`, in its place; a hidden signature never
+  scanned for the file is not listed. A hidden row is greyed
+  (`data-hidden`, `opacity-50` on all but its eye), its findings are
+  inert (a click gives the focus only, Enter does nothing, never
+  current) and its header's Copy is disabled; a group is greyed when
+  every signature it lists is hidden. While the group view lists a
+  hidden signature (`holdsHiddenFindings`), the panel draws the list
+  under its notice (nothing picked, not scanned, no findings), so the
+  eyes stay reachable.
 - **Copy a group** (`findingsCopy.ts`): `copyFindings(path, target)`,
   the target a group, a signature or all, with the panel's filters, the
   ⋯ menu's `copyLinesBefore` and `text=true` (see "Finding text").
