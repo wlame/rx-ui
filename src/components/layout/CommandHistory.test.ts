@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { hoverTooltipText } from '$lib/testing/tooltipText';
 import CommandHistory from './CommandHistory.svelte';
 
 let panel: CommandHistory | null = null;
@@ -27,6 +28,7 @@ afterEach(() => {
   panel?.$destroy();
   panel = null;
   document.body.replaceChildren();
+  vi.useRealTimers();
 });
 
 describe('CommandHistory keys', () => {
@@ -87,5 +89,36 @@ describe('CommandHistory per-part commands', () => {
 
     expect(pieces).toEqual(details);
     expect(copy).toHaveBeenCalledWith(details[1]);
+  });
+});
+
+describe('CommandHistory copy buttons', () => {
+  it('draws each Copy as the copy icon, named by its label and its tooltip', () => {
+    vi.useFakeTimers();
+    const target = document.body.appendChild(document.createElement('div'));
+    const details = ['rx samples /l/app.log.1 --lines=1-20'];
+    panel = new CommandHistory({
+      target,
+      props: {
+        entries: [
+          { action: 'file', command: 'rx logs samples /l/app.log --lines=1-20', details, at: 0 },
+        ],
+      },
+    });
+    const button = (label: string) => {
+      const found = target.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+      if (!found) throw new Error(`no button "${label}"`);
+      return found;
+    };
+    const copies = [
+      [button('Copy rx logs samples /l/app.log --lines=1-20'), 'Copy the command'],
+      [button(`Copy ${details[0]}`), 'Copy the command of this part'],
+    ] as const;
+
+    for (const [copy, tooltipLabel] of copies) {
+      expect(copy.textContent?.trim()).toBe('');
+      expect(copy.querySelector('svg')?.dataset.icon).toBe('copy');
+      expect(hoverTooltipText(copy)).toBe(tooltipLabel);
+    }
   });
 });

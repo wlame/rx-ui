@@ -2,13 +2,16 @@
   /**
    * The recent commands panel above the status bar, newest first. Each
    * row names what the user did, when the answer came, and the `rx`
-   * command that gives it, with a copy button; under it, the commands that
-   * give the same answer piece by piece (the `rx samples PART` of each
-   * part of a log chain's lines). Escape closes it.
+   * command that gives it, with a copy button (the copy icon); under it,
+   * the commands that give the same answer piece by piece (the
+   * `rx samples PART` of each part of a log chain's lines), each with its
+   * own. Escape closes it.
    */
   import { createEventDispatcher } from 'svelte';
+  import { tooltip } from '$lib/actions/tooltip';
   import type { CommandAction, CommandEntry } from '$lib/stores/commands';
   import { isShortcut } from '$lib/utils/shortcuts';
+  import Icon from '../common/Icon.svelte';
 
   export let entries: CommandEntry[];
 
@@ -69,9 +72,10 @@
             type="button"
             class="shrink-0 hover:text-gh-accent-fg dark:hover:text-gh-accent-dark-fg"
             aria-label="Copy {entry.command}"
+            use:tooltip={{ label: 'Copy the command' }}
             on:click={() => dispatch('copy', entry.command)}
           >
-            Copy
+            <Icon name="copy" size={12} />
           </button>
         </div>
         {#if entry.details && entry.details.length > 0}
@@ -87,9 +91,10 @@
                   type="button"
                   class="shrink-0 hover:text-gh-accent-fg dark:hover:text-gh-accent-dark-fg"
                   aria-label="Copy {detail}"
+                  use:tooltip={{ label: 'Copy the command of this part' }}
                   on:click={() => dispatch('copy', detail)}
                 >
-                  Copy
+                  <Icon name="copy" size={12} />
                 </button>
               </li>
             {/each}
