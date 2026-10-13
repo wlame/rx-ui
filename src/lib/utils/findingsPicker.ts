@@ -47,6 +47,19 @@ export function pickedIds(stored: readonly string[] | null, catalogue: Catalogue
 }
 
 /**
+ * Whether the stored choice hides the signature `id`: the catalogue holds
+ * it, no user file disabled it, and the choice does not pick it. A
+ * selection request leaves a hidden signature out.
+ */
+export function hidesSignature(
+  stored: readonly string[] | null,
+  id: string,
+  catalogue: Catalogue,
+): boolean {
+  return activeIds(catalogue).includes(id) && !pickedIds(stored, catalogue).includes(id);
+}
+
+/**
  * How a choice of `ids` is stored: null when it is the default set, so
  * it keeps following the catalogue, else the ids in catalogue order.
  */

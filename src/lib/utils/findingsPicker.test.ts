@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TEST_DEFAULT_IDS, testCatalogue } from '../testing/fakeFindings';
 import {
   PICKER_PRESETS,
+  hidesSignature,
   activeIds,
   filterSignatures,
   groupCheckState,
@@ -73,6 +74,18 @@ describe('selectionOf', () => {
   it('is null when nothing is picked', () => {
     expect(selectionOf([], CATALOGUE)).toBeNull();
     expect(selectionOf(['gone-signature'], CATALOGUE)).toBeNull();
+  });
+});
+
+describe('hidesSignature', () => {
+  it('hides an active signature the choice does not pick, and nothing else', () => {
+    const catalogue = testCatalogue();
+
+    expect(hidesSignature(null, 'email-address', catalogue)).toBe(true);
+    expect(hidesSignature(null, 'sql-statement', catalogue)).toBe(false);
+    expect(hidesSignature([], 'sql-statement', catalogue)).toBe(true);
+    expect(hidesSignature(null, 'legacy-trace', catalogue)).toBe(false);
+    expect(hidesSignature(null, 'team-alert', catalogue)).toBe(false);
   });
 });
 

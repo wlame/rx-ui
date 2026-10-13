@@ -2,7 +2,7 @@ import { get, writable, type Readable } from 'svelte/store';
 import { api, ApiError, type FindingsQuery } from '../api';
 import type { Finding, FindingsResponse, TaskStatus } from '../types';
 import { findingId, type SignatureCounts } from '../utils/findingRows';
-import { selectionOf } from '../utils/findingsPicker';
+import { hidesSignature, selectionOf } from '../utils/findingsPicker';
 import {
   fileSummaryOf,
   isCovered,
@@ -183,13 +183,16 @@ function listQuery(): FindingsQuery {
 }
 
 /**
- * The query of a list's pages: the line list's is every list request's;
- * a signature's names it among every signature, so the list of one the
- * choice hides, which the selection leaves out, reads too.
+ * The query of a list's pages: the line list's is every list request's,
+ * and a signature's is that narrowed to it. A signature the choice hides
+ * is left out of the selection, so its pages name it among every
+ * signature (`all`).
  */
 function pageQuery(list: string): FindingsQuery {
   if (list === LINE_LIST) return listQuery();
-  return { signatures: ['all'], signature: [list], q: get(findingsFilter) };
+  const isHidden = hidesSignature(get(settings).findingsPicker, list, get(signatures));
+  const selection = isHidden ? { signatures: ['all'], q: get(findingsFilter) } : listQuery();
+  return { ...selection, signature: [list] };
 }
 
 function pageKey(list: string, page: number): string {

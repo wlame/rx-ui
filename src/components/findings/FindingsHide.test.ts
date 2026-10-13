@@ -237,6 +237,23 @@ describe('a hidden signature', () => {
     ).toBe(false);
   });
 
+  it("reads its pages over every signature, and a shown signature's with the picker's selection", async () => {
+    const { backend, target } = await mountByGroup();
+    await click(eyeOf(signatureRow(target, 'python-traceback')));
+    const pageOf = (id: string) =>
+      backend
+        .requestsTo('GET', '/v1/findings')
+        .map((request) => request.query)
+        .filter((query) => query.has('offset') && query.getAll('signature').includes(id))
+        .at(-1);
+
+    await click(signatureRow(target, 'sql-statement'));
+    await click(signatureRow(target, 'python-traceback'));
+
+    expect(pageOf('sql-statement')?.get('signatures')).toBe(WITHOUT_TRACEBACK.join(','));
+    expect(pageOf('python-traceback')?.get('signatures')).toBe('all');
+  });
+
   it('opens nothing from its expanded rows, on a click or on Enter', async () => {
     const { backend, target } = await mountByGroup();
     await click(eyeOf(signatureRow(target, 'python-traceback')));
