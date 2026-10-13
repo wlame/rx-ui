@@ -178,6 +178,7 @@ Cmd/Ctrl+/ lists every shortcut in the app. They are:
 | In the findings panel                    | →                            | By group: open the group or signature, or go to its first row                                                     |
 | In the findings panel                    | ←                            | By group: close the group or signature, or go to the one that holds the row                                       |
 | In the findings panel                    | Enter                        | In the list: open the finding, or open or close the group or signature                                            |
+| In the findings panel                    | Space                        | By group: hide or show the findings of the group or signature                                                     |
 | On the open-file tabs                    | → or ←                       | Show the next or the previous tab, round the ends                                                                 |
 | On the open-file tabs                    | Home or End                  | Show the first or the last tab                                                                                    |
 | On the open-file tabs                    | Delete or Backspace          | Close the tab and show the tab used before it                                                                     |

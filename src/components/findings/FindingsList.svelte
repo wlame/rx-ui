@@ -5,6 +5,10 @@
   line order; by group, the group and signature headers come first, each
   over its findings, and a signature's findings load when it is opened.
   Rows not loaded yet load by page as they come on screen, each page once.
+  By group, the signatures the picker's choice hides that hold findings
+  stay in their places, greyed; their findings open nothing, and the eye
+  of a header (or Space on it) hides or shows its findings by changing
+  the picker's choice.
 
   The list is one Tab stop (a roving tabindex): the current row has
   `tabindex="0"` and is always drawn. One key handler works out each key
@@ -28,16 +32,22 @@
     type FindingsTabState,
   } from '$lib/stores/findings';
   import { modalOpen } from '$lib/stores/layout';
+  import { settings } from '$lib/stores/settings';
   import type { SignaturesState } from '$lib/stores/signatures';
   import type { FindingsResponse } from '$lib/types';
   import {
+    choiceAfterEye,
     findingId,
     groupKey,
     groupRows,
     lineRowAt,
+    shownSignatures,
     signatureKey,
     type FindingRow,
+    type HeaderRow,
+    type SignatureCounts,
   } from '$lib/utils/findingRows';
+  import { pickedIds } from '$lib/utils/findingsPicker';
   import {
     findingsKeyAction,
     rowLevel,
@@ -77,9 +87,10 @@
     'findingsExpand',
     'findingsCollapse',
     'findingsOpen',
+    'findingsToggleShown',
   ];
-  /** The keys a control in a header's actions keeps for itself: Enter presses it. */
-  const HEADER_ACTION_KEYS: readonly ShortcutId[] = ['findingsOpen'];
+  /** The keys a control in a header's actions keeps for itself: Enter and Space press it. */
+  const HEADER_ACTION_KEYS: readonly ShortcutId[] = ['findingsOpen', 'findingsToggleShown'];
 
   let scroller: HTMLElement;
   let scrollTop = 0;
@@ -94,16 +105,23 @@
   const signaturesById = memoizeLast(
     (list: SignaturesState['list']) => new Map(list.map((signature) => [signature.id, signature])),
   );
+  const pickedOf = memoizeLast(pickedIds);
+  const shownOf = memoizeLast(shownSignatures);
+  // A signature's header is closed until it is opened, a hidden one's too.
   const collapsedOf = memoizeLast(
-    (summary: FindingsResponse, closed: Set<string>, opened: Set<string>) =>
+    (counts: SignatureCounts, closed: Set<string>, opened: Set<string>) =>
       new Set([
         ...[...closed].map(groupKey),
-        ...summary.checked.filter((id) => !opened.has(id)).map(signatureKey),
+        ...Object.keys(counts)
+          .filter((id) => !opened.has(id))
+          .map(signatureKey),
       ]),
   );
 
   $: summary = tab.summary;
-  $: rows = rowsOf(view, summary, tab.pages, closedGroups, openSignatures);
+  $: picked = pickedOf($settings.findingsPicker, catalogue);
+  $: signaturesShown = shownOf(picked, summary?.checked ?? [], catalogue);
+  $: rows = rowsOf(view, summary, tab.pages, closedGroups, openSignatures, signaturesShown);
   $: shown = visibleWindow(
     rows.count,
     ROW_HEIGHT_PX,
@@ -124,13 +142,16 @@
     pages: FindingsTabState['pages'],
     closed: Set<string>,
     opened: Set<string>,
+    shownIds: Set<string>,
   ): FindingRows {
     if (answer === null) return { count: 0, rowAt: (index) => lineRowAt(undefined, index) };
     if (by === 'line') {
       const list = pages.get(LINE_LIST);
       return { count: answer.total, rowAt: (index) => lineRowAt(list, index) };
     }
-    const list = groupRowsOf(answer, pages, collapsedOf(answer, closed, opened), catalogue);
+    const counts = tab.fileCounts;
+    const collapsed = collapsedOf(counts, closed, opened);
+    const list = groupRowsOf(counts, shownIds, pages, collapsed, catalogue);
     return { count: list.length, rowAt: (index) => list[index] };
   }
 
@@ -201,6 +222,14 @@
     }
   }
 
+  /** Hide or show the findings of a header: the picker's choice changes, as its box would change it. */
+  function toggleShown(header: HeaderRow) {
+    settings.update((s) => ({
+      ...s,
+      findingsPicker: choiceAfterEye(header, s.findingsPicker, catalogue),
+    }));
+  }
+
   function toggled(set: Set<string>, member: string, isIn: boolean): Set<string> {
     const next = new Set(set);
     if (isIn) next.add(member);
@@ -215,7 +244,7 @@
     else if (action.type === 'open' && row.kind === 'finding') openFinding(path, row.finding);
     else if (action.type === 'expand' || action.type === 'collapse') {
       setHeaderOpen(row, action.type === 'expand');
-    }
+    } else if (action.type === 'toggleShown' && isHeader(row)) toggleShown(row);
   }
 
   /** The index of the row `target` is or is inside of; null outside the rows. */
@@ -226,8 +255,8 @@
   }
 
   /**
-   * Whether `target` is in a header's actions: a Copy, which a script or
-   * assistive technology can focus although it is no Tab stop.
+   * Whether `target` is in a header's actions: an eye or a Copy, which a
+   * script or assistive technology can focus although it is no Tab stop.
    */
   function isInHeaderActions(target: EventTarget | null): boolean {
     return target instanceof Element && target.closest('[data-header-actions]') !== null;
@@ -236,8 +265,9 @@
   /**
    * The list's one key handler. A key with Ctrl, Cmd or Alt belongs to
    * the shortcut table, and a key an input method composes with to it.
-   * A control in a header's actions keeps its Enter; the other keys move
-   * in the list from there. The key is cancelled only when it acted.
+   * A control in a header's actions keeps its Enter and Space; the other
+   * keys move in the list from there. The key is cancelled only when it
+   * acted.
    */
   function handleKeydown(event: KeyboardEvent) {
     if ($modalOpen) return;
@@ -252,12 +282,16 @@
     apply(action, index);
   }
 
-  /** A click opens a finding, or opens or closes a header, and makes the row current. */
-  function handleClick(index: number) {
-    if ($modalOpen) return;
+  /**
+   * A click opens a finding, or opens or closes a header, and gives the
+   * row the focus; a hidden finding only takes the focus. A click in a
+   * header's actions is theirs, a disabled Copy's too.
+   */
+  function handleClick(index: number, event: MouseEvent) {
+    if ($modalOpen || isInHeaderActions(event.target)) return;
     const row = rows.rowAt(index);
-    if (row.kind === 'finding') openFinding(path, row.finding);
-    else if (row.kind !== 'placeholder') setHeaderOpen(row, row.collapsed);
+    if (row.kind === 'finding' && !row.hidden) openFinding(path, row.finding);
+    else if (isHeader(row)) setHeaderOpen(row, row.collapsed);
     void focusRow(index);
   }
 
@@ -266,12 +300,17 @@
     if (index !== null) focusIndex = index;
   }
 
+  /** Whether `row` is the finding opened last; a hidden finding never is. */
   function isCurrent(row: FindingRow): boolean {
-    return row.kind === 'finding' && findingId(row.finding) === tab.currentId;
+    return row.kind === 'finding' && !row.hidden && findingId(row.finding) === tab.currentId;
   }
 
-  function isHeader(row: FindingRow): row is Extract<FindingRow, { kind: 'group' | 'signature' }> {
+  function isHeader(row: FindingRow): row is HeaderRow {
     return row.kind === 'group' || row.kind === 'signature';
+  }
+
+  function isHidden(row: FindingRow): boolean {
+    return row.kind !== 'placeholder' && row.hidden;
   }
 </script>
 
@@ -305,6 +344,7 @@
           data-index={index}
           data-group={row.kind === 'group' ? row.group : undefined}
           data-signature={row.kind === 'signature' ? row.id : undefined}
+          data-hidden={isHidden(row) || undefined}
           aria-selected={isCurrent(row)}
           aria-level={level}
           aria-expanded={isHeader(row) ? !row.collapsed : undefined}
@@ -313,9 +353,9 @@
             1) *
             LEVEL_INDENT_PX +
             ROW_PADDING_PX}px"
-          on:click={() => handleClick(index)}
+          on:click={(event) => handleClick(index, event)}
         >
-          <FindingRowContent {row} {signatureOf} {catalogue} />
+          <FindingRowContent {row} {signatureOf} {catalogue} {toggleShown} />
           {#if isHeader(row)}
             <span class="ml-auto flex-shrink-0" data-header-actions>
               <slot name="header-actions" {row} />
@@ -347,9 +387,9 @@
           class="{ROW_CLASS} {isCurrent(row) ? CURRENT_CLASS : ''}"
           style="top: {index *
             ROW_HEIGHT_PX}px; height: {ROW_HEIGHT_PX}px; padding-left: {ROW_PADDING_PX}px"
-          on:click={() => handleClick(index)}
+          on:click={(event) => handleClick(index, event)}
         >
-          <FindingRowContent {row} {signatureOf} {catalogue} />
+          <FindingRowContent {row} {signatureOf} {catalogue} {toggleShown} />
         </div>
       {/each}
     </div>

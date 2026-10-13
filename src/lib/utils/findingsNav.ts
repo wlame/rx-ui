@@ -2,10 +2,11 @@
  * What a key does in the findings list, worked out from its rows, as in
  * the file tree: ↓ and ↑ move one row, Home and End to the ends, Enter
  * opens a finding or opens and closes a header, and in the group view →
- * opens a header or goes into it and ← closes it or goes to the header
- * above. Pure: the list applies the action.
+ * opens a header or goes into it, ← closes it or goes to the header
+ * above, and Space hides or shows the findings of a header with an eye.
+ * A hidden finding opens nothing. Pure: the list applies the action.
  */
-import { groupKey, signatureKey, type FindingRow } from './findingRows';
+import { groupKey, signatureKey, type FindingRow, type HeaderRow } from './findingRows';
 
 /** How the panel lists the findings: in line order or under their group and signature. */
 export type FindingsView = 'line' | 'group';
@@ -18,6 +19,7 @@ export type FindingsNavAction =
   | { type: 'open'; index: number }
   | { type: 'collapse'; key: string }
   | { type: 'expand'; key: string }
+  | { type: 'toggleShown'; index: number }
   | { type: 'none' };
 
 /** The rows of a list: how many, and the row at a place. */
@@ -34,9 +36,6 @@ export function rowLevel(row: FindingRow): number {
   if (row.kind === 'signature') return 2;
   return 3;
 }
-
-/** A header row: a group's or a signature's. */
-type HeaderRow = Extract<FindingRow, { kind: 'group' | 'signature' }>;
 
 function isHeader(row: FindingRow): row is HeaderRow {
   return row.kind === 'group' || row.kind === 'signature';
@@ -101,17 +100,23 @@ function collapseOrLeave(rows: FindingRows, index: number): FindingsNavAction {
   return above === null ? NONE : { type: 'focus', index: above };
 }
 
-/** Enter: open a finding, or open or close a header; nothing on a row not loaded. */
+/** Enter: open a finding, or open or close a header; nothing on a hidden finding or a row not loaded. */
 function activate(rows: FindingRows, index: number): FindingsNavAction {
   const row = rows.rowAt(index);
-  if (row.kind === 'finding') return { type: 'open', index };
+  if (row.kind === 'finding') return row.hidden ? NONE : { type: 'open', index };
   if (!isHeader(row)) return NONE;
   return { type: row.collapsed ? 'expand' : 'collapse', key: headerKey(row) };
 }
 
+/** Space: hide or show the findings of a header with an eye; nothing elsewhere. */
+function toggleShown(rows: FindingRows, index: number): FindingsNavAction {
+  const row = rows.rowAt(index);
+  return isHeader(row) && row.eye !== null ? { type: 'toggleShown', index } : NONE;
+}
+
 /**
  * What `key` does on the row at `current` (null: no row is current yet)
- * of `rows`, in `view`. ← and → act only in the group view.
+ * of `rows`, in `view`. ←, → and Space act only in the group view.
  */
 export function findingsKeyAction(
   rows: FindingRows,
@@ -129,5 +134,6 @@ export function findingsKeyAction(
   if (view !== 'group') return NONE;
   if (key === 'ArrowRight') return expandOrEnter(rows, current);
   if (key === 'ArrowLeft') return collapseOrLeave(rows, current);
+  if (key === ' ') return toggleShown(rows, current);
   return NONE;
 }

@@ -1,7 +1,7 @@
 import { get, writable, type Readable } from 'svelte/store';
 import { api, ApiError, type FindingsQuery } from '../api';
 import type { Finding, FindingsResponse, TaskStatus } from '../types';
-import { findingId } from '../utils/findingRows';
+import { findingId, type SignatureCounts } from '../utils/findingRows';
 import { selectionOf } from '../utils/findingsPicker';
 import {
   fileSummaryOf,
@@ -34,7 +34,9 @@ import { tree } from './tree';
  * (`AppSettings.findingsPicker`), narrowed by the filter text
  * (`findingsFilter`). The summary request brings the first page of the
  * line list; further pages, and the list of each signature the group
- * view expands, load by page (`loadFindingsPage`), each page once. Every
+ * view expands, load by page (`loadFindingsPage`), each page once. The
+ * group view also lists the signatures the choice hides that hold
+ * findings, from the counts of every signature (`fileCounts`). Every
  * request reads the backend's cache and never scans; a finding's text
  * is its `excerpt`, masked by the backend.
  */
@@ -70,6 +72,12 @@ export interface FindingsTabState {
    * numbers. Null before the first summary arrived.
    */
   fileSummary: FileSummary | null;
+  /**
+   * The findings count of every signature with a current entry, picked
+   * or not, from the same read as `fileSummary`: the group view lists a
+   * hidden signature from it. Empty before the first summary arrived.
+   */
+  fileCounts: SignatureCounts;
   scan: ScanState | null;
   /** The finding opened last (`findingId`), the list's current row. */
   currentId: string | null;
@@ -87,6 +95,7 @@ export interface FindingsTabState {
 const EMPTY: FindingsTabState = {
   summary: null,
   fileSummary: null,
+  fileCounts: {},
   scan: null,
   currentId: null,
   error: null,
@@ -173,6 +182,16 @@ function listQuery(): FindingsQuery {
   return panelFilters() ?? { signatures: [], q: get(findingsFilter) };
 }
 
+/**
+ * The query of a list's pages: the line list's is every list request's;
+ * a signature's names it among every signature, so the list of one the
+ * choice hides, which the selection leaves out, reads too.
+ */
+function pageQuery(list: string): FindingsQuery {
+  if (list === LINE_LIST) return listQuery();
+  return { signatures: ['all'], signature: [list], q: get(findingsFilter) };
+}
+
 function pageKey(list: string, page: number): string {
   return `${list}\u0000${page}`;
 }
@@ -220,10 +239,10 @@ function labelInTree(path: string, file: FileSummary): void {
 /**
  * Read from the cache the summary of `path` for the picker's selection
  * and the filter, with the first page of its line list, and the summary
- * of every signature, which says what the file holds (`fileSummary`) and
- * labels it in the tree. The pages loaded before are dropped; pages asked
- * meanwhile wait for the new summary. Does nothing on a backend without
- * `signatures`.
+ * of every signature, which says what the file holds (`fileSummary`,
+ * `fileCounts`) and labels it in the tree. The pages loaded before are
+ * dropped; pages asked meanwhile wait for the new summary. Does nothing
+ * on a backend without `signatures`.
  */
 export async function refreshFindings(path: string): Promise<void> {
   if (!backendHas('signatures')) return;
@@ -243,6 +262,7 @@ export async function refreshFindings(path: string): Promise<void> {
     patch(path, () => ({
       summary: null,
       fileSummary: null,
+      fileCounts: {},
       pages: new Map(),
       error: messageOf(error),
     }));
@@ -253,7 +273,8 @@ export async function refreshFindings(path: string): Promise<void> {
   const fileSummary = fileSummaryOf(everySignature, defaultSetIds(get(signatures)));
   round.isReady = true;
   const pages = withPage(new Map(), LINE_LIST, summary.total, 0, summary.findings);
-  patch(path, () => ({ summary, fileSummary, pages, error: null }));
+  const fileCounts = everySignature.counts;
+  patch(path, () => ({ summary, fileSummary, fileCounts, pages, error: null }));
   labelInTree(path, fileSummary);
 }
 
@@ -268,8 +289,7 @@ export async function loadFindingsPage(path: string, list: string, page: number)
   if (!round || !round.isReady || round.asked.has(key)) return;
   round.asked.add(key);
   const query: FindingsQuery = {
-    ...listQuery(),
-    ...(list === LINE_LIST ? {} : { signature: [list] }),
+    ...pageQuery(list),
     offset: page * FINDINGS_PAGE_SIZE,
     limit: FINDINGS_PAGE_SIZE,
   };

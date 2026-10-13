@@ -3,7 +3,10 @@
   the backend's findings cache. Its state line says how far the file is
   scanned; the picker chooses the signatures listed and scanned; the scan
   bar scans the missing ones; the toolbar lists them by line or by group
-  and filters them; the list opens a finding in the editor.
+  and filters them; the list opens a finding in the editor. By group,
+  the list also shows the signatures the picker hides that hold
+  findings, under the notice that says why nothing else is listed, so
+  their eyes can show them again.
 
   The panel stays mounted while another panel is shown, and asks the
   backend only while it is shown: when it shows a file, and again when
@@ -24,6 +27,7 @@
     forgetFindings,
     refreshFindings,
     startScan,
+    type FindingsTabState,
     type ScanEnd,
   } from '$lib/stores/findings';
   import {
@@ -32,9 +36,9 @@
     sidebarTab,
     sidebarVisible,
   } from '$lib/stores/layout';
-  import { loadSignatures, signatures } from '$lib/stores/signatures';
-  import type { FindingRow } from '$lib/utils/findingRows';
-  import { pickerSummary, selectionOf } from '$lib/utils/findingsPicker';
+  import { loadSignatures, signatures, type SignaturesState } from '$lib/stores/signatures';
+  import { holdsHiddenFindings, shownSignatures, type FindingRow } from '$lib/utils/findingRows';
+  import { pickedIds, pickerSummary, selectionOf } from '$lib/utils/findingsPicker';
   import { stateLine } from '$lib/utils/findingsSummary';
   import { isChainKey } from '$lib/utils/tabKey';
   import Icon from '../common/Icon.svelte';
@@ -66,6 +70,10 @@
   $: tab = filePath === null ? null : findingsOf($findingsByFile, filePath);
   $: selection = selectionOf($settings.findingsPicker, $signatures);
   $: summaryText = pickerSummary($settings.findingsPicker, $signatures);
+  $: listNotice = listNoticeOf(selection, tab?.summary ?? null);
+  $: isListShown =
+    listNotice === null ||
+    ($findingsBy === 'group' && listsHidden(tab, $settings.findingsPicker, $signatures));
   $: if (isShown && hasFeature && !$signatures.loaded) void loadSignatures();
 
   // Ask for the summary when the panel shows a file, and again when the
@@ -111,6 +119,34 @@
     return path.slice(path.lastIndexOf('/') + 1);
   }
 
+  /** Why the panel lists no finding of the picked signatures, or null when it lists them. */
+  type ListNotice = 'nothingPicked' | 'notScanned' | 'noFindings';
+
+  function listNoticeOf(
+    sent: string[] | null,
+    summary: FindingsTabState['summary'],
+  ): ListNotice | null {
+    if (sent === null) return 'nothingPicked';
+    if (summary !== null && summary.checked.length === 0) return 'notScanned';
+    if (summary !== null && summary.total === 0) return 'noFindings';
+    return null;
+  }
+
+  /**
+   * Whether the group view lists a signature the stored choice `picker`
+   * hides, which its eye can show again.
+   */
+  function listsHidden(
+    state: FindingsTabState | null,
+    picker: readonly string[] | null,
+    catalogue: SignaturesState,
+  ): boolean {
+    if (state === null) return false;
+    const picked = pickedIds(picker, catalogue);
+    const shown = shownSignatures(picked, state.summary?.checked ?? [], catalogue);
+    return holdsHiddenFindings(state.fileCounts, shown, catalogue);
+  }
+
   /** What the panel says of a scan that ended for each reason but a failure, which has its own. */
   const SCAN_END_NOTICES: Readonly<Record<Exclude<ScanEnd['kind'], 'failed'>, string>> = {
     cancelled: 'Scan cancelled.',
@@ -141,6 +177,10 @@
       return `Copy the findings of ${name}`;
     }
     return 'Copy all';
+  }
+
+  function isHiddenHeader(row: FindingRow): boolean {
+    return (row.kind === 'group' || row.kind === 'signature') && row.hidden;
   }
 
   function copy(target: FindingsCopyTarget) {
@@ -218,55 +258,59 @@
       </p>
     {:else if !tab.summary}
       <div class="flex justify-center py-6"><Spinner size="md" /></div>
-    {:else if selection === null}
-      <p class="px-3 py-4 text-sm {MUTED}" data-findings-notice>
-        No signatures are picked. Pick some to list and scan their findings.
-      </p>
-    {:else if tab.summary.checked.length === 0}
-      <div class="flex flex-col items-center gap-3 px-3 py-6 text-sm {MUTED}">
-        <p>The picked signatures have not scanned this file yet.</p>
-        <!-- While a scan runs, the progress row under the picker shows it. -->
-        {#if tab.scan === null}
-          <button
-            type="button"
-            class="btn btn-primary"
-            disabled={tab.summary.missing.length === 0}
-            on:click={scanFirst}
-          >
-            Scan with {summaryText}
-          </button>
-        {/if}
-      </div>
-    {:else if tab.summary.total === 0}
-      <p class="px-3 py-4 text-sm {MUTED}">
-        {$findingsFilter === '' ? 'No findings.' : 'No finding matches the filter.'}
-      </p>
     {:else}
-      <FindingsList path={filePath} {tab} view={$findingsBy} catalogue={$signatures}>
-        <!-- A Copy is not a Tab stop, so the list stays one, and a press on
-             it leaves the focus where it was, so the list's keys stay the
-             list's. Its click stays with it: the header neither opens nor
-             closes. -->
-        <svelte:fragment slot="header-actions" let:row>
-          {@const target = copyTargetOf(row)}
-          {#if target}
-            {@const label = copyLabelOf(target)}
+      {#if listNotice === 'nothingPicked'}
+        <p class="px-3 py-4 text-sm {MUTED}" data-findings-notice>
+          No signatures are picked. Pick some to list and scan their findings.
+        </p>
+      {:else if listNotice === 'notScanned'}
+        <div class="flex flex-col items-center gap-3 px-3 py-6 text-sm {MUTED}">
+          <p>The picked signatures have not scanned this file yet.</p>
+          <!-- While a scan runs, the progress row under the picker shows it. -->
+          {#if tab.scan === null}
             <button
               type="button"
-              tabindex="-1"
-              class="p-0.5 rounded {MUTED}
-                     hover:bg-gh-canvas-inset dark:hover:bg-gh-canvas-dark-inset
-                     hover:text-gh-fg-default dark:hover:text-gh-fg-dark-default"
-              aria-label={label}
-              use:tooltip={{ label }}
-              on:mousedown|preventDefault
-              on:click|stopPropagation={() => copy(target)}
+              class="btn btn-primary"
+              disabled={tab.summary.missing.length === 0}
+              on:click={scanFirst}
             >
-              <Icon name="copy" size={14} />
+              Scan with {summaryText}
             </button>
           {/if}
-        </svelte:fragment>
-      </FindingsList>
+        </div>
+      {:else if listNotice === 'noFindings'}
+        <p class="px-3 py-4 text-sm {MUTED}">
+          {$findingsFilter === '' ? 'No findings.' : 'No finding matches the filter.'}
+        </p>
+      {/if}
+      {#if isListShown}
+        <FindingsList path={filePath} {tab} view={$findingsBy} catalogue={$signatures}>
+          <!-- A Copy is not a Tab stop, so the list stays one, and a press on
+               it leaves the focus where it was, so the list's keys stay the
+               list's. Its click stays with it: the header neither opens nor
+               closes. A header whose findings are all hidden copies nothing. -->
+          <svelte:fragment slot="header-actions" let:row>
+            {@const target = copyTargetOf(row)}
+            {#if target}
+              {@const label = copyLabelOf(target)}
+              <button
+                type="button"
+                tabindex="-1"
+                class="p-0.5 rounded {MUTED} disabled:opacity-50
+                       hover:bg-gh-canvas-inset dark:hover:bg-gh-canvas-dark-inset
+                       hover:text-gh-fg-default dark:hover:text-gh-fg-dark-default"
+                aria-label={label}
+                disabled={isHiddenHeader(row)}
+                use:tooltip={{ label }}
+                on:mousedown|preventDefault
+                on:click|stopPropagation={() => copy(target)}
+              >
+                <Icon name="copy" size={14} />
+              </button>
+            {/if}
+          </svelte:fragment>
+        </FindingsList>
+      {/if}
     {/if}
   {/if}
 </section>

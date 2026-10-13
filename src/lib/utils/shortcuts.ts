@@ -138,7 +138,8 @@ export type FindingsPanelShortcutId =
   | 'findingsEnds'
   | 'findingsExpand'
   | 'findingsCollapse'
-  | 'findingsOpen';
+  | 'findingsOpen'
+  | 'findingsToggleShown';
 
 export type ShortcutId =
   | GlobalShortcutId
@@ -486,6 +487,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
     scope: 'findingsPanel',
     description: 'In the list: open the finding, or open or close the group or signature',
     chord: { key: 'Enter' },
+  },
+  {
+    id: 'findingsToggleShown',
+    scope: 'findingsPanel',
+    description: 'By group: hide or show the findings of the group or signature',
+    chord: { key: ' ' },
   },
   {
     id: 'tabStripMove',

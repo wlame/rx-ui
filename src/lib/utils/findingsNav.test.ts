@@ -9,13 +9,63 @@ import { findingsKeyAction, rowLevel, type FindingsView } from './findingsNav';
  * then the sql group, closed.
  */
 const GROUP_ROWS: FindingRow[] = [
-  { kind: 'group', group: 'traceback', count: 5, collapsed: false },
-  { kind: 'signature', id: 'python-traceback', count: 2, stored: 2, collapsed: false },
-  { kind: 'finding', finding: finding('python-traceback', 10), index: 0 },
+  { kind: 'group', group: 'traceback', count: 5, collapsed: false, eye: 'all', hidden: false },
+  {
+    kind: 'signature',
+    id: 'python-traceback',
+    count: 2,
+    stored: 2,
+    collapsed: false,
+    eye: 'all',
+    hidden: false,
+  },
+  { kind: 'finding', finding: finding('python-traceback', 10), index: 0, hidden: false },
   { kind: 'placeholder', signature: 'python-traceback', index: 1 },
-  { kind: 'signature', id: 'java-exception', count: 3, stored: 3, collapsed: true },
-  { kind: 'group', group: 'sql', count: 1, collapsed: true },
+  {
+    kind: 'signature',
+    id: 'java-exception',
+    count: 3,
+    stored: 3,
+    collapsed: true,
+    eye: 'all',
+    hidden: false,
+  },
+  { kind: 'group', group: 'sql', count: 1, collapsed: true, eye: 'all', hidden: false },
 ];
+
+/**
+ * The group view of a hidden signature, open, over its one finding, and
+ * of a signature the catalogue does not name, which has no eye.
+ */
+const HIDDEN_ROWS: FindingRow[] = [
+  { kind: 'group', group: 'pii', count: 1, collapsed: false, eye: 'none', hidden: true },
+  {
+    kind: 'signature',
+    id: 'email-address',
+    count: 1,
+    stored: 1,
+    collapsed: false,
+    eye: 'none',
+    hidden: true,
+  },
+  { kind: 'finding', finding: finding('email-address', 7), index: 0, hidden: true },
+  { kind: 'group', group: '', count: 1, collapsed: false, eye: null, hidden: false },
+  {
+    kind: 'signature',
+    id: 'team-alert',
+    count: 1,
+    stored: 1,
+    collapsed: true,
+    eye: null,
+    hidden: false,
+  },
+];
+
+/** The action of `key` on the row at `current` of `HIDDEN_ROWS`, in the group view. */
+function actOnHidden(current: number, key: string) {
+  const rows = { count: HIDDEN_ROWS.length, rowAt: (i: number) => HIDDEN_ROWS[i] };
+  return findingsKeyAction(rows, current, key, 'group');
+}
 
 const LINE_LIST = [
   finding('sql-statement', 1),
@@ -92,6 +142,10 @@ describe('findingsKeyAction, in the line view', () => {
     const rows = { count: 3, rowAt: (i: number) => lineRowAt(undefined, i) };
     expect(findingsKeyAction(rows, 1, 'Enter', 'line')).toEqual({ type: 'none' });
   });
+
+  it('leaves Space alone', () => {
+    expect(act('line', 1, ' ')).toEqual({ type: 'none' });
+  });
 });
 
 describe('findingsKeyAction, in the group view', () => {
@@ -134,6 +188,29 @@ describe('findingsKeyAction, in the group view', () => {
     expect(act('group', 4, 'Enter')).toEqual({
       type: 'expand',
       key: signatureKey('java-exception'),
+    });
+  });
+});
+
+describe('findingsKeyAction, on the eyes of the group view', () => {
+  it('hides or shows a group or a signature on Space', () => {
+    expect(act('group', 0, ' ')).toEqual({ type: 'toggleShown', index: 0 });
+    expect(act('group', 1, ' ')).toEqual({ type: 'toggleShown', index: 1 });
+    expect(actOnHidden(1, ' ')).toEqual({ type: 'toggleShown', index: 1 });
+  });
+
+  it('leaves Space alone on a finding and on a header without an eye', () => {
+    expect(act('group', 2, ' ')).toEqual({ type: 'none' });
+    expect(actOnHidden(2, ' ')).toEqual({ type: 'none' });
+    expect(actOnHidden(3, ' ')).toEqual({ type: 'none' });
+    expect(actOnHidden(4, ' ')).toEqual({ type: 'none' });
+  });
+
+  it('opens nothing on Enter over a hidden finding, and still opens and closes its header', () => {
+    expect(actOnHidden(2, 'Enter')).toEqual({ type: 'none' });
+    expect(actOnHidden(1, 'Enter')).toEqual({
+      type: 'collapse',
+      key: signatureKey('email-address'),
     });
   });
 });

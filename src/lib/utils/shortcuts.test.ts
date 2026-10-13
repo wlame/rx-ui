@@ -566,7 +566,7 @@ describe('the README keyboard shortcut table', () => {
 describe('the findings list keys', () => {
   // The list hands each of these keys to its key rules; a key it acts on
   // without a row would be missing from the help.
-  it.each(['ArrowDown', 'ArrowUp', 'Home', 'End', 'ArrowLeft', 'ArrowRight', 'Enter'])(
+  it.each(['ArrowDown', 'ArrowUp', 'Home', 'End', 'ArrowLeft', 'ArrowRight', 'Enter', ' '])(
     'has a findings row for %j, without a modifier',
     (key) => {
       const rows = SHORTCUTS.filter(
@@ -679,8 +679,9 @@ describe('the shortcut list', () => {
         'findingsExpand',
         'findingsCollapse',
         'findingsOpen',
+        'findingsToggleShown',
       ],
-      ['← or →', '↓ or ↑', 'Home or End', '→', '←', 'Enter'],
+      ['← or →', '↓ or ↑', 'Home or End', '→', '←', 'Enter', 'Space'],
     ],
     [
       'tabStrip',
