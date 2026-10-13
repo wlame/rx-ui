@@ -19,7 +19,6 @@ import type { SignaturesState } from '../stores/signatures';
 import type { Finding, FindingsResponse } from '../types';
 import {
   activeIds,
-  activeIdsOfGroup,
   groupCheckState,
   pickedIds,
   pickerChoice,
@@ -29,12 +28,13 @@ import {
 } from './findingsPicker';
 
 /**
- * A row of the findings list. On a header, `eye` is what its eye shows,
- * as the picker's box: how much of the group's active signatures (or
- * the signature) the choice shows, or null for a header with no eye
- * (one the catalogue does not name, which no choice can hide); `hidden`
- * says every finding under it is hidden, so it is greyed and has no
- * Copy. A hidden finding is greyed and opens nothing.
+ * A row of the findings list. On a header, `eye` is what its eye shows:
+ * how much of what the header lists the choice shows (a group's `ids`,
+ * the signatures listed under it that a choice can pick, or the
+ * signature), or null for a header with no eye (one the catalogue does
+ * not name, which no choice can hide); `hidden` says every finding
+ * under it is hidden, so it is greyed and its Copy is off. A hidden
+ * finding is greyed and opens nothing.
  */
 export type FindingRow =
   | {
@@ -44,6 +44,7 @@ export type FindingRow =
       collapsed: boolean;
       eye: CheckState | null;
       hidden: boolean;
+      ids: readonly string[];
     }
   | {
       kind: 'signature';
@@ -200,7 +201,8 @@ export function holdsHiddenFindings(
  * `counts` holds what the file holds of every current signature, picked
  * or not; `shown` the signatures shown (`shownSignatures`). A signature
  * the choice hides is listed in its place, hidden, when it holds
- * findings. `collapsed` holds the keys of the collapsed headers
+ * findings. A group's eye speaks of the signatures listed under it,
+ * not of its other members, as the rows under it do. `collapsed` holds the keys of the collapsed headers
  * (`groupKey`, `signatureKey`). A signature without findings, and a
  * group left without a signature, has no row. A signature the catalogue
  * does not name comes last, under a group with no name.
@@ -216,15 +218,16 @@ export function groupRows(
   const pickable = new Set(activeIds(catalogue));
   const listed = listedIds(counts, shown, catalogue);
   for (const [group, ids] of idsByGroup(listed, catalogue)) {
-    const groupIds = activeIdsOfGroup(group, catalogue);
+    const eyeIds = ids.filter((id) => pickable.has(id));
     const isGroupCollapsed = collapsed.has(groupKey(group));
     rows.push({
       kind: 'group',
       group,
       count: ids.reduce((sum, id) => sum + counts[id].count, 0),
       collapsed: isGroupCollapsed,
-      eye: group !== '' && groupIds.length > 0 ? groupCheckState(groupIds, shown) : null,
+      eye: eyeIds.length > 0 ? groupCheckState(eyeIds, shown) : null,
       hidden: ids.every((id) => !shown.has(id)),
+      ids: eyeIds,
     });
     if (isGroupCollapsed) continue;
     for (const id of ids) {
@@ -240,11 +243,11 @@ export function groupRows(
 }
 
 /**
- * The stored choice after a click on the eye of `row`, as a click on
- * the same box in the picker leaves it: a signature's eye checks or
- * unchecks it; a group's sets every active signature of the group,
- * all shown unless all were (a mixed group shows them all). The default
- * set is kept as no choice (`pickerChoice`).
+ * The stored choice after a click on the eye of `row`: a signature's eye
+ * checks or unchecks its box in the picker; a group's sets the boxes of
+ * the signatures listed under it (`ids`), all shown unless all were (a
+ * mixed group shows them all), and leaves its other members as they
+ * were. The default set is kept as no choice (`pickerChoice`).
  */
 export function choiceAfterEye(
   row: HeaderRow,
@@ -253,8 +256,6 @@ export function choiceAfterEye(
 ): string[] | null {
   const picked = pickedIds(stored, catalogue);
   const next =
-    row.kind === 'group'
-      ? toggleGroup(activeIdsOfGroup(row.group, catalogue), picked)
-      : toggleSignature(row.id, picked);
+    row.kind === 'group' ? toggleGroup(row.ids, picked) : toggleSignature(row.id, picked);
   return pickerChoice(next, catalogue);
 }

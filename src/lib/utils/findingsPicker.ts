@@ -24,13 +24,6 @@ export function activeIds(catalogue: Catalogue): string[] {
   return activeSignatures(catalogue.list).map((signature) => signature.id);
 }
 
-/** The ids of every active signature of `group`, in catalogue order: the ids its box in the picker sets. */
-export function activeIdsOfGroup(group: string, catalogue: Catalogue): string[] {
-  return activeSignatures(catalogue.list)
-    .filter((signature) => signature.group === group)
-    .map((signature) => signature.id);
-}
-
 /** The ids of `catalogue` that `ids` holds, in catalogue order, each once. */
 function inCatalogueOrder(ids: Iterable<string>, catalogue: Catalogue): string[] {
   const wanted = new Set(ids);

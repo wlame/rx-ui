@@ -165,6 +165,37 @@ describe('the eye of a group header', () => {
   });
 });
 
+describe('the eye of a group header, over the signatures the group view lists', () => {
+  // java-exception and the opt-in phone-number hold no finding, so the
+  // group view does not list them; the picker lists them.
+  it('is shut while they are all hidden, with an unlisted member picked, and a click shows only them', async () => {
+    const found = [...APP_FINDINGS, ...[5, 6, 7].map((line) => finding('email-address', line))];
+    const current = [...TEST_DEFAULT_IDS, 'email-address', 'phone-number'];
+    settings.update((s) => ({
+      ...s,
+      findingsPicker: ['aws-access-key', 'sql-statement', 'phone-number'],
+    }));
+    const { target } = await mountByGroup(found, current);
+
+    expect(eyeState(groupRow(target, 'pii'))).toEqual({
+      pressed: 'false',
+      icon: 'eye-off',
+      label: 'Show the findings of the group pii',
+    });
+    expect(eyeState(groupRow(target, 'traceback')).pressed).toBe('false');
+
+    await click(eyeOf(groupRow(target, 'traceback')));
+
+    expect(get(settings).findingsPicker).toEqual([
+      'python-traceback',
+      'aws-access-key',
+      'sql-statement',
+      'phone-number',
+    ]);
+    expect(eyeState(groupRow(target, 'traceback')).pressed).toBe('true');
+  });
+});
+
 describe('a hidden signature', () => {
   it('is gone from the line view', async () => {
     const { target } = await mountByGroup();
@@ -188,6 +219,10 @@ describe('a hidden signature', () => {
     const row = signatureRow(target, 'python-traceback');
     expect(row.hasAttribute('data-hidden')).toBe(true);
     expect(groupRow(target, 'traceback').hasAttribute('data-hidden')).toBe(true);
+    expect(eyeState(groupRow(target, 'traceback'))).toMatchObject({
+      pressed: 'false',
+      icon: 'eye-off',
+    });
     expect(signatureRow(target, 'sql-statement').hasAttribute('data-hidden')).toBe(false);
     expect(row.textContent).toContain('2');
     expect(buttonNamed(row, 'Copy the findings of Python traceback').disabled).toBe(true);
@@ -288,7 +323,8 @@ describe('the hidden signatures the group view lists', () => {
 
   // Hiding the last shown signature leaves the eyes that show them again.
   it('stay listed when nothing is picked, so that their eyes show them again', async () => {
-    const { target } = await mountByGroup([...APP_FINDINGS, finding('aws-access-key', 310)]);
+    const found = [...APP_FINDINGS, finding('java-exception', 300), finding('aws-access-key', 310)];
+    const { target } = await mountByGroup(found);
 
     for (const group of ['traceback', 'secret', 'sql']) {
       await click(eyeOf(groupRow(target, group)));
@@ -302,6 +338,7 @@ describe('the hidden signatures the group view lists', () => {
     expect(headers).toEqual([
       'traceback',
       'python-traceback',
+      'java-exception',
       'secret',
       'aws-access-key',
       'sql',

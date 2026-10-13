@@ -251,10 +251,11 @@ describe('groupRows, with signatures hidden', () => {
     ]);
   });
 
-  it("gives each eye the state of the picker's box: a group's over every active signature of it", () => {
-    // java-exception holds no finding and is not listed, but it is picked:
-    // the traceback group is partly shown, as its box in the picker is.
-    const shown = new Set(['java-exception', 'sql-statement']);
+  it("gives a group's eye the state of the signatures it lists, whatever its unlisted members", () => {
+    // java-exception and the opt-in phone-number hold no finding and are
+    // not listed, but they are picked: the eyes of their groups still say
+    // that every signature listed under them is hidden.
+    const shown = new Set(['java-exception', 'sql-statement', 'phone-number']);
     const collapsed = new Set(Object.keys(COUNTS).map(signatureKey));
 
     const rows = groupRows(COUNTS, shown, new Map(), collapsed, testCatalogue());
@@ -265,7 +266,7 @@ describe('groupRows, with signatures hidden', () => {
         : `${'id' in row ? row.id : ''} ${'eye' in row ? row.eye : ''}`,
     );
     expect(eyes).toEqual([
-      'traceback some',
+      'traceback none',
       'python-traceback none',
       'sql all',
       'sql-statement all',
@@ -274,7 +275,7 @@ describe('groupRows, with signatures hidden', () => {
     ]);
   });
 
-  it('greys a group only when every signature it lists is hidden', () => {
+  it('greys a group only when every signature it lists is hidden, and its eye sets those', () => {
     const counts = countsOf({ 'python-traceback': [2, 2], 'java-exception': [1, 1] });
     const collapsed = new Set([signatureKey('python-traceback'), signatureKey('java-exception')]);
 
@@ -291,6 +292,7 @@ describe('groupRows, with signatures hidden', () => {
       'signature python-traceback 2/2 + hidden',
       'signature java-exception 1/1 +',
     ]);
+    expect(rows[0]).toMatchObject({ eye: 'some', ids: ['python-traceback', 'java-exception'] });
   });
 
   // No choice can pick a signature the catalogue does not name.
@@ -308,7 +310,7 @@ describe('groupRows, with signatures hidden', () => {
     const hiddenRows = groupRows(counts, new Set(), new Map(), collapsed, testCatalogue());
 
     expect(shownRows).toEqual([
-      { kind: 'group', group: '', count: 1, collapsed: false, eye: null, hidden: false },
+      { kind: 'group', group: '', count: 1, collapsed: false, eye: null, hidden: false, ids: [] },
       {
         kind: 'signature',
         id: 'team-alert',
@@ -367,8 +369,8 @@ describe('choiceAfterEye', () => {
     };
   }
 
-  function groupRow(group: string): HeaderRow {
-    return { kind: 'group', group, count: 1, collapsed: false, eye: 'all', hidden: false };
+  function groupRow(group: string, ids: string[]): HeaderRow {
+    return { kind: 'group', group, count: 1, collapsed: false, eye: 'all', hidden: false, ids };
   }
 
   it('hides a shown signature and shows a hidden one, as its box in the picker does', () => {
@@ -392,16 +394,27 @@ describe('choiceAfterEye', () => {
     expect(choiceAfterEye(signatureRow('sql-statement'), hidden, catalogue)).toBeNull();
   });
 
-  it('sets a whole group: hides one all shown, and shows every active signature of one partly shown', () => {
+  it('sets the signatures a group lists: hides them when all are shown, else shows only them', () => {
     const catalogue = testCatalogue();
-    const hidden = choiceAfterEye(groupRow('traceback'), null, catalogue);
-    expect(hidden).toEqual(['aws-access-key', 'sql-statement']);
-
+    const both = groupRow('traceback', ['python-traceback', 'java-exception']);
+    expect(choiceAfterEye(both, null, catalogue)).toEqual(['aws-access-key', 'sql-statement']);
     const partly = ['java-exception', 'aws-access-key', 'sql-statement'];
-    expect(choiceAfterEye(groupRow('traceback'), partly, catalogue)).toBeNull();
-    expect(choiceAfterEye(groupRow('pii'), [], catalogue)).toEqual([
+    expect(choiceAfterEye(both, partly, catalogue)).toBeNull();
+
+    // java-exception is not listed under the group: it stays as it was.
+    const listedOnly = groupRow('traceback', ['python-traceback']);
+    expect(choiceAfterEye(listedOnly, null, catalogue)).toEqual([
+      'java-exception',
+      'aws-access-key',
+      'sql-statement',
+    ]);
+    expect(choiceAfterEye(listedOnly, ['aws-access-key', 'sql-statement'], catalogue)).toEqual([
+      'python-traceback',
+      'aws-access-key',
+      'sql-statement',
+    ]);
+    expect(choiceAfterEye(groupRow('pii', ['email-address']), [], catalogue)).toEqual([
       'email-address',
-      'phone-number',
     ]);
   });
 });

@@ -9,7 +9,15 @@ import { findingsKeyAction, rowLevel, type FindingsView } from './findingsNav';
  * then the sql group, closed.
  */
 const GROUP_ROWS: FindingRow[] = [
-  { kind: 'group', group: 'traceback', count: 5, collapsed: false, eye: 'all', hidden: false },
+  {
+    kind: 'group',
+    group: 'traceback',
+    count: 5,
+    collapsed: false,
+    eye: 'all',
+    hidden: false,
+    ids: ['python-traceback', 'java-exception'],
+  },
   {
     kind: 'signature',
     id: 'python-traceback',
@@ -30,7 +38,15 @@ const GROUP_ROWS: FindingRow[] = [
     eye: 'all',
     hidden: false,
   },
-  { kind: 'group', group: 'sql', count: 1, collapsed: true, eye: 'all', hidden: false },
+  {
+    kind: 'group',
+    group: 'sql',
+    count: 1,
+    collapsed: true,
+    eye: 'all',
+    hidden: false,
+    ids: ['sql-statement'],
+  },
 ];
 
 /**
@@ -38,7 +54,15 @@ const GROUP_ROWS: FindingRow[] = [
  * of a signature the catalogue does not name, which has no eye.
  */
 const HIDDEN_ROWS: FindingRow[] = [
-  { kind: 'group', group: 'pii', count: 1, collapsed: false, eye: 'none', hidden: true },
+  {
+    kind: 'group',
+    group: 'pii',
+    count: 1,
+    collapsed: false,
+    eye: 'none',
+    hidden: true,
+    ids: ['email-address'],
+  },
   {
     kind: 'signature',
     id: 'email-address',
@@ -49,7 +73,7 @@ const HIDDEN_ROWS: FindingRow[] = [
     hidden: true,
   },
   { kind: 'finding', finding: finding('email-address', 7), index: 0, hidden: true },
-  { kind: 'group', group: '', count: 1, collapsed: false, eye: null, hidden: false },
+  { kind: 'group', group: '', count: 1, collapsed: false, eye: null, hidden: false, ids: [] },
   {
     kind: 'signature',
     id: 'team-alert',
