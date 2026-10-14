@@ -193,7 +193,8 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   as it starts (`rx index /var/log/app.log --threshold=0`,
   `rx scan /var/log/app.log --signatures=…`, `--recursive` for a
   folder); the end of a scan no longer replaces it with an `rx trace`
-  command.
+  command. A scan of the default set, from a menu or the panel, names it
+  by name (`--signatures=default`) rather than listing every id.
 
 - The viewer speaks wire contract 2 and needs rx-go 0.8.0 or later. A
   backend that reports contract 1 (rx-python, rx-go before 0.8.0) is

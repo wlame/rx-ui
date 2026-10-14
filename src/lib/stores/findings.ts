@@ -2,7 +2,7 @@ import { get, writable, type Readable } from 'svelte/store';
 import { api, ApiError, type FindingsQuery } from '../api';
 import type { Finding, FindingsResponse, TaskStatus } from '../types';
 import { findingId, type SignatureCounts } from '../utils/findingRows';
-import { hidesSignature, selectionOf } from '../utils/findingsPicker';
+import { hidesSignature, scanSelection, selectionOf } from '../utils/findingsPicker';
 import {
   fileSummaryOf,
   isCovered,
@@ -399,7 +399,7 @@ async function runScan(
   // recorded only by a backend that gave the task none.
   let isRecorded = false;
   try {
-    const task = await api.startFindingsScan(path, [...ids], force);
+    const task = await api.startFindingsScan(path, scanSelection(ids, get(signatures)), force);
     const joined = isJoinedScan(task);
     isRecorded = recordScanCommand(task.cli_command);
     patch(path, () => ({ scan: { taskId: task.task_id, read: 0, total: 0, joined } }));

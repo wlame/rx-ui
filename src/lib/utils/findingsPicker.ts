@@ -84,6 +84,16 @@ export function selectionOf(
   return isSameSet(ids, activeIds(catalogue)) ? ['all'] : ids;
 }
 
+/**
+ * The selection a scan request sends for the ids `ids`: `default` when
+ * they are exactly the default set, so the backend resolves it and the
+ * task's command reads `--signatures=default`; else the ids as given.
+ */
+export function scanSelection(ids: readonly string[], catalogue: Catalogue): string[] {
+  const defaults = defaultSetIds(catalogue);
+  return defaults.length > 0 && isSameSet(ids, defaults) ? ['default'] : [...ids];
+}
+
 /** How much of a group the choice picks. */
 export type CheckState = 'all' | 'some' | 'none';
 

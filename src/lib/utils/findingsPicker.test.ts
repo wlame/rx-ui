@@ -10,6 +10,7 @@ import {
   pickerChoice,
   pickerGroups,
   pickerSummary,
+  scanSelection,
   selectionOf,
   toggleGroup,
   toggleSignature,
@@ -60,6 +61,27 @@ describe('pickerChoice', () => {
       'email-address',
     ]);
     expect(pickerChoice([], CATALOGUE)).toEqual([]);
+  });
+});
+
+// A scan names the default set by name, so the backend resolves it and
+// its command reads `--signatures=default` rather than every id.
+describe('scanSelection', () => {
+  it('names the default set when the ids are exactly it, in any order', () => {
+    expect(scanSelection(TEST_DEFAULT_IDS, testCatalogue())).toEqual(['default']);
+    expect(scanSelection([...TEST_DEFAULT_IDS].reverse(), testCatalogue())).toEqual(['default']);
+  });
+
+  it('keeps other ids as they are', () => {
+    expect(scanSelection(['sql-statement'], testCatalogue())).toEqual(['sql-statement']);
+    const withOptIn = [...TEST_DEFAULT_IDS, 'email-address'];
+    expect(scanSelection(withOptIn, testCatalogue())).toEqual(withOptIn);
+    expect(scanSelection(['default'], testCatalogue())).toEqual(['default']);
+  });
+
+  it('keeps the ids while the catalogue is not loaded', () => {
+    const empty = { ...testCatalogue(), list: [] };
+    expect(scanSelection([], empty)).toEqual([]);
   });
 });
 

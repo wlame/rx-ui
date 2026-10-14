@@ -2,7 +2,7 @@ import { get, writable, type Readable } from 'svelte/store';
 import { api, ApiError } from '../api';
 import { conflictTaskId } from '../indexTasks';
 import type { FolderTaskResult, IndexTaskResponse, TaskState, TaskStatus } from '../types';
-import { pickedIds } from '../utils/findingsPicker';
+import { pickedIds, scanSelection } from '../utils/findingsPicker';
 import {
   folderTaskEndMessage,
   folderTaskNotStopped,
@@ -81,13 +81,16 @@ const CANCELLING: TaskState = 'cancelling';
 /** A folder task's poll runs until the task ends; Stop asks the backend, not the poll. */
 const NEVER_ABORTED = new AbortController().signal;
 
-/** What starts each kind of task over the folder at `path`: every file, of any size, nothing forced. */
+/**
+ * What starts each kind of task over the folder at `path`: every file,
+ * of any size, nothing forced; a scan names the default set by name.
+ */
 const STARTS: Record<
   FolderTaskKind,
   (path: string, ids: readonly string[]) => Promise<IndexTaskResponse>
 > = {
   index: (path) => api.startIndex(path, { force: false, threshold: 0 }),
-  findings: (path, ids) => api.startFindingsScan(path, [...ids], false),
+  findings: (path, ids) => api.startFindingsScan(path, scanSelection(ids, get(signatures)), false),
 };
 
 /** The command line's action of each kind. */

@@ -504,8 +504,11 @@ caches each file's findings per signature.
   labels the file in the tree (`tree.markFindings`), so the panel and
   the label never show different numbers. A scan is followed there, not in a component,
   so it outlives a tab switch and the file's tab; only `cancelScan`
-  stops it. Its start records the task's `rx scan` command, and its
-  end reads the summaries again. When the summary then lists every requested signature
+  stops it. A scan sends the default set by name (`scanSelection` in
+  `utils/findingsPicker.ts`: `default` when the ids are exactly the
+  default set) and keeps the ids for its own bookkeeping. Its start
+  records the task's `rx scan` command, and its end reads the summaries
+  again. When the summary then lists every requested signature
   missing although the result checked them all, the backend kept nothing
   (rx-go answers a file that grew during the scan without caching it):
   the scan's end is `notKept` and the panel says why, with no second

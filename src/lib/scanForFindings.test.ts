@@ -66,10 +66,9 @@ describe('scanForFindings', () => {
     void scanForFindings(APP_LOG);
     await vi.advanceTimersByTimeAsync(0);
 
+    // By name, so the task's command reads --signatures=default.
     const [scan] = backend.requestsTo('POST', '/v1/findings');
-    expect(scan.body?.signatures).toBe(
-      'python-traceback,java-exception,aws-access-key,sql-statement',
-    );
+    expect(scan.body?.signatures).toBe('default');
     backend.complete(backend.lastTask()?.id ?? '');
     await vi.advanceTimersByTimeAsync(2000);
   });

@@ -253,6 +253,22 @@ describe('a scan', () => {
     ]);
   });
 
+  it('sends the default set by name, and scans no more once it covered it', async () => {
+    const backend = await serve();
+    backend.addFile(APP_LOG, []);
+
+    const done = startScan(APP_LOG, TEST_DEFAULT_IDS, false);
+    await settle(1);
+    backend.complete(backend.lastTask()?.id ?? '');
+    await settle();
+    await done;
+
+    expect(backend.requestsTo('POST', '/v1/findings').map((r) => r.body)).toEqual([
+      { path: APP_LOG, signatures: 'default', force: false },
+    ]);
+    expect(get(commandLog)[0].command).toContain('--signatures=default');
+  });
+
   it('shows its rx scan command in the footer as soon as it starts', async () => {
     const backend = await serve();
     backend.addFile(APP_LOG, []);

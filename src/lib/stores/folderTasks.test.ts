@@ -101,6 +101,18 @@ describe('startFolderTask', () => {
     });
   });
 
+  it('sends the default set by name when the picker is the default set', async () => {
+    await serve();
+
+    void startFolderTask(FOLDER, 'findings');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(backend.requestsTo('POST', '/v1/findings').map((r) => r.body)).toEqual([
+      { path: FOLDER, signatures: 'default', force: false },
+    ]);
+    expect(get(lastCommand)?.command).toContain('--signatures=default');
+  });
+
   it('scans nothing when the picker picks no signature, and says so', async () => {
     await serve();
     settings.update((s) => ({ ...s, findingsPicker: [] }));
