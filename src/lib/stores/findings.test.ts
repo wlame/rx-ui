@@ -373,6 +373,27 @@ describe('a scan', () => {
     expect(backend.requestsTo('POST', '/v1/findings')).toHaveLength(1);
   });
 
+  // The request names the default set `default`, but the scan's end
+  // compares the summary with the ids themselves: the summary lists ids.
+  it('keeps the ids of a default-set scan for its end, and says why the cache kept nothing', async () => {
+    const backend = await serve();
+    backend.addFile(APP_LOG, manyFindings(2));
+    await refreshFindings(APP_LOG);
+
+    const done = startScan(APP_LOG, TEST_DEFAULT_IDS, false);
+    await settle(1);
+    backend.completeUnkept(backend.lastTask()?.id ?? '');
+    await settle();
+    await done;
+
+    const state = findingsOf(get(findingsByFile), APP_LOG);
+    expect(backend.requestsTo('POST', '/v1/findings').map((r) => r.body)).toEqual([
+      { path: APP_LOG, signatures: 'default', force: false },
+    ]);
+    expect(state.summary?.missing).toEqual(TEST_DEFAULT_IDS);
+    expect(state.scanEnd).toEqual({ kind: 'notKept' });
+  });
+
   it('starts no second scan of a file while one runs', async () => {
     const backend = await serve();
     backend.addFile(APP_LOG);
