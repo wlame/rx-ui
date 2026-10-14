@@ -19,7 +19,12 @@ function stubBackend(contractVersion: string) {
       backend.paths.push(path);
       const body =
         path === '/health'
-          ? { status: 'ok', contract_version: backend.contractVersion, app_version: 'test' }
+          ? {
+              status: 'ok',
+              contract_version: backend.contractVersion,
+              tree_refresh_seconds: 0,
+              app_version: 'test',
+            }
           : { path: '/var/log', entries: [] };
       return {
         ok: true,

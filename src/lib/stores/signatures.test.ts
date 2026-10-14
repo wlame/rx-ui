@@ -64,7 +64,9 @@ function serveBackend(features: string[], catalogue: SignaturesResponse = CATALO
       backend.paths.push(path);
       const isFailure = path === '/v1/signatures' && backend.failing;
       const body =
-        path === '/health' ? { status: 'ok', contract_version: '2.0', features } : catalogue;
+        path === '/health'
+          ? { status: 'ok', contract_version: '2.0', tree_refresh_seconds: 0, features }
+          : catalogue;
       return {
         ok: !isFailure,
         status: isFailure ? 500 : 200,

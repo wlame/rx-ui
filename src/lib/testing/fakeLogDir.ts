@@ -332,6 +332,7 @@ export class LogDirBackend {
       case '/health':
         return answer(200, {
           contract_version: '2.0',
+          tree_refresh_seconds: 0,
           features: this.options.features ?? ['log_chains'],
         });
       case '/v1/tree':

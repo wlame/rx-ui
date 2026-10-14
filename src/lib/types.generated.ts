@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Health check and system introspection
-         * @description Returns service status, ripgrep availability, app version, OS info, environment variables, and hook configuration.
+         * @description Returns service status, ripgrep availability, app version, OS info, environment variables, hook configuration, and tree_refresh_seconds: how often the viewer reads the loaded folders of its files list again (0: never by itself).
          */
         get: operations["health"];
         put?: never;
@@ -986,6 +986,11 @@ export interface components {
             system_resources: {
                 [key: string]: unknown;
             };
+            /**
+             * Format: int64
+             * @description How often, in seconds, the viewer reads the loaded folders of its files list again while its tab is visible: rx serve --tree-refresh, else RX_TREE_REFRESH_SECONDS, else 5. 0: the viewer does not refresh the list by itself.
+             */
+            tree_refresh_seconds: number;
         };
         IndexRequest: {
             /** @description Build the index again even when a valid one is stored; over a directory, for every file. */
@@ -1885,7 +1890,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description A task for the same path is already running; task_id names it */
+            /** @description The scan task of the same directory was cancelled and its worker has not stopped yet (status cancelling); task_id names it. Ask again once it has ended. A scan of the same file or directory that is running is joined (202), not refused. */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -169,7 +169,8 @@ function serveBackend(features: string[] = []) {
           ? json({ path, entries })
           : json({ entries: [{ type: 'directory', path: '/logs', name: 'logs' }] });
       }
-      if (parsed.pathname === '/health') return json({ contract_version: '2.0', features });
+      if (parsed.pathname === '/health')
+        return json({ contract_version: '2.0', tree_refresh_seconds: 0, features });
       if (parsed.pathname === '/v1/time-range') {
         return json({
           path,

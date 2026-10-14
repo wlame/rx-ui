@@ -532,6 +532,7 @@ export class FindingsBackend {
       case 'GET /health':
         return answer(200, {
           contract_version: '2.0',
+          tree_refresh_seconds: 0,
           features: this.options.features ?? ['signatures'],
         });
       case 'GET /v1/signatures':

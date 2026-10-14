@@ -13,6 +13,7 @@ function serveHealth(contractVersion = '2.0', features?: unknown) {
     json: async () => ({
       status: 'ok',
       contract_version: contractVersion,
+      tree_refresh_seconds: 0,
       ...(features === undefined ? {} : { features }),
     }),
     text: async () => '',

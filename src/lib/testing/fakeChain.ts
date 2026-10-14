@@ -789,6 +789,7 @@ export class FakeChain {
       case '/health':
         return answer(200, {
           contract_version: '2.0',
+          tree_refresh_seconds: 0,
           features: this.options.features ?? ['log_chains', 'samples_index_build'],
         });
       case '/v1/logs/chain': {

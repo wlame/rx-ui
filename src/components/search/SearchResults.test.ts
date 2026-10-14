@@ -171,7 +171,11 @@ async function chainModeWith(isOn: boolean) {
       ok: true,
       status: 200,
       statusText: 'OK',
-      json: async () => ({ contract_version: '2.0', features: ['log_chains'] }),
+      json: async () => ({
+        contract_version: '2.0',
+        tree_refresh_seconds: 0,
+        features: ['log_chains'],
+      }),
       text: async () => '',
     })),
   );

@@ -66,7 +66,8 @@ function serveRoots(roots: string[]) {
   });
   vi.stubGlobal('fetch', async (url: string) => {
     const parsed = new URL(url, 'http://localhost');
-    if (parsed.pathname === '/health') return answer({ contract_version: '2.0', features: [] });
+    if (parsed.pathname === '/health')
+      return answer({ contract_version: '2.0', tree_refresh_seconds: 0, features: [] });
     const path = parsed.searchParams.get('path');
     if (path !== null) return answer(listing(path, [], false));
     const entries = roots.map((root) => treeEntry(root, 'directory', { children_count: 0 }));
