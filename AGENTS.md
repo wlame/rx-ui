@@ -285,13 +285,13 @@ role="tab">` that also carries the drag handlers; its close button is a
 - The status bar's equivalent command comes from `stores/commands.ts`,
   which records the backend's `cli_command` of each answer to a user
   action (search, file window, index, scan). An index or findings task
-  (of a file or a folder) records its task's command (`rx index`, `rx
-scan`) from the answer that starts it, else from its first status,
-  else from its result; its end records nothing more. Record a new
-  action's command there; never build a command in the viewer. The one exception
-  is a copy of findings: the backend's command of a findings answer
-  names the picker's selection, not the group or signature a header
-  narrows it to, so `findingsCopyCommand` (`findingsCopy.ts`) writes
+  (of a file or a folder) records its task's command, `rx index` or
+  `rx scan`, from the answer that starts it, else from its first
+  status, else from its result; its end records nothing more. Record a
+  new action's command there; never build a command in the viewer. The
+  one exception is a copy of findings: the backend's command of a
+  findings answer names the picker's selection, not the group or
+  signature a header narrows it to, so `findingsCopyCommand` (`findingsCopy.ts`) writes
   `rx trace --signatures=group:<g> -B <N> <path>` (a signature's id, or
   the picked signatures for Copy all), quoting each word as rx quotes
   its own commands. A group's command names the whole group, not the
@@ -354,7 +354,8 @@ scan`) from the answer that starts it, else from its first status,
   inside a panel, where a panel switch or Back would hide it while
   `modalOpen` still counts it: a panel that opens one has `App.svelte`
   draw it, as the folder dialog of the files panel is
-  (`FolderTaskDialog.svelte`; `Sidebar.test.ts` tests the rule with it). A component shows a panel through `showPanel(id, focus)` or
+  (`FolderTaskDialog.svelte`; `Sidebar.test.ts` tests the rule with
+  it). A component shows a panel through `showPanel(id, focus)` or
   `clickPanelButton(id)` (`stores/layout.ts`); only `restoreView` sets
   `sidebarTab` itself, from a link.
   A focus request (`treeFocusRequested`, `searchFocusRequested`,

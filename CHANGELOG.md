@@ -195,7 +195,6 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   folder); the end of a scan no longer replaces it with an `rx trace`
   command. A scan of the default set, from a menu or the panel, names it
   by name (`--signatures=default`) rather than listing every id.
-
 - The viewer speaks wire contract 2 and needs rx-go 0.8.0 or later. A
   backend that reports contract 1 (rx-python, rx-go before 0.8.0) is
   refused with the blocking message that names both versions, and no
