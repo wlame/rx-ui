@@ -59,7 +59,7 @@ export interface paths {
         put?: never;
         /**
          * Scan a file, or every file of a directory, for signatures (background task)
-         * @description Starts a task (operation findings) that scans the file for the selected signatures the findings cache does not hold (with force, for all of them) and caches what it finds; a scan of the same file already running is returned instead, and it scans what it was started for. Poll GET /v1/tasks/{task_id}: bytes_read and bytes_total say how far it read; its result is the answer GET /v1/findings gives without filters, with the first page. DELETE /v1/tasks/{task_id} cancels it. At most RX_MAX_SIGNATURE_SCANS scans read files at once; later ones wait, queued. For a directory, one task scans every file the file tree lists under it, recursively, one at a time, as rx scan DIR --recursive does: a file that is not text, and a file whose findings are current for every selected signature (unless force), is skipped, a file whose scan fails is recorded and the task goes on. Its status has files_done and files_total (bytes_read and bytes_total follow the file it reads), its result is a FolderTaskResult, and DELETE cancels it between two files or inside one; the files scanned before the cancel keep their findings.
+         * @description Starts a task (operation findings) that scans the file for the selected signatures the findings cache does not hold (with force, for all of them) and caches what it finds; a scan of the same file already running is returned instead, and it scans what it was started for. Poll GET /v1/tasks/{task_id}: bytes_read and bytes_total say how far it read; its result is the answer GET /v1/findings gives without filters, with the first page. DELETE /v1/tasks/{task_id} cancels it. At most RX_MAX_SIGNATURE_SCANS scans read files at once; later ones wait, queued. For a directory, one task scans every file the file tree lists under it, recursively, one at a time, as rx scan DIR --recursive does: a file that is not text, and a file whose findings are current for every selected signature (unless force), is skipped, a file whose scan fails is recorded and the task goes on. Its status has files_done and files_total (bytes_read and bytes_total follow the file it reads), its result is a FolderTaskResult, and DELETE cancels it between two files or inside one; the files scanned before the cancel keep their findings. Until its worker has stopped it is cancelling and a POST for the directory answers 409 rather than joining it.
          */
         post: operations["findings-scan"];
         delete?: never;
@@ -83,7 +83,7 @@ export interface paths {
         put?: never;
         /**
          * Build the line index of a file, or of every file of a directory (background task)
-         * @description Creates a background task that indexes the file. Poll /v1/tasks/{id} for progress. For a directory, one task indexes every file the file tree lists under it, recursively, one at a time, as rx index DIR --recursive does: a file below the threshold, a file that is not text and a file whose index is current (unless force) is skipped, a file whose build fails is recorded and the task goes on. Its status has files_done and files_total, its result is a FolderTaskResult, and DELETE /v1/tasks/{task_id} cancels it between two files.
+         * @description Creates a background task that indexes the file. Poll /v1/tasks/{id} for progress. For a directory, one task indexes every file the file tree lists under it, recursively, one at a time, as rx index DIR --recursive does: a file below the threshold, a file that is not text and a file whose index is current (unless force) is skipped, a file whose build fails is recorded and the task goes on. Its status has files_done and files_total, its result is a FolderTaskResult, and DELETE /v1/tasks/{task_id} cancels it: the build of the current file stops at its next read and stores nothing. Until its worker has stopped the task is cancelling and a POST for the directory answers 409.
          */
         post: operations["index-post"];
         delete?: never;
@@ -248,7 +248,7 @@ export interface paths {
         post?: never;
         /**
          * Cancel a findings scan or a task over a directory
-         * @description Cancels a queued or running findings task (POST /v1/findings): the scan stops and caches nothing, and the task ends at once with status cancelled, which this answer shows. A client that joined the same scan sees it cancelled and may start it again. A task over a directory (POST /v1/index or POST /v1/findings given a directory) stops between two files, a findings one inside a file's scan too: the files ended before the cancel keep their index or findings, the file a cancel stops writes nothing, and no later file is read. 409 for a task of another operation (an index task over one file, compress, chain_index), for a task that has already ended, and for a findings task over one file whose scan has finished reading and is writing its answer (such a task never ends cancelled with findings written).
+         * @description Cancels a queued or running findings task (POST /v1/findings): the scan stops and caches nothing, and the task ends at once with status cancelled, which this answer shows. A client that joined the same scan sees it cancelled and may start it again. A task over a directory (POST /v1/index or POST /v1/findings given a directory) stops the file it is on at the file's next read and takes no later file: the files ended before the cancel keep their index or findings, the file a cancel stops writes nothing. Until its worker has stopped it shows status cancelling and keeps the directory (a POST for it answers 409), then it ends cancelled; a second DELETE meanwhile answers 200 with it cancelling. 409 for a task of another operation (an index task over one file, compress, chain_index), for a task that has already ended, and for a findings task over one file whose scan has finished reading and is writing its answer (such a task never ends cancelled with findings written).
          */
         delete: operations["task-cancel"];
         options?: never;
@@ -1413,7 +1413,7 @@ export interface components {
             /** @description The task's result once it completes: IndexTaskResult for an index task, CompressTaskResult for a compress task, ChainIndexTaskResult for a chain_index task, FindingsResponse for a findings task, FolderTaskResult for an index or findings task over a directory (files_total is set in its status). Null until then. */
             result: components["schemas"]["IndexTaskResult"] | components["schemas"]["CompressTaskResult"] | components["schemas"]["ChainIndexTaskResult"] | components["schemas"]["FindingsResponse"] | components["schemas"]["FolderTaskResult"] | null;
             started_at: string | null;
-            /** @description queued, running, completed, failed, or cancelled (a findings task, or an index task over a directory, stopped by DELETE /v1/tasks/{task_id}). */
+            /** @description queued, running, completed, failed, cancelled (a findings task, or a task over a directory, stopped by DELETE /v1/tasks/{task_id}), or cancelling (a task over a directory that DELETE cancelled, whose worker has not stopped yet: it still holds the directory, a POST for it answers 409, and it becomes cancelled once the worker stops; not an end). */
             status: string;
             task_id: string;
         };
@@ -1883,6 +1883,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description A task for the same path is already running; task_id names it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskConflictError"];
                 };
             };
             /** @description The request does not match the schema: a required parameter or field is missing, or a value has the wrong type or is out of range */
