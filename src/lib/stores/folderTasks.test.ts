@@ -112,6 +112,15 @@ describe('startFolderTask', () => {
     expect(folderTaskOf(FOLDER)).toBeNull();
   });
 
+  it('starts no scan on a backend that does not serve signatures', async () => {
+    await serve([]);
+
+    await startFolderTask(FOLDER, 'findings');
+
+    expect(backend.requestsTo('POST', '/v1/findings')).toEqual([]);
+    expect(folderTaskOf(FOLDER)).toBeNull();
+  });
+
   it('follows the files done and the total of the folder', async () => {
     await serve();
     void startFolderTask(FOLDER, 'findings');

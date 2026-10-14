@@ -16,6 +16,7 @@ import {
 import { watchTask, type TaskEnd } from '../utils/taskPolling';
 import { commandLog, type CommandAction } from './commands';
 import { findingsByFile, refreshFindings } from './findings';
+import { backendHas } from './health';
 import { notifications } from './notifications';
 import { settings } from './settings';
 import { loadSignatures, signatures } from './signatures';
@@ -235,13 +236,15 @@ function recordCommand(command: string | null | undefined, kind: FolderTaskKind)
  * the backend runs for it, and follow it to its end. A scan takes the
  * signatures the Findings panel picks; with none picked nothing starts.
  * While a stopped task of the folder has not ended, nothing starts and a
- * notification asks to try again.
+ * notification asks to try again. A scan starts only on a backend that
+ * serves signatures.
  * The task's command goes to the command line as soon as it is known.
  * Nothing starts while a task of the folder is followed. Resolves once
  * the task has ended and the folder's rows are read again.
  */
 export async function startFolderTask(path: string, kind: FolderTaskKind): Promise<void> {
   if (get(state).has(path)) return;
+  if (kind === 'findings' && !backendHas('signatures')) return;
   state.update((map) =>
     new Map(map).set(path, {
       kind,
