@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import { FakeChain } from '../testing/fakeChain';
 import { CHAIN_NAMES, LOG_DIR, LOG_ROOT, LogDirBackend, serveLogDir } from '../testing/fakeLogDir';
+import { TreeDirBackend, serveTreeDir } from '../testing/fakeTreeDir';
 import { isChainRow, shownChildren } from '../utils/chainTree';
 import { DEFAULT_SORT } from '../utils/treeSort';
 import { chainMode } from './chainMode';
@@ -350,6 +351,175 @@ describe('the tree in chain mode', () => {
     expect(described.size).toBe(MAX_DESCRIBED_CHAINS);
     expect(described.has('/many/c0.log')).toBe(false);
     expect(described.has(`/many/c${MAX_DESCRIBED_CHAINS}.log`)).toBe(true);
+  });
+});
+
+describe('the tree read again by its refresh', () => {
+  const ROOT = '/logs';
+  const APP_LOG = `${ROOT}/app.log`;
+  const SUB = `${ROOT}/sub`;
+  let backend: TreeDirBackend;
+
+  /**
+   * The tree over a backend holding `/logs` with `app.log`, `old.log`,
+   * the folder `sub` (holding `x.log`) and the folder `closed` (holding
+   * the folder `inner`), with `sub` open.
+   */
+  async function openTree(features: string[] = []) {
+    backend = new TreeDirBackend([ROOT], { features });
+    backend.add(APP_LOG, 'file', { size: 100, modified_at: '2026-10-12T08:00:00Z' });
+    backend.add(`${ROOT}/old.log`, 'file', { size: 10 });
+    backend.add(SUB, 'directory');
+    backend.add(`${SUB}/x.log`, 'file');
+    backend.add(`${ROOT}/closed`, 'directory');
+    backend.add(`${ROOT}/closed/inner`, 'directory');
+    serveTreeDir(backend);
+    await health.check();
+    await tree.loadRoots();
+    await tree.expand(SUB);
+  }
+
+  /** The names of the rows the tree holds in the folder at `path`. */
+  function namesIn(path: string): string[] {
+    return tree.nodeAt(path)?.children.map((child) => child.name) ?? [];
+  }
+
+  /** The folders whose listing was asked from now on. */
+  function listingsFromNow(): () => string[] {
+    const before = backend.listingsAsked().length;
+    return () => backend.listingsAsked().slice(before);
+  }
+
+  afterEach(() => {
+    chainMode.set(false);
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('shows a file created in an open folder, drops a deleted one and shows a new size, date and labels', async () => {
+    await openTree();
+    backend.add(`${ROOT}/new.log`, 'file', { size: 5 });
+    backend.add(`${SUB}/y.log`, 'file');
+    backend.remove(`${ROOT}/old.log`);
+    const grown = {
+      size: 250,
+      modified_at: '2026-10-12T08:00:05Z',
+      is_indexed: true,
+      findings: { state: 'partial' as const, count: 3 },
+    };
+    backend.change(APP_LOG, grown);
+
+    await tree.refreshOpenFolders();
+
+    expect(namesIn(ROOT)).toEqual(['app.log', 'closed', 'new.log', 'sub']);
+    expect(namesIn(SUB)).toEqual(['x.log', 'y.log']);
+    expect(tree.nodeAt(APP_LOG)).toMatchObject(grown);
+  });
+
+  it('asks once for each open folder on screen, and not for a closed one nor an open one inside it', async () => {
+    await openTree();
+    await tree.expand(`${ROOT}/closed`);
+    await tree.expand(`${ROOT}/closed/inner`);
+    tree.collapse(`${ROOT}/closed`);
+    const asked = listingsFromNow();
+
+    await tree.refreshOpenFolders();
+
+    expect(asked().sort()).toEqual([ROOT, SUB]);
+  });
+
+  it('keeps each open folder open with its rows, and drops an open folder deleted with its rows', async () => {
+    await openTree();
+    await tree.refreshOpenFolders();
+    expect(tree.nodeAt(SUB)?.expanded).toBe(true);
+    expect(namesIn(SUB)).toEqual(['x.log']);
+
+    backend.remove(SUB);
+    // The folder's own listing answers 404; the folder is gone, nothing failed.
+    await tree.refreshOpenFolders();
+
+    expect(tree.nodeAt(SUB)).toBeNull();
+    expect(tree.nodeAt(`${SUB}/x.log`)).toBeNull();
+  });
+
+  it('changes nothing when the listings say nothing new', async () => {
+    await openTree();
+    const heard = vi.fn();
+    const unsubscribe = tree.subscribe(heard);
+    heard.mockClear();
+
+    await tree.refreshOpenFolders();
+    unsubscribe();
+
+    expect(heard).not.toHaveBeenCalled();
+  });
+
+  it('never asks for one folder twice at once: a folder whose listing is on its way is left to it', async () => {
+    await openTree();
+    const asked = listingsFromNow();
+    backend.hold();
+
+    const first = tree.refreshOpenFolders();
+    const second = tree.refreshOpenFolders();
+    backend.release();
+    await Promise.all([first, second]);
+
+    expect(asked().sort()).toEqual([ROOT, SUB]);
+  });
+
+  it('rejects once every folder is read when one could not be, and shows what the others hold', async () => {
+    await openTree();
+    backend.failListing(SUB, 500);
+    backend.add(`${ROOT}/new.log`, 'file');
+
+    await expect(tree.refreshOpenFolders()).rejects.toThrow();
+
+    expect(namesIn(ROOT)).toContain('new.log');
+    expect(namesIn(SUB)).toEqual(['x.log']);
+    expect(get(tree).error).toBeNull();
+  });
+
+  // A scan or an index build that ends while a listing asked before it is
+  // on its way: that listing still holds the labels from before.
+  it('keeps the labels a scan or an index set while a listing asked before it was on its way', async () => {
+    await openTree();
+    backend.hold();
+    const refreshing = tree.refreshOpenFolders();
+
+    tree.markFindings(APP_LOG, 'full', 4);
+    tree.markIndexed(APP_LOG, 120);
+    backend.change(`${ROOT}/old.log`, { size: 11 });
+    backend.release();
+    await refreshing;
+
+    expect(tree.nodeAt(APP_LOG)).toMatchObject({
+      findings: { state: 'full', count: 4 },
+      is_indexed: true,
+      line_count: 120,
+    });
+    expect(tree.nodeAt(`${ROOT}/old.log`)?.size).toBe(11);
+
+    // A listing asked after the marks shows what the backend holds.
+    backend.change(APP_LOG, { findings: { state: 'partial', count: 1 }, is_indexed: true });
+    await tree.refreshOpenFolders();
+    expect(tree.nodeAt(APP_LOG)?.findings).toEqual({ state: 'partial', count: 1 });
+  });
+
+  it('lists the chains of an open folder again in chain mode only when its listing changed', async () => {
+    await openTree(['log_chains']);
+    chainMode.set(true);
+    await Promise.all([tree.refreshChains(ROOT), tree.refreshChains(SUB)]);
+    const chainsAsked = () => backend.requestsTo('/v1/logs/chains').length;
+    const before = chainsAsked();
+
+    await tree.refreshOpenFolders();
+    expect(chainsAsked()).toBe(before);
+
+    backend.add(`${SUB}/x.log.1`, 'file');
+    await tree.refreshOpenFolders();
+    expect(backend.requestsTo('/v1/logs/chains').slice(before)).toEqual([
+      `/v1/logs/chains?path=${encodeURIComponent(SUB)}`,
+    ]);
   });
 });
 

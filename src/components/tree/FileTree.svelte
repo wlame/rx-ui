@@ -8,7 +8,9 @@
    * the rows the panel draws) and applies it; the rows only draw and
    * answer clicks. When the current row goes (a folder closed above it,
    * chain mode, a new listing), the row that takes its place becomes
-   * current, and takes the keyboard focus if its row had it.
+   * current, and takes the keyboard focus if its row had it. When rows
+   * come or go above the rows in view (a listing read again), the rows in
+   * view stay where they are on screen.
    */
   import { onMount, tick } from 'svelte';
   import { get } from 'svelte/store';
@@ -28,7 +30,8 @@
     type TreeNavAction,
     type Typeahead,
   } from '$lib/utils/treeNav';
-  import { replacementRow, type VisibleRow } from '$lib/utils/treeRows';
+  import { hasRowMoved, replacementRow, type VisibleRow } from '$lib/utils/treeRows';
+  import { captureScrollAnchor, restoreScrollAnchor } from '$lib/utils/scrollAnchor';
   import FilesToolbar from './FilesToolbar.svelte';
   import TreeHeader, { COLUMN_GUTTER_CLASS } from './TreeHeader.svelte';
   import TreeNode from './TreeNode.svelte';
@@ -184,7 +187,8 @@
   /**
    * After a change of the rows, keep the current row and the focus on it.
    * A row still shown keeps the focus it had, also when a new order moved
-   * it. When the current row is no longer shown, the row that takes its
+   * it (rows added or removed around it do not move it: `hasRowMoved`).
+   * When the current row is no longer shown, the row that takes its
    * place becomes current (`fallbackFocus`): the chain row that shows it
    * as a part, else the nearest folder above it, else the first row; the
    * focus follows when the row had it. While the roots load or the tree
@@ -197,10 +201,8 @@
     if (current === null) return;
     // Read before the update draws the rows: a row that moves loses the focus.
     const hadFocus = isFocusOnRows();
-    const index = rows.findIndex((row) => row.id === current);
-    if (index >= 0) {
-      const indexBefore = previous.findIndex((row) => row.id === current);
-      const hasMoved = indexBefore >= 0 && indexBefore !== index;
+    if (rows.some((row) => row.id === current)) {
+      const hasMoved = hasRowMoved(previous, rows, current);
       if (hadFocus) void tick().then(() => keepFocusOn(current, hasMoved));
       return;
     }
@@ -211,7 +213,29 @@
     if (hadFocus && next !== null) void tick().then(() => moveFocusTo(next));
   }
 
+  /** The rows as the scroll anchor last saw them. */
+  let anchorRows: readonly VisibleRow[] = [];
+
+  /**
+   * Keep the rows in view where they are on screen through a change of
+   * the rows: before the update draws them, note the first row in view
+   * (`captureScrollAnchor`), and once it has, scroll it back to where it
+   * started. A row that the change moves (a new order, a mode) is not
+   * held, and the view stays as it was; at the top of the list, a row
+   * that comes above the first one shows.
+   */
+  function holdRowsInView(rows: readonly VisibleRow[]) {
+    const before = anchorRows;
+    anchorRows = rows;
+    const anchor = treeElement ? captureScrollAnchor(treeElement) : null;
+    if (anchor === null || hasRowMoved(before, rows, anchor.id)) return;
+    void tick().then(() => {
+      if (treeElement) restoreScrollAnchor(treeElement, anchor);
+    });
+  }
+
   $: areRowsDrawn = !$tree.loading && $tree.error === null;
+  $: if (areRowsDrawn) holdRowsInView($treeRows);
   $: if (areRowsDrawn) keepCurrentRow($treeRows, $treeFocus);
 
   // A panel key asks for the tree's focus, possibly while the roots load;
@@ -242,10 +266,12 @@
   <TreeHeader />
 
   <!-- The rows hold the focus, one of them the Tab stop; the tree itself
-       takes none, and its key handler answers the keys of its rows. -->
+       takes none, and its key handler answers the keys of its rows. It
+       keeps its rows in view itself (holdRowsInView), so the browser's
+       own scroll anchoring, which Safari lacks, is off. -->
   <!-- svelte-ignore a11y-interactive-supports-focus -->
   <div
-    class="flex-1 overflow-auto py-1 {COLUMN_GUTTER_CLASS}"
+    class="flex-1 overflow-auto [overflow-anchor:none] py-1 {COLUMN_GUTTER_CLASS}"
     role="tree"
     aria-label="Files"
     bind:this={treeElement}

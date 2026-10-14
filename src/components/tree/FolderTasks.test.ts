@@ -282,6 +282,30 @@ describe('a folder task from the menu', () => {
   });
 });
 
+describe('a folder task while the files list is read again', () => {
+  it.each([
+    ['Scan all files for findings', 'Scan', 'scanning 1/3'],
+    ['Index all files', 'Index', 'indexing 1/3'],
+  ])("keeps the folder's badge through a refresh after %s", async (item, button, label) => {
+    await mount();
+    await choose(FOLDER, item);
+    dialogButton(button).click();
+    await settle(0);
+    backend.progress(backend.lastTask().id, 1, 3);
+    await settle(1);
+    const badge = rowOf(FOLDER)?.querySelector('[data-folder-task]');
+    expect(folderLabel()).toBe(label);
+
+    backend.setLabels(APP_LOG, { is_indexed: true, findings: { state: 'partial', count: 2 } });
+    await tree.refreshOpenFolders();
+    await tick();
+
+    expect(folderLabel()).toBe(label);
+    expect(rowOf(FOLDER)?.querySelector('[data-folder-task]')).toBe(badge);
+    expect(rowOf(APP_LOG)?.querySelector('[data-findings-label]')?.textContent?.trim()).toBe('2');
+  });
+});
+
 describe('a file task from the menu', () => {
   it("shows the index task's command in the footer when Index starts it", async () => {
     await mount();

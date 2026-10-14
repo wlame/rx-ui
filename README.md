@@ -63,7 +63,12 @@ way.
   tree works from the keyboard as one Tab stop: arrows, Home and End,
   PageUp and PageDown, Enter to open, typing a name to go to it, and Esc
   back to the open file. A file the backend marks as not text is not
-  opened.
+  opened. While its browser tab is visible, the tree reads its open
+  folders again every few seconds, as the backend says
+  (`rx serve --tree-refresh=SECONDS`, 5 by default, 0 for never): new
+  and deleted files, sizes, dates and labels show without a reload, and
+  the open folders, the selected row, the focus and the rows in view
+  stay where they are.
 - **Tabs** for the open files, reordered by drag and drop. Each tab keeps
   its own filter bar and scroll position. Closing the active tab shows
   the tab used before it. Alt+] and Alt+[ go through the tabs, Alt+Q

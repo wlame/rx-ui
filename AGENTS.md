@@ -103,6 +103,7 @@ older viewers.
 | `src/lib/actions/`                                        | Svelte actions: `tooltip`, `modal` (counts an open modal), `takeFocus`, `captureKeydown` (keys first), `measureSize` (an element's height or width)      |
 | `src/lib/utils/icons.ts`                                  | The icon table (Lucide outlines); `src/components/common/Icon.svelte` draws it                                                                           |
 | `src/lib/utils/treeSort.ts`, `treeRows.ts`, `treeNav.ts`  | The files panel's sort, the rows the tree shows as one list, and the tree's key rules                                                                    |
+| `stores/treeRefresh.ts`, `utils/treeListing.ts`           | The files list read again every `tree_refresh_seconds` of `/health`; a listing merged into a folder's rows                                               |
 | `src/lib/utils/tabOrder.ts`, `recentSwitch.ts`            | The open tabs' strip and recent orders; the recent-tab switcher's state machine                                                                          |
 | `src/lib/stores/signatures.ts`, `utils/groupStyle.ts`     | The signature catalogue and the colours of its groups (see "Signatures and findings")                                                                    |
 | `stores/folderTasks.ts`, `utils/folderTaskText.ts`        | Index and scan every file of a folder from its menu: the question, the task, its progress, Stop, the end                                                 |
@@ -420,6 +421,33 @@ role="tab">` that also carries the drag handlers; its close button is a
   the visible rows and the tree's one Tab stop. When the focused row goes
   (a folder closes, a mode or a sort moves it) `fallbackFocus` names the
   row that takes its place.
+- The files list reads its open folders again by itself while
+  `rx serve` runs. `stores/treeRefresh.ts` is the one place that times
+  it: `startTreeRefresh` (App's mount; its stop clears the timer and the
+  `visibilitychange` listener) runs `tree.refreshOpenFolders` every
+  `tree_refresh_seconds` of `/health` (`refreshSecondsOf`: 0, a missing
+  or invalid value and a refused contract turn it off; a `/health` that
+  fails keeps the last value). One round at a time, timed from the end
+  of the last; none while the tab is hidden, one when it is shown again
+  if one fell due; after a failed round the wait doubles
+  (`waitAfterFailure`, up to `MAX_FAILED_WAIT_MS` or the interval) and
+  a round that succeeds brings it back. A round lists every expanded
+  folder on screen at once and skips a folder whose listing is on its
+  way (`listingsAgain`); a 404 is a folder gone, not a failure.
+  `utils/treeListing.ts` merges a listing into the rows
+  (`mergeListing`): an unchanged row stays the same object, and a
+  listing that says nothing new changes nothing, so a quiet refresh
+  notifies no subscriber. `markIndexed` and `markFindings` note what
+  they set (`RecentMarks`), and a listing asked before such a mark keeps
+  it. Chains are listed again only when a folder's files changed
+  (`haveFilesChanged`). `FileTree.svelte` keeps the rows in view in
+  place through any change of the rows (`utils/scrollAnchor.ts`, with
+  the browser's `overflow-anchor` off) unless the change moves the
+  first row in view, and `hasRowMoved` (`utils/treeRows.ts`) counts a
+  row as moved only when its place among the rows shown before and
+  after changed, so a row added above the focused one scrolls nothing
+  into view. A listing read again goes through `reloads`, never
+  `loadDirectory`, whose failure sets the tree's error.
 - `stores/searchDraft.ts` holds the search panel's form (patterns,
   toggles, Only opened files, and the max box's text as typed) and
   outlives the panel. `searchRequest` (`stores/trace.ts`) is the search

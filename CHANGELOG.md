@@ -183,6 +183,21 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   notification says so: "Scanned 210 files under logs/, skipped 3,
   failed 1", or where a stopped task stopped. While a stopped task still
   holds the folder, a new one is refused with "try again in a moment".
+- The files panel reads its open folders again by itself, every
+  `tree_refresh_seconds` of the backend's `/health`
+  (`rx serve --tree-refresh=SECONDS`, 5 seconds by default; 0, or a
+  backend that sends no value, turns it off), while the browser tab is
+  visible. A file created under an open folder shows, a deleted one
+  goes (an open folder with its rows), and sizes, dates and the index
+  and findings labels change in place. Open folders, the selected and
+  the focused rows and the rows in view stay where they are; a running
+  folder task's progress stays on its row. One request per open folder,
+  and none for a folder still waiting for its last one; in chain mode a
+  folder whose files changed lists its chains again too. No request
+  while the tab is hidden, and one when it is shown again if one fell
+  due. After a refresh that failed, the next waits twice as long, up to
+  a minute (or the interval, when that is longer), then the interval
+  again. The editor does not read an open file again.
 
 ### Changed
 

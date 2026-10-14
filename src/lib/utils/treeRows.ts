@@ -115,3 +115,24 @@ export function replacementRow(directory: TreeNode | null, lostId: string): stri
   const chain = directory?.chains?.find((candidate) => candidate.parts.includes(name));
   return chain ? chainKey(chain.path) : null;
 }
+
+/**
+ * Whether the row `id` moved from the rows `before` to the rows `after`:
+ * whether its place among the rows both show changed. Rows added or
+ * removed around it shift it on screen without moving it, as a listing
+ * read again does; a new order or a mode moves it. A row that only one
+ * of the two shows has not moved.
+ */
+export function hasRowMoved(
+  before: readonly VisibleRow[],
+  after: readonly VisibleRow[],
+  id: string,
+): boolean {
+  const beforeIds = new Set(before.map((row) => row.id));
+  const afterIds = new Set(after.map((row) => row.id));
+  const placeAmong = (rows: readonly VisibleRow[], others: ReadonlySet<string>) =>
+    rows.filter((row) => others.has(row.id)).findIndex((row) => row.id === id);
+  const placeBefore = placeAmong(before, afterIds);
+  const placeAfter = placeAmong(after, beforeIds);
+  return placeBefore >= 0 && placeAfter >= 0 && placeBefore !== placeAfter;
+}

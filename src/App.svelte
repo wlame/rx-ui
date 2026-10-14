@@ -3,6 +3,7 @@
   import { health, settings } from '$lib/stores';
   import { backendHas, contractRefused } from '$lib/stores/health';
   import { loadSignatures } from '$lib/stores/signatures';
+  import { startTreeRefresh } from '$lib/stores/treeRefresh';
   import { installPaletteStyles } from '$lib/utils/groupStyle';
   import { readViewState } from '$lib/utils/urlState';
   import { loadView, startViewSync } from '$lib/viewState';
@@ -20,6 +21,8 @@
 
   onMount(() => {
     health.startPolling();
+    // The files list reads its open folders again as /health says.
+    const stopTreeRefresh = startTreeRefresh();
     // The group colours, for the findings wherever they are drawn.
     installPaletteStyles();
 
@@ -37,6 +40,7 @@
     return () => {
       isDestroyed = true;
       health.stopPolling();
+      stopTreeRefresh();
       stopViewSync?.();
     };
   });

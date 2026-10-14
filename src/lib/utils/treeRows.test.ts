@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { treeEntry } from '../testing/fakeLogDir';
 import type { ChainEntry, TreeEntry, TreeNode } from '../types';
 import { DEFAULT_SORT } from './treeSort';
-import { replacementRow, visibleRows, type VisibleRow } from './treeRows';
+import { hasRowMoved, replacementRow, visibleRows, type VisibleRow } from './treeRows';
 
 /** A folder at `path`, with `children` and, when listed, its chains. */
 function folder(
@@ -246,5 +246,35 @@ describe('replacementRow', () => {
     expect(replacementRow(logs, '/srv/logs/notes.txt')).toBeNull();
     expect(replacementRow({ ...logs, chains: undefined }, '/srv/logs/app.log.1')).toBeNull();
     expect(replacementRow(null, '/srv/logs/app.log.1')).toBeNull();
+  });
+});
+
+describe('hasRowMoved', () => {
+  /** Rows of one folder with the ids `ids`, in that order. */
+  function rowsOf(...ids: string[]): VisibleRow[] {
+    return ids.map((id, index) => ({
+      id,
+      parentId: null,
+      level: 0,
+      kind: 'file',
+      name: id,
+      expanded: false,
+      loading: false,
+      setSize: ids.length,
+      posInSet: index + 1,
+    }));
+  }
+
+  it.each([
+    ['a row added above it', false, ['b', 'c'], ['a', 'b', 'c'], 'c'],
+    ['a row removed above it', false, ['a', 'b', 'c'], ['b', 'c'], 'c'],
+    ['rows added and removed around it', false, ['a', 'b', 'c'], ['x', 'b', 'y'], 'b'],
+    ['the same rows', false, ['a', 'b'], ['a', 'b'], 'b'],
+    ['a new order that puts it after another row', true, ['a', 'b', 'c'], ['b', 'a', 'c'], 'a'],
+    ['a new order that puts another row before it', true, ['a', 'b', 'c'], ['c', 'a', 'b'], 'a'],
+    ['its first showing', false, ['a'], ['a', 'b'], 'b'],
+    ['its going', false, ['a', 'b'], ['a'], 'b'],
+  ])('says whether %s moves the row: %s', (_name, hasMoved, before, after, id) => {
+    expect(hasRowMoved(rowsOf(...before), rowsOf(...after), id)).toBe(hasMoved);
   });
 });

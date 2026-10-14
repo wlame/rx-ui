@@ -1,9 +1,16 @@
 import { writable, get } from 'svelte/store';
-import { api } from '../api';
+import { ApiError, api } from '../api';
 import { contractGate } from '../contractGate';
 import { isChainIndexed } from '../utils/chainParts';
 import { chainDirectoryOf, type DescribedChain } from '../utils/chainTree';
 import { LatestRequest, LatestRequestMap, SUPERSEDED, isAbortError } from '../utils/latestRequest';
+import {
+  RecentMarks,
+  entryToNode,
+  haveFilesChanged,
+  mergeListing,
+  type KeptFields,
+} from '../utils/treeListing';
 import type { ChainEntry, ChainResponse, TreeNode, TreeEntry } from '../types';
 import { chainModeOn } from './chainMode';
 
@@ -25,29 +32,20 @@ interface TreeState {
   describedChains: ReadonlyMap<string, DescribedChain>;
 }
 
-function entryToNode(entry: TreeEntry, level: number): TreeNode {
-  return {
-    ...entry,
-    expanded: false,
-    loading: false,
-    children: [],
-    level,
-  };
+/** The status of a listing of a folder that is gone. */
+const HTTP_NOT_FOUND = 404;
+
+/** Whether a listing failed because its folder is gone, which its parent's listing shows. */
+function isFolderGone(error: unknown): boolean {
+  return error instanceof ApiError && error.status === HTTP_NOT_FOUND;
 }
 
 /**
- * `entries`, a folder's listing, as its rows at `level`: an entry the
- * folder already showed keeps what its row held (open or closed, its own
- * rows and its chains) and takes the listing's fields; a new entry is a
- * closed row, and a row the listing leaves out goes.
+ * What a listing read again did to its folder's rows: nothing, as a newer
+ * listing took over or it said nothing new; changed some; or changed its
+ * files, of which its chains are made.
  */
-function mergeListing(rows: readonly TreeNode[], entries: TreeEntry[], level: number): TreeNode[] {
-  const shown = new Map(rows.map((row) => [row.path, row]));
-  return entries.map((entry) => {
-    const row = shown.get(entry.path);
-    return row && row.type === entry.type ? { ...row, ...entry } : entryToNode(entry, level);
-  });
-}
+type ListingOutcome = 'superseded' | 'unchanged' | 'changed' | 'filesChanged';
 
 /** The folder `node` and every folder under it whose rows are loaded; none when its own are not. */
 function loadedFolders(node: TreeNode): TreeNode[] {
@@ -219,10 +217,57 @@ function createTreeStore() {
     }
   }
 
-  // The listings read again after a task changed a folder's files have
-  // slots of their own, so a reload and the load of a click never cancel
-  // each other; whichever answers last is shown.
+  // The listings read again (after a task changed a folder's files, or by
+  // the refresh) have slots of their own, so a reload and the load of a
+  // click never cancel each other; whichever answers last is shown.
   const reloads = new LatestRequestMap();
+  /** How many listings read again are on their way, by folder. */
+  const listingsAgain = new Map<string, number>();
+  /** The labels the tree set while listings were on their way, which those keep. */
+  const marks = new RecentMarks();
+
+  /**
+   * Show `entries`, a listing of the folder at `path`, in place of its
+   * rows (`mergeListing`), keeping the fields `keptFields` names. Nothing
+   * changes when the listing says nothing new, or the folder is gone.
+   */
+  function showListing(
+    path: string,
+    entries: TreeEntry[],
+    keptFields: KeptFields,
+  ): Exclude<ListingOutcome, 'superseded'> {
+    const node = findNode(get({ subscribe }).roots, path);
+    if (!node || node.type !== 'directory') return 'unchanged';
+    const children = mergeListing(node.children, entries, node.level + 1, keptFields);
+    if (children === node.children) return 'unchanged';
+    update((s) => ({
+      ...s,
+      roots: updateNode(s.roots, path, (n) => ({ ...n, children })),
+    }));
+    return haveFilesChanged(node.children, children) ? 'filesChanged' : 'changed';
+  }
+
+  /**
+   * List the loaded folder `folder` again and show what changed. The
+   * labels the tree set after the listing was asked stay (`marks`): the
+   * listing may hold them from before. Throws what the listing threw.
+   */
+  async function listAgain(folder: TreeNode): Promise<ListingOutcome> {
+    const askedAt = marks.listingAsked();
+    listingsAgain.set(folder.path, (listingsAgain.get(folder.path) ?? 0) + 1);
+    try {
+      const listing = await reloads.run(folder.path, (signal) =>
+        api.getTree(folder.path, { signal }),
+      );
+      if (listing === SUPERSEDED) return 'superseded';
+      return showListing(folder.path, listing.entries ?? [], marks.newerThan(askedAt));
+    } finally {
+      const count = (listingsAgain.get(folder.path) ?? 1) - 1;
+      if (count > 0) listingsAgain.set(folder.path, count);
+      else listingsAgain.delete(folder.path);
+      marks.listingEnded();
+    }
+  }
 
   /**
    * List the loaded folder `folder` again and show its rows' new fields,
@@ -231,17 +276,7 @@ function createTreeStore() {
    */
   async function reloadListing(folder: TreeNode): Promise<void> {
     try {
-      const listing = await reloads.run(folder.path, (signal) =>
-        api.getTree(folder.path, { signal }),
-      );
-      if (listing === SUPERSEDED) return;
-      update((s) => ({
-        ...s,
-        roots: updateNode(s.roots, folder.path, (n) => ({
-          ...n,
-          children: mergeListing(n.children, listing.entries ?? [], n.level + 1),
-        })),
-      }));
+      if ((await listAgain(folder)) === 'superseded') return;
       if (folder.chains !== undefined) await refreshChains(folder.path);
     } catch (e) {
       if (!isAbortError(e)) console.warn('A folder could not be listed again:', folder.path, e);
@@ -258,6 +293,50 @@ function createTreeStore() {
     const node = findNode(get({ subscribe }).roots, path);
     if (!node) return;
     await Promise.all(loadedFolders(node).map(reloadListing));
+  }
+
+  /**
+   * The refresh of one open folder: list it again and, when its files
+   * changed and its chains are listed, its chains too (they are made of
+   * its files).
+   */
+  async function refreshFolder(folder: TreeNode): Promise<void> {
+    const outcome = await listAgain(folder);
+    if (outcome === 'filesChanged' && folder.chains !== undefined) {
+      await refreshChains(folder.path);
+    }
+  }
+
+  /**
+   * Read again every folder the panel shows open, all at once, one
+   * request each, and show what changed in place: new entries, gone ones
+   * (an open folder with its rows), new sizes, dates and labels; each row
+   * keeps whether it is open and its own rows. A folder whose listing is
+   * on its way already is left to it, so a folder is never asked twice at
+   * once; a folder whose rows load is left to that load; and nothing is
+   * asked while the roots load or the tree shows its error. Rejects, once
+   * every listing has ended, when one failed: a folder that is gone (404)
+   * has not, its parent's listing drops its row.
+   */
+  async function refreshOpenFolders(): Promise<void> {
+    const state = get({ subscribe });
+    if (state.loading || state.error !== null) return;
+    const folders = shownFolders(state.roots).filter(
+      (folder) => !folder.loading && !listingsAgain.has(folder.path),
+    );
+    const outcomes = await Promise.allSettled(folders.map(refreshFolder));
+    const failures = outcomes.flatMap((outcome) =>
+      outcome.status === 'rejected' &&
+      !isAbortError(outcome.reason) &&
+      !isFolderGone(outcome.reason)
+        ? [outcome.reason]
+        : [],
+    );
+    if (failures.length === 0) return;
+    const first = failures[0] instanceof Error ? failures[0].message : String(failures[0]);
+    throw new Error(
+      `${failures.length} of ${folders.length} open folders could not be read again: ${first}`,
+    );
   }
 
   /** The directories whose chains are being listed. */
@@ -301,11 +380,9 @@ function createTreeStore() {
    * collapsed directory and every directory under it are left out, an
    * expanded one among them too, as the panel does not show them.
    */
-  function shownDirectories(nodes: readonly TreeNode[]): string[] {
+  function shownFolders(nodes: readonly TreeNode[]): TreeNode[] {
     return nodes.flatMap((node) =>
-      node.type === 'directory' && node.expanded
-        ? [node.path, ...shownDirectories(node.children)]
-        : [],
+      node.type === 'directory' && node.expanded ? [node, ...shownFolders(node.children)] : [],
     );
   }
 
@@ -317,7 +394,7 @@ function createTreeStore() {
   async function listChainsOfShownDirectories(
     nodes: readonly TreeNode[] = get({ subscribe }).roots,
   ): Promise<void> {
-    await Promise.all(shownDirectories(nodes).map(ensureChains));
+    await Promise.all(shownFolders(nodes).map((folder) => ensureChains(folder.path)));
   }
 
   /** Close the folder at `path`; its rows stay loaded. */
@@ -374,6 +451,10 @@ function createTreeStore() {
 
   /** Show a file as indexed after an index task built its index. */
   function markIndexed(path: string, lineCount: number | null) {
+    marks.note(
+      path,
+      lineCount === null ? { is_indexed: true } : { is_indexed: true, line_count: lineCount },
+    );
     update((s) => ({
       ...s,
       roots: updateNode(s.roots, path, (n) => ({
@@ -390,6 +471,7 @@ function createTreeStore() {
    */
   function markFindings(path: string, state: 'full' | 'partial' | 'none', count: number) {
     const findings = state === 'none' ? null : { state, count };
+    marks.note(path, { findings });
     update((s) => ({
       ...s,
       roots: updateNode(s.roots, path, (n) => ({ ...n, findings })),
@@ -481,6 +563,7 @@ function createTreeStore() {
     ensureRoots,
     loadDirectory,
     reloadFolder,
+    refreshOpenFolders,
     expand,
     collapse,
     toggleExpanded,

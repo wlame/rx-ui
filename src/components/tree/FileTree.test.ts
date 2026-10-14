@@ -29,6 +29,8 @@ import {
   serveLogDir,
   treeEntry,
 } from '$lib/testing/fakeLogDir';
+import { TreeDirBackend, serveTreeDir } from '$lib/testing/fakeTreeDir';
+import { layOutRows } from '$lib/testing/rowLayout';
 import { isChainRow, shownChildren } from '$lib/utils/chainTree';
 import { formatFileTime, formatSize } from '$lib/utils/format';
 import type { TreeSort } from '$lib/utils/treeSort';
@@ -417,5 +419,106 @@ describe('the findings label of a file row', () => {
     expect(label()?.dataset.findingsLabel).toBe('full');
     expect(label()?.textContent?.trim()).toBe('2');
     expect(backend.requestsTo('GET', '/v1/tree')).toHaveLength(listings);
+  });
+});
+
+describe('the files panel read again by its refresh', () => {
+  const ROOT = '/logs';
+  const SUB = `${ROOT}/sub`;
+  const X_LOG = `${SUB}/x.log`;
+  const FILES = ['f1.log', 'f2.log', 'f3.log', 'f4.log', 'f5.log', 'f6.log', 'f7.log', 'f8.log'];
+  let backend: TreeDirBackend;
+
+  /**
+   * The panel over `/logs`, which holds the folder `sub` (holding
+   * `x.log`) and the files f1.log to f8.log, with `sub` open: rows 20 px
+   * tall in a view 100 px tall, scrolled by `scrollTop`.
+   */
+  async function mountTree(scrollTop: number) {
+    backend = new TreeDirBackend([ROOT]);
+    backend.add(SUB, 'directory');
+    backend.add(X_LOG, 'file', { is_text: true, size: 10 });
+    for (const name of FILES) backend.add(`${ROOT}/${name}`, 'file', { is_text: true, size: 10 });
+    serveTreeDir(backend);
+    await health.check();
+    await tree.loadRoots();
+    const target = document.body.appendChild(document.createElement('div'));
+    mounted = new FileTree({ target });
+    await tree.expand(SUB);
+    await settle();
+    const treeElement = target.querySelector<HTMLElement>('[role="tree"]');
+    if (!treeElement) throw new Error('no tree');
+    layOutRows(treeElement, { rowHeight: 20, height: 100 });
+    treeElement.scrollTop = scrollTop;
+    // jsdom lays nothing out and has no scrollIntoView.
+    Element.prototype.scrollIntoView = vi.fn();
+    return { target, treeElement };
+  }
+
+  /** The tree row of `path`, by its id. */
+  function rowAt(target: HTMLElement, path: string): HTMLElement | null {
+    return (
+      [...target.querySelectorAll<HTMLElement>('[data-row-id]')].find(
+        (row) => row.dataset.rowId === path,
+      ) ?? null
+    );
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('keeps the open folders, the selection, the focused row and the scroll position', async () => {
+    const { target, treeElement } = await mountTree(60);
+    tree.selectPath(X_LOG);
+    rowAt(target, `${ROOT}/f5.log`)?.focus();
+    await settle();
+    const focused = document.activeElement;
+    const firstInView = rowAt(target, `${ROOT}/f1.log`);
+    expect(firstInView?.getBoundingClientRect().top).toBe(0);
+
+    backend.add(`${ROOT}/e.log`, 'file', { is_text: true, size: 10 });
+    backend.remove(`${ROOT}/f7.log`);
+    backend.change(`${ROOT}/f5.log`, { size: 4096 });
+    await tree.refreshOpenFolders();
+    await settle();
+
+    expect(rowAt(target, `${ROOT}/e.log`)).not.toBeNull();
+    expect(rowAt(target, `${ROOT}/f7.log`)).toBeNull();
+    expect(valueOf(target, { path: `${ROOT}/f5.log` })?.textContent?.trim()).toBe(formatSize(4096));
+    expect(rowAt(target, SUB)?.getAttribute('aria-expanded')).toBe('true');
+    expect(rowAt(target, X_LOG)?.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(focused);
+    expect(get(treeFocus)).toBe(`${ROOT}/f5.log`);
+    // The row first in view is the same element, still at the top of the
+    // view: the view scrolled by the row that came above it.
+    expect(rowAt(target, `${ROOT}/f1.log`)).toBe(firstInView);
+    expect(firstInView?.getBoundingClientRect().top).toBe(0);
+    expect(treeElement.scrollTop).toBe(80);
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it('shows a row that comes above the first row when the view is at the top', async () => {
+    const { target, treeElement } = await mountTree(0);
+
+    backend.add(`${ROOT}/e.log`, 'file', { is_text: true, size: 10 });
+    await tree.refreshOpenFolders();
+    await settle();
+
+    expect(rowAt(target, `${ROOT}/e.log`)).not.toBeNull();
+    expect(treeElement.scrollTop).toBe(0);
+  });
+
+  it('drops a deleted open folder with its rows, and gives the focus to the nearest folder above', async () => {
+    const { target } = await mountTree(0);
+    rowAt(target, X_LOG)?.focus();
+    await settle();
+
+    backend.remove(SUB);
+    await tree.refreshOpenFolders();
+    await settle();
+
+    expect(rowAt(target, SUB)).toBeNull();
+    expect(rowAt(target, X_LOG)).toBeNull();
+    expect(get(treeFocus)).toBe(ROOT);
+    expect(document.activeElement).toBe(rowAt(target, ROOT));
   });
 });
