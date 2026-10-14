@@ -243,6 +243,8 @@
    * that comes above the first one shows.
    */
   function holdRowsInView(rows: readonly VisibleRow[]) {
+    // A change that keeps the rows (a selection, a label) moves nothing.
+    if (rows === anchorRows) return;
     const before = anchorRows;
     anchorRows = rows;
     const anchor = treeElement ? captureScrollAnchor(treeElement) : null;

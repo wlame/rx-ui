@@ -536,6 +536,17 @@ describe('the files panel read again by its refresh', () => {
     expect(scrolledIntoView()).toEqual([]);
   });
 
+  it('reads no layout when a change keeps the same rows, as a new selection does', async () => {
+    await mountTree(60);
+    const boxes = vi.mocked(Element.prototype.getBoundingClientRect);
+    boxes.mockClear();
+
+    tree.selectPath(`${ROOT}/f3.log`);
+    await settle();
+
+    expect(boxes).not.toHaveBeenCalled();
+  });
+
   it('shows a row that comes above the first row when the view is at the top', async () => {
     const { target, treeElement } = await mountTree(0);
 
