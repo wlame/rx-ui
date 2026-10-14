@@ -283,9 +283,11 @@ line index; the panel reads that cache and never scans unless asked.
 The text of a finding, wherever the viewer shows or copies it (the
 excerpt in the list, the lines of a copy and the lines before them),
 comes from the backend's findings answers, `GET /v1/findings`, with
-`text=true` for a copy. The backend masks it before it answers: a
-secret value reads like `AKIA************`, and a line of a private
-key's body reads `[masked, N bytes]`. The viewer never builds a
+`text=true` for a copy. On a server that masks secrets
+(`rx serve --mask-secrets` or `RX_MASK_SECRETS`; off by default) the
+backend masks it before it answers: a secret value reads like
+`AKIA************`, and a line of a private key's body reads
+`[masked, N bytes]`. The viewer never builds a
 finding's text from the file's lines (`/v1/samples`). Masking is for
 findings only: the editor, a search's matches and a copy of selected
 lines show the file as it is. rx-go's documentation (Concepts /
@@ -617,7 +619,7 @@ than when the entry was made.
 | `POST /v1/index`        | Build an index                                           |
 | `GET /v1/tasks/{id}`    | Follow an index task or a findings scan                  |
 | `GET /v1/signatures`    | The signature catalogue, once, on a backend that has it  |
-| `GET /v1/findings`      | A file's findings; a copy's masked text (`text=true`)    |
+| `GET /v1/findings`      | A file's findings; a copy's text (`text=true`)           |
 | `POST /v1/findings`     | Scan a file for the picked signatures                    |
 | `DELETE /v1/tasks/{id}` | Cancel a findings scan                                   |
 | `GET /v1/logs/*`        | Log chains: list, describe, samples and search           |

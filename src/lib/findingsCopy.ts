@@ -4,9 +4,9 @@
  * the panel lists (Copy all), each with the lines before it that the
  * panel's ⋯ menu chose (`copyLinesBefore`).
  *
- * The text comes only from `GET /v1/findings?text=true`, which masks it
- * and stops at the end of the text the scan read; `/v1/samples` gives
- * the lines unmasked and is never asked. The requests carry the panel's
+ * The text comes only from `GET /v1/findings?text=true`, which stops at
+ * the end of the text the scan read and is masked when the server masks
+ * secrets; `/v1/samples` gives the lines unmasked and is never asked. The requests carry the panel's
  * filters (the picker's selection and the filter text) and ask pages of
  * `FINDINGS_COPY_PAGE_SIZE` findings, each within what is left of
  * `COPY_BUDGET_BYTES`, until the list ends, the backend cuts the text

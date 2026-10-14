@@ -133,8 +133,8 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   clipboard under a header with its lines and signature, after the lines
   before it that the menu chose (0 to 3, one by default):
   `==> app.log:120-134  python-traceback  (1 line before) <==`. The text
-  comes from the backend's findings, masked as everywhere, never from
-  the file's raw lines. A copy holds at most 8 MiB in whole findings;
+  comes from the backend's findings, masked when the server masks
+  secrets, never from the file's raw lines. A copy holds at most 8 MiB in whole findings;
   when cut, its last line says "[37 of 120 findings copied: the copy
   stops at 8.0 MB]" and the notification "Copied 37 of 120 findings: the
   copy stops at 8.0 MB", and a signature that stores fewer findings than

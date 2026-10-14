@@ -205,9 +205,9 @@ export type SignaturesResponse = Schemas['SignaturesResponse'];
 /**
  * One place in a file where a signature matched: its first and last
  * line, its byte range in the text and the time of its first line.
- * `excerpt`, `lines` and `before` come masked and clipped by the
- * backend; the viewer never builds a finding's text from `/v1/samples`,
- * which gives the lines unmasked.
+ * `excerpt`, `lines` and `before` come clipped by the backend, and
+ * masked when the server masks secrets; the viewer never builds a
+ * finding's text from `/v1/samples`, which gives the lines unmasked.
  */
 export type Finding = Schemas['Finding'];
 

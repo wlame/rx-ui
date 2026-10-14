@@ -282,9 +282,10 @@ async function orChanged<T>(request: Promise<T>): Promise<T | ChainChanged> {
  * The query of `GET /v1/findings`, which reads the findings cache and
  * never scans. A member left out keeps the backend's default: the
  * default set of signatures, no filter, the first page of 1,000 findings
- * and no text. A finding's text (`text`) comes masked and clipped at the
- * end the scan read by the backend; never build it from `/v1/samples`,
- * which gives the lines unmasked.
+ * and no text. A finding's text (`text`) comes clipped at the end the
+ * scan read, and masked when the server masks secrets; never build it
+ * from `/v1/samples`, which gives the lines unmasked whatever the server
+ * does.
  */
 export interface FindingsQuery {
   /**

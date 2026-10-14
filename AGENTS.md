@@ -472,9 +472,11 @@ caches each file's findings per signature.
   `watchTask` (`utils/taskPolling.ts`), never `taskPolls`, which is keyed
   by tab and holds index tasks only (its result is a line index).
 - **Finding text.** Every text of a finding the viewer shows or copies
-  comes from `GET /v1/findings`, masked and clipped by the backend: the
-  `excerpt` of each finding, and `lines` and `before` with `text=true`.
-  Never from `/v1/samples`, which gives the file's lines unmasked (the
+  comes from `GET /v1/findings`, clipped by the backend and masked when
+  the server masks secrets (`rx serve --mask-secrets` or
+  `RX_MASK_SECRETS`; off by default): the `excerpt` of each finding, and
+  `lines` and `before` with `text=true`. Never from `/v1/samples`,
+  which gives the file's lines unmasked whatever the server does (the
   editor, a search's matches and a copy of selected lines show the
   file as it is; masking is for findings). The editor's finding hover
   is built from the catalogue, never from the file.
@@ -772,7 +774,7 @@ in this file; file a ticket.
 
 - Do not hardcode signature ids, group names or ports.
 - Do not call an endpoint one backend lacks without a capability check.
-- Do not build a finding's text from `/v1/samples`; it is not masked.
+- Do not build a finding's text from `/v1/samples`; it is never masked, even on a server that masks secrets.
 - Do not hand-edit `types.generated.ts` or write a wire type by hand — run
   `just gen-types`.
 - Do not treat `relative_line_number` as absolute when `file_chunks` is not 1.

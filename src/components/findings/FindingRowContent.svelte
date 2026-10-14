@@ -1,7 +1,7 @@
 <!--
   What one row of the findings list shows. A finding: its group's colour
-  bar, its line or lines, its signature's name and its excerpt (masked by
-  the backend where a value is secret). A header: its group's colour
+  bar, its line or lines, its signature's name and its excerpt (a secret
+  value in it masked when the server masks secrets). A header: its group's colour
   mark, its group or signature, its count, and for a capped signature
   how many it shows; the marks make the group view the legend of the
   timeline's ticks. The header's Copy and eye stand at its right end

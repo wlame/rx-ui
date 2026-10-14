@@ -38,7 +38,7 @@ import { tree } from './tree';
  * group view also lists the signatures the choice hides that hold
  * findings, from the counts of every signature (`fileCounts`). Every
  * request reads the backend's cache and never scans; a finding's text
- * is its `excerpt`, masked by the backend.
+ * is its `excerpt`, masked when the server masks secrets.
  */
 
 /** How many findings a page holds. */
