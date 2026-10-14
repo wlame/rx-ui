@@ -682,13 +682,18 @@ caches each file's findings per signature.
   gives it back to the row when it closes); its answer runs
   `startFolderTask`:
   `POST /v1/index` with `threshold: 0` or `POST /v1/findings` with the
-  picker's ids over the folder, which rx-go runs over every file under
-  it, recursively (contract 2.0, no feature of its own), followed with
-  `watchTask`. A 409 names the folder's running task, which is joined,
-  unless its status is `cancelling` (stopped, worker not yet stopped):
-  then a notification asks to try again. `FolderTaskBadge.svelte`, drawn
-  on folder rows only, shows `files_done`/`files_total` ("scanning
-  12/214", "stopping…"). `stopFolderTask` sends the DELETE; the poll
+  picker's selection over the folder (`scanSelection`: the default set
+  by name, `default`), which rx-go runs over every file under it,
+  recursively (contract 2.0, no feature of its own), followed with
+  `watchTask`. A 409 names the folder's task (`CONFLICT_ACTIONS`): a
+  running one is joined; a `cancelling` one (stopped, worker not yet
+  stopped) starts nothing, and a notification asks to try again; one
+  that has ended, or that the backend no longer knows (404), is no
+  obstacle, and the request goes once more (`ENDED_CONFLICT_RETRIES`);
+  a second such 409 is told as a task still stopping.
+  `FolderTaskBadge.svelte`, drawn on folder rows only, shows
+  `files_done`/`files_total` ("scanning 12/214", "stopping…").
+  `stopFolderTask` sends the DELETE; the poll
   reports the end (`cancelling` is none). The end lists the folder's
   loaded rows again (`tree.reloadFolder`, which keeps each row open or
   closed), reads the findings held for its files again, and says how
