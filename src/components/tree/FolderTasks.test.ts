@@ -203,7 +203,7 @@ describe('a folder task from the menu', () => {
     expect(backend.requestsTo('POST', '/v1/findings').map((r) => r.body)).toEqual([
       { path: FOLDER, signatures: 'sql-statement', force: false },
     ]);
-    expect(footer()).toBe(`rx scan ${FOLDER} --recursive --signatures=sql-statement`);
+    expect(footer()).toBe(`rx scan ${FOLDER} --recursive --signatures=sql-statement --hidden`);
     expect(folderLabel()).toBe('scanning…');
 
     backend.progress(backend.lastTask().id, 12, 214);
@@ -225,7 +225,7 @@ describe('a folder task from the menu', () => {
       { path: FOLDER, force: false, threshold: 0 },
     ]);
     expect(folderLabel()).toBe('indexing 3/40');
-    expect(footer()).toBe(`rx index ${FOLDER} --recursive --threshold=0`);
+    expect(footer()).toBe(`rx index ${FOLDER} --recursive --threshold=0 --hidden`);
   });
 
   it('offers no Stop while the request that starts the task is on its way', async () => {
@@ -292,7 +292,7 @@ describe('a file task from the menu', () => {
     expect(backend.requestsTo('POST', '/v1/index').map((r) => r.body)).toEqual([
       { path: APP_LOG, force: false, threshold: 0 },
     ]);
-    expect(footer()).toBe(`rx index ${APP_LOG} --threshold=0`);
+    expect(footer()).toBe(`rx index ${APP_LOG} --threshold=0 --hidden`);
   });
 
   it("shows the scan task's command in the footer when Scan for findings starts it", async () => {
@@ -302,6 +302,6 @@ describe('a file task from the menu', () => {
     await choose(APP_LOG, 'Scan for findings');
     await settle(0);
 
-    expect(footer()).toBe(`rx scan ${APP_LOG} --signatures=sql-statement`);
+    expect(footer()).toBe(`rx scan ${APP_LOG} --signatures=sql-statement --hidden`);
   });
 });

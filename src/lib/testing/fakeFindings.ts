@@ -490,7 +490,9 @@ export class FindingsBackend {
     const id = `scan-${++this.taskCount}`;
     const selection = String(body?.signatures ?? '');
     const ids = this.resolve(selection);
-    const cliCommand = `rx scan ${path} --signatures=${selection || 'default'}`;
+    // --mask-secrets: a part only the server knows, as a server that
+    // masks secrets adds it, so a command the viewer built fails a test.
+    const cliCommand = `rx scan ${path} --signatures=${selection || 'default'} --mask-secrets`;
     this.tasks.set(id, {
       id,
       path,

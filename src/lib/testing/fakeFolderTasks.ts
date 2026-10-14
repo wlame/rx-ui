@@ -121,6 +121,10 @@ export class FolderTaskBackend {
   endStoppedOnRead = false;
   /** Every start request is a 409 naming this id, which no status read knows (404). */
   conflictWith: string | null = null;
+  /** Every status read fails with a 500. */
+  failStatusReads = false;
+  /** The status the next DELETE fails with, in place of cancelling. */
+  cancelError: number | null = null;
 
   constructor(private readonly options: FolderTaskBackendOptions = {}) {}
 
@@ -163,6 +167,11 @@ export class FolderTaskBackend {
       ? folderResult({ path: task.path, cli_command: task.cliCommand })
       : { path: task.path, line_index: [[1, 0]], line_count: 10, cli_command: task.cliCommand };
     Object.assign(task, { status: 'completed', result: result ?? fallback });
+  }
+
+  /** The backend forgets the task `id`, as after a restart: its reads and DELETE answer 404. */
+  forget(id: string): void {
+    this.tasks.delete(id);
   }
 
   /** The worker of the `cancelling` task `id` has stopped: it is `cancelled`. */
@@ -263,6 +272,11 @@ export class FolderTaskBackend {
   }
 
   private cancel(id: string): Answer {
+    if (this.cancelError !== null) {
+      const status = this.cancelError;
+      this.cancelError = null;
+      return answer(status, { detail: 'the task table is busy' });
+    }
     const task = this.tasks.get(id);
     if (!task) return answer(404, { detail: 'Task not found' });
     if (this.cancelConflict || (task.status !== 'queued' && task.status !== 'running')) {
@@ -331,6 +345,7 @@ export class FolderTaskBackend {
       case 'POST /v1/findings':
         return this.startTask('findings', body);
       case 'GET /v1/tasks/{id}': {
+        if (this.failStatusReads) return answer(500, { detail: 'the task table is busy' });
         const task = this.tasks.get(taskId);
         if (task?.status === 'cancelling' && this.endStoppedOnRead) task.status = 'cancelled';
         return task ? answer(200, this.taskStatus(task)) : answer(404, { detail: 'not found' });
@@ -357,12 +372,14 @@ export class FolderTaskBackend {
 
 /**
  * The command rx-go gives a task: positionals first, then the flags,
- * `--recursive` for a folder, as its renderer writes every command.
+ * `--recursive` for a folder, as its renderer writes every command, and
+ * `--hidden`, as a server that serves hidden entries adds: a part only
+ * the server knows, so a command the viewer built itself fails a test.
  */
 function commandOf(kind: TaskKind, path: string, isFolder: boolean, selection: string): string {
   const recursive = isFolder ? ' --recursive' : '';
-  if (kind === 'index') return `rx index ${path}${recursive} --threshold=0`;
-  return `rx scan ${path}${recursive} --signatures=${selection || 'default'}`;
+  if (kind === 'index') return `rx index ${path}${recursive} --threshold=0 --hidden`;
+  return `rx scan ${path}${recursive} --signatures=${selection || 'default'} --hidden`;
 }
 
 /** Serve `backend` as the whole backend, through a stubbed `fetch`. */

@@ -247,7 +247,7 @@ describe('a scan', () => {
     // findings answer that ends it records none.
     expect(get(commandLog)).toEqual([
       expect.objectContaining({
-        command: `rx scan ${APP_LOG} --signatures=python-traceback,sql-statement`,
+        command: `rx scan ${APP_LOG} --signatures=python-traceback,sql-statement --mask-secrets`,
         action: 'findings',
       }),
     ]);
@@ -277,7 +277,7 @@ describe('a scan', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(get(commandLog)[0]).toMatchObject({
-      command: `rx scan ${APP_LOG} --signatures=sql-statement`,
+      command: `rx scan ${APP_LOG} --signatures=sql-statement --mask-secrets`,
       action: 'findings',
     });
     backend.complete(backend.lastTask()?.id ?? '');

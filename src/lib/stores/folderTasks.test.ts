@@ -77,7 +77,7 @@ describe('startFolderTask', () => {
       { path: FOLDER, force: false, threshold: 0 },
     ]);
     expect(get(lastCommand)).toMatchObject({
-      command: `rx index ${FOLDER} --recursive --threshold=0`,
+      command: `rx index ${FOLDER} --recursive --threshold=0 --hidden`,
       action: 'index',
     });
     expect(folderTaskOf(FOLDER)).toMatchObject({ kind: 'index', taskId: backend.lastTask().id });
@@ -97,7 +97,7 @@ describe('startFolderTask', () => {
       { path: FOLDER, signatures: 'sql-statement', force: false },
     ]);
     expect(get(lastCommand)).toMatchObject({
-      command: `rx scan ${FOLDER} --recursive --signatures=sql-statement`,
+      command: `rx scan ${FOLDER} --recursive --signatures=sql-statement --hidden`,
       action: 'findings',
     });
   });
@@ -128,10 +128,50 @@ describe('startFolderTask', () => {
   it('starts no scan on a backend that does not serve signatures', async () => {
     await serve([]);
 
-    await startFolderTask(FOLDER, 'findings');
+    const done = startFolderTask(FOLDER, 'findings');
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(backend.requestsTo('POST', '/v1/findings')).toEqual([]);
     expect(folderTaskOf(FOLDER)).toBeNull();
+    await done;
+  });
+
+  it('follows a task of each of two folders at once, each to its own end', async () => {
+    await serve();
+    const outer = startFolderTask(FOLDER, 'findings');
+    const inner = startFolderTask(SUBFOLDER, 'index');
+    await vi.advanceTimersByTimeAsync(0);
+    const taskOf = (kind: string) => [...backend.tasks.values()].find((t) => t.kind === kind);
+    const [scan, index] = [taskOf('findings'), taskOf('index')];
+    if (!scan || !index) throw new Error('the two tasks did not start');
+    backend.progress(scan.id, 1, 4);
+    backend.progress(index.id, 0, 1);
+    await settle(1);
+
+    expect(folderTaskOf(FOLDER)).toMatchObject({ kind: 'findings', taskId: scan.id, filesDone: 1 });
+    expect(folderTaskOf(SUBFOLDER)).toMatchObject({
+      kind: 'index',
+      taskId: index.id,
+      filesDone: 0,
+    });
+
+    backend.complete(index.id, folderResult({ path: SUBFOLDER, files_total: 1, done: 1 }));
+    await settle();
+    await inner;
+
+    expect(folderTaskOf(SUBFOLDER)).toBeNull();
+    expect(folderTaskOf(FOLDER)?.taskId).toBe(scan.id);
+    expect(shown()).toEqual([['success', 'Indexed 1 file under sub/']]);
+
+    backend.complete(scan.id, folderResult({ files_total: 4, done: 4 }));
+    await settle();
+    await outer;
+
+    expect(folderTaskOf(FOLDER)).toBeNull();
+    expect(shown()).toEqual([
+      ['success', 'Indexed 1 file under sub/'],
+      ['success', 'Scanned 4 files under logs/'],
+    ]);
   });
 
   it('is starting until the backend names the task, then running, then none', async () => {
@@ -185,7 +225,7 @@ describe('startFolderTask', () => {
 
     expect(folderTaskOf(FOLDER)?.taskId).toBe(running.id);
     expect(backend.requestsTo('GET', `/v1/tasks/${running.id}`).length).toBeGreaterThan(0);
-    expect(get(lastCommand)?.command).toBe(`rx index ${FOLDER} --recursive --threshold=0`);
+    expect(get(lastCommand)?.command).toBe(`rx index ${FOLDER} --recursive --threshold=0 --hidden`);
     expect(shown().filter(([type]) => type === 'error')).toEqual([]);
   });
 
@@ -274,6 +314,22 @@ describe('the end of a folder task', () => {
     await done;
 
     expect(readsOf()).toBeGreaterThan(readsBefore);
+  });
+
+  it('says it lost track of a task whose status reads keep failing, and reads the rows again', async () => {
+    await serve();
+    const done = startFolderTask(FOLDER, 'findings');
+    await vi.advanceTimersByTimeAsync(0);
+    const listedBefore = backend.listingsAsked().length;
+
+    backend.failStatusReads = true;
+    await settle(4);
+    await done;
+
+    expect(shown()).toEqual([['error', 'Lost track of the scan of logs/: the task table is busy']]);
+    expect(backend.listingsAsked().slice(listedBefore)).toEqual([FOLDER]);
+    expect(folderTaskOf(FOLDER)).toBeNull();
+    backend.failStatusReads = false;
   });
 
   it('says why a failed task failed, and reads the rows again', async () => {
@@ -417,6 +473,42 @@ describe('stopFolderTask', () => {
     await done;
 
     expect(shown()).toEqual([['success', 'Indexed 2 files under logs/']]);
+  });
+
+  it('leaves a task the backend forgot (404) to its poll, which says it has ended', async () => {
+    await serve();
+    const done = startFolderTask(FOLDER, 'index');
+    await vi.advanceTimersByTimeAsync(0);
+    const task = backend.lastTask();
+    backend.forget(task.id);
+
+    await stopFolderTask(FOLDER);
+
+    expect(backend.requestsTo('DELETE', `/v1/tasks/${task.id}`)).toHaveLength(1);
+    expect(shown()).toEqual([]);
+    await settle();
+    await done;
+
+    expect(shown()).toEqual([['info', 'The index task of logs/ has ended']]);
+    expect(folderTaskOf(FOLDER)).toBeNull();
+  });
+
+  it('says why the backend refused to stop the task, and keeps following it', async () => {
+    await serve();
+    const done = startFolderTask(FOLDER, 'index');
+    await vi.advanceTimersByTimeAsync(0);
+    const task = backend.lastTask();
+    backend.cancelError = 500;
+
+    await stopFolderTask(FOLDER);
+
+    expect(shown()).toEqual([
+      ['error', 'Cannot stop the index task of logs/: the task table is busy'],
+    ]);
+    expect(folderTaskOf(FOLDER)).toMatchObject({ taskId: task.id, isStopping: false });
+    backend.complete(task.id);
+    await settle();
+    await done;
   });
 
   it('sends nothing for a folder whose task is not followed', async () => {
