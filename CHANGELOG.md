@@ -192,12 +192,13 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   and findings labels change in place. Open folders, the selected and
   the focused rows and the rows in view stay where they are; a running
   folder task's progress stays on its row. One request per open folder,
-  and none for a folder still waiting for its last one; in chain mode a
-  folder whose files changed lists its chains again too. No request
-  while the tab is hidden, and one when it is shown again if one fell
-  due. After a refresh that failed, the next waits twice as long, up to
-  a minute (or the interval, when that is longer), then the interval
-  again. The editor does not read an open file again.
+  at most four at once, and none for a folder still waiting for its last
+  one; in chain mode a folder whose files changed lists its chains again
+  too. No request while the tab is hidden; when it is shown again, a
+  refresh that fell due meanwhile runs at once. After a refresh that
+  failed, the next waits twice as long, up to a minute (or the
+  interval, when that is longer), then the interval again. The editor
+  does not read an open file again.
 
 ### Changed
 

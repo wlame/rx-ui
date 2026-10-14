@@ -432,7 +432,8 @@ role="tab">` that also carries the drag handlers; its close button is a
   if one fell due; after a failed round the wait doubles
   (`waitAfterFailure`, up to `MAX_FAILED_WAIT_MS` or the interval) and
   a round that succeeds brings it back. A round lists every expanded
-  folder on screen at once and skips a folder whose listing is on its
+  folder on screen, at most `MAX_REFRESH_LISTINGS` (4) at once
+  (`utils/settleInPool.ts`), and skips a folder whose listing is on its
   way (`listingsAgain`); a 404 is a folder gone, not a failure.
   `utils/treeListing.ts` merges a listing into the rows
   (`mergeListing`): an unchanged row stays the same object, and a

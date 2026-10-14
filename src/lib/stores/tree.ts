@@ -4,6 +4,7 @@ import { contractGate } from '../contractGate';
 import { isChainIndexed } from '../utils/chainParts';
 import { chainDirectoryOf, type DescribedChain } from '../utils/chainTree';
 import { LatestRequest, LatestRequestMap, SUPERSEDED, isAbortError } from '../utils/latestRequest';
+import { settleInPool } from '../utils/settleInPool';
 import {
   RecentMarks,
   entryToNode,
@@ -16,6 +17,14 @@ import { chainModeOn } from './chainMode';
 
 /** Chains whose last description the tree keeps; the oldest is dropped first. */
 export const MAX_DESCRIBED_CHAINS = 256;
+
+/**
+ * How many listings a refresh of the open folders asks at once. A browser
+ * keeps about six connections to one backend over HTTP/1.1, so a round
+ * over many open folders leaves the others to the file windows and
+ * searches the user waits for.
+ */
+export const MAX_REFRESH_LISTINGS = 4;
 
 interface TreeState {
   roots: TreeNode[];
@@ -296,11 +305,17 @@ function createTreeStore() {
   }
 
   /**
-   * The refresh of one open folder: list it again and, when its files
-   * changed and its chains are listed, its chains too (they are made of
-   * its files).
+   * The refresh of the open folder at `path`, at its turn in the round:
+   * list it again and, when its files changed and its chains are listed,
+   * its chains too (they are made of its files). A folder that is no
+   * longer open, whose rows load, or whose listing is on its way already
+   * is left as it is.
    */
-  async function refreshFolder(folder: TreeNode): Promise<void> {
+  async function refreshFolder(path: string): Promise<void> {
+    const folder = findNode(get({ subscribe }).roots, path);
+    const isLeftAlone =
+      !folder || !folder.expanded || folder.loading || listingsAgain.has(folder.path);
+    if (isLeftAlone) return;
     const outcome = await listAgain(folder);
     if (outcome === 'filesChanged' && folder.chains !== undefined) {
       await refreshChains(folder.path);
@@ -308,23 +323,22 @@ function createTreeStore() {
   }
 
   /**
-   * Read again every folder the panel shows open, all at once, one
-   * request each, and show what changed in place: new entries, gone ones
-   * (an open folder with its rows), new sizes, dates and labels; each row
-   * keeps whether it is open and its own rows. A folder whose listing is
-   * on its way already is left to it, so a folder is never asked twice at
-   * once; a folder whose rows load is left to that load; and nothing is
-   * asked while the roots load or the tree shows its error. Rejects, once
-   * every listing has ended, when one failed: a folder that is gone (404)
-   * has not, its parent's listing drops its row.
+   * Read again every folder the panel shows open, one request each, at
+   * most `MAX_REFRESH_LISTINGS` at once, and show what changed in place:
+   * new entries, gone ones (an open folder with its rows), new sizes,
+   * dates and labels; each row keeps whether it is open and its own rows.
+   * A folder whose listing is on its way already is left to it, so a
+   * folder is never asked twice at once; a folder whose rows load is left
+   * to that load; and nothing is asked while the roots load or the tree
+   * shows its error. Rejects, once every listing has ended, when one
+   * failed: a folder that is gone (404) has not, its parent's listing
+   * drops its row.
    */
   async function refreshOpenFolders(): Promise<void> {
     const state = get({ subscribe });
     if (state.loading || state.error !== null) return;
-    const folders = shownFolders(state.roots).filter(
-      (folder) => !folder.loading && !listingsAgain.has(folder.path),
-    );
-    const outcomes = await Promise.allSettled(folders.map(refreshFolder));
+    const folders = shownFolders(state.roots).map((folder) => folder.path);
+    const outcomes = await settleInPool(folders, MAX_REFRESH_LISTINGS, refreshFolder);
     const failures = outcomes.flatMap((outcome) =>
       outcome.status === 'rejected' &&
       !isAbortError(outcome.reason) &&

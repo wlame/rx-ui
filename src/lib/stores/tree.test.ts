@@ -7,7 +7,7 @@ import { isChainRow, shownChildren } from '../utils/chainTree';
 import { DEFAULT_SORT } from '../utils/treeSort';
 import { chainMode } from './chainMode';
 import { health } from './health';
-import { MAX_DESCRIBED_CHAINS, holdsPath, tree } from './tree';
+import { MAX_DESCRIBED_CHAINS, MAX_REFRESH_LISTINGS, holdsPath, tree } from './tree';
 
 /** A tree entry for a directory or a file under `path`. */
 function entry(path: string, type: 'directory' | 'file') {
@@ -465,6 +465,25 @@ describe('the tree read again by its refresh', () => {
     await Promise.all([first, second]);
 
     expect(asked().sort()).toEqual([ROOT, SUB]);
+  });
+
+  it('lists at most four folders at once, and every open folder in the round', async () => {
+    await openTree();
+    const more = ['d1', 'd2', 'd3', 'd4'].map((name) => `${ROOT}/${name}`);
+    for (const folder of more) backend.add(folder, 'directory');
+    await tree.refreshOpenFolders();
+    for (const folder of more) await tree.expand(folder);
+    const asked = listingsFromNow();
+    backend.hold();
+
+    const round = tree.refreshOpenFolders();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(asked()).toHaveLength(MAX_REFRESH_LISTINGS);
+    expect(MAX_REFRESH_LISTINGS).toBe(4);
+
+    backend.release();
+    await round;
+    expect(asked().sort()).toEqual([ROOT, ...more, SUB].sort());
   });
 
   it('rejects once every folder is read when one could not be, and shows what the others hold', async () => {
