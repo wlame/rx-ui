@@ -73,17 +73,30 @@ export function mergeListing(
   return isUnchanged ? rows : merged;
 }
 
+/** The fields of a file row that no chain is made of: a log chain lists no findings. */
+const FIELDS_NO_CHAIN_READS: ReadonlySet<string> = new Set(['findings']);
+
+/** Whether two file rows are the same file with the same fields a chain is made of. */
+function isSameFileForChains(before: TreeNode, after: TreeNode): boolean {
+  if (before === after) return true;
+  const held = before as unknown as Record<string, unknown>;
+  return Object.entries(after).every(
+    ([key, value]) => FIELDS_NO_CHAIN_READS.has(key) || isSameValue(held[key], value),
+  );
+}
+
 /**
- * Whether the file rows of `after` differ from those of `before`: a file
- * came, went, or changed a field. `mergeListing` keeps an unchanged row
- * as the same object, so the rows compare by identity. A folder's chains
- * are made of its files, so only these can change them.
+ * Whether the file rows of `after` differ from those of `before` in what
+ * a folder's chains are made of: a file came, went, or changed a field
+ * other than its findings label. `mergeListing` keeps an unchanged row as
+ * the same object, so most rows compare by identity.
  */
 export function haveFilesChanged(before: readonly TreeNode[], after: readonly TreeNode[]): boolean {
   const filesBefore = before.filter((row) => row.type !== 'directory');
   const filesAfter = after.filter((row) => row.type !== 'directory');
   return (
-    filesBefore.length !== filesAfter.length || filesAfter.some((row, i) => row !== filesBefore[i])
+    filesBefore.length !== filesAfter.length ||
+    filesAfter.some((row, i) => !isSameFileForChains(filesBefore[i], row))
   );
 }
 

@@ -95,14 +95,16 @@ describe('mergeListing', () => {
 
 describe('haveFilesChanged', () => {
   const rows = [openFolderRow('sub', []), fileRow('a.log'), fileRow('b.log')];
+  const labelled = { ...rows[1], findings: { state: 'full' as const, count: 1 } };
 
   it.each([
-    ['the same rows', rows, false],
-    ['a folder row that changed', [{ ...rows[0], children_count: 3 }, rows[1], rows[2]], false],
-    ['a file row that changed', [rows[0], { ...rows[1], size: 99 }, rows[2]], true],
-    ['a file that came', [...rows, fileRow('c.log')], true],
-    ['a file that went', [rows[0], rows[1]], true],
-  ])('says whether %s changed the files: %s', (_name, after, expected) => {
+    ['the same rows', false, rows],
+    ['a folder row that changed', false, [{ ...rows[0], children_count: 3 }, rows[1], rows[2]]],
+    ['a file row that changed', true, [rows[0], { ...rows[1], size: 99 }, rows[2]]],
+    ['a findings label alone, which no chain field reads,', false, [rows[0], labelled, rows[2]]],
+    ['a file that came', true, [...rows, fileRow('c.log')]],
+    ['a file that went', true, [rows[0], rows[1]]],
+  ])('says whether %s changes the files: %s', (_name, expected, after) => {
     expect(haveFilesChanged(rows, after)).toBe(expected);
   });
 });

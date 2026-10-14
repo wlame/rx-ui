@@ -441,7 +441,7 @@ role="tab">` that also carries the drag handlers; its close button is a
   notifies no subscriber. `markIndexed` and `markFindings` note what
   they set (`RecentMarks`), and a listing asked before such a mark keeps
   it. Chains are listed again only when a folder's files changed
-  (`haveFilesChanged`). `FileTree.svelte` keeps the rows in view in
+  (`haveFilesChanged`; a findings label alone does not count). `FileTree.svelte` keeps the rows in view in
   place through any change of the rows (`utils/scrollAnchor.ts`, with
   the browser's `overflow-anchor` off) unless the change moves the
   first row in view, and `hasRowMoved` (`utils/treeRows.ts`) counts a
