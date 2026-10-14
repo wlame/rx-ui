@@ -1369,7 +1369,7 @@ export interface components {
             task_id: string;
         };
         TaskResponse: {
-            /** @description The rx command that does what the task does: rx index for a task of POST /v1/index, rx scan for a task of POST /v1/findings, with --recursive for a directory (rx index DIR --recursive, rx scan DIR --recursive --signatures=SEL), --force when the request forced, and --mask-secrets when the server masks secrets. Empty for a compress task. A request that joined a running task gets that task's command. */
+            /** @description The rx command that does what the task does: rx index for a task of POST /v1/index, rx scan for a task of POST /v1/findings, with --recursive for a directory (rx index DIR --recursive, rx scan DIR --recursive --signatures=SEL), --hidden when the server serves hidden entries, --force when the request forced, and --mask-secrets when the server masks secrets. Empty for a compress task. A request that joined a running task gets that task's command. */
             cli_command: string;
             message: string;
             path: string;
@@ -1388,7 +1388,7 @@ export interface components {
              * @description The size of the file a findings task reads, as stored on disk; for a findings task over a directory, of the file it reads now (0 between files). Null when bytes_read is.
              */
             bytes_total: number | null;
-            /** @description The rx command that does what the task does: rx index for an index task started by POST /v1/index, rx scan for a findings task, with --recursive for a directory, --force when the request forced, and --mask-secrets when the server masks secrets. Empty for other tasks: compress, chain_index, and the index builds GET /v1/samples and the log chains start. */
+            /** @description The rx command that does what the task does: rx index for an index task started by POST /v1/index, rx scan for a findings task, with --recursive for a directory, --hidden when the server serves hidden entries (rx serve --hidden, RX_HIDDEN), --force when the request forced, and --mask-secrets when the server masks secrets. Empty for other tasks: compress, chain_index, and the index builds GET /v1/samples and the log chains start. */
             cli_command: string;
             completed_at: string | null;
             error: string | null;
