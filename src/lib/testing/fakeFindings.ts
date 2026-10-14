@@ -178,6 +178,8 @@ interface FakeTask {
   path: string;
   /** The ids the scan was started for. */
   ids: string[];
+  /** The `rx scan` command rx-go gives the task. */
+  cliCommand: string;
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
   read: number | null;
   total: number | null;
@@ -464,6 +466,9 @@ export class FindingsBackend {
       progress: null,
       bytes_read: task.read,
       bytes_total: task.total,
+      files_done: null,
+      files_total: null,
+      cli_command: task.cliCommand,
       result: task.result,
     };
   }
@@ -474,21 +479,36 @@ export class FindingsBackend {
       (t) => t.path === path && (t.status === 'queued' || t.status === 'running'),
     );
     if (running) {
-      return answer(202, { task_id: running.id, status: running.status, path, message: 'Joined' });
+      return answer(202, {
+        task_id: running.id,
+        status: running.status,
+        path,
+        message: 'Joined',
+        cli_command: running.cliCommand,
+      });
     }
     const id = `scan-${++this.taskCount}`;
-    const ids = this.resolve(String(body?.signatures ?? ''));
+    const selection = String(body?.signatures ?? '');
+    const ids = this.resolve(selection);
+    const cliCommand = `rx scan ${path} --signatures=${selection || 'default'}`;
     this.tasks.set(id, {
       id,
       path,
       ids,
+      cliCommand,
       status: 'queued',
       read: null,
       total: null,
       result: null,
       error: null,
     });
-    return answer(202, { task_id: id, status: 'queued', path, message: 'Scanning' });
+    return answer(202, {
+      task_id: id,
+      status: 'queued',
+      path,
+      message: 'Scanning',
+      cli_command: cliCommand,
+    });
   }
 
   private cancel(id: string): Answer {

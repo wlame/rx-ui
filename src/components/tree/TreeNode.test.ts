@@ -321,7 +321,7 @@ describe('TreeNode menu: Scan for findings', () => {
     const item = await mountListedFile();
     settings.update((s) => ({ ...s, findingsPicker: ['sql-statement'] }));
 
-    expect(await menuOf(item)).toEqual(['Scan for findings']);
+    expect(await menuOf(item)).toEqual(['Scan for findings', 'Index']);
     document.querySelector<HTMLButtonElement>('[role="menuitem"]')?.click();
     await vi.advanceTimersByTimeAsync(0);
 
@@ -341,7 +341,7 @@ describe('TreeNode menu: Scan for findings', () => {
     document.body.replaceChildren();
 
     const plain = await mountListedFile([]);
-    expect(await menuOf(plain)).toEqual([]);
+    expect(await menuOf(plain)).toEqual(['Index']);
   });
 
   // Findings are per file: a chain's row offers its index, never a scan.

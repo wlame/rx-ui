@@ -170,8 +170,30 @@ speaks contract 1. rx-go 0.8.0 serves only viewers from 0.8.0 to before
   ×2, java-exception ×1", and a click opens the first of them, as a
   click in the list does. The group view's headers carry the same
   colours, as the ticks' legend.
+- "Index all files" and "Scan all files for findings" in a folder's
+  context menu in the files panel (the scan on a backend that serves
+  signatures, with the Findings panel's picked signatures). Each asks
+  first in a dialog that names the folder ("Scan every file under
+  logs/?"), then runs one task over every file under the folder and its
+  subfolders, one file at a time, files already up to date and files
+  that are not text skipped; an index takes files of any size. The
+  folder's row shows "scanning 12/214" or "indexing 3/40", "stopping…"
+  after Stop, which its menu offers while the task runs. When it ends,
+  the labels of the folder's open rows show what it did, and a
+  notification says so: "Scanned 210 files under logs/, skipped 3,
+  failed 1", or where a stopped task stopped. While a stopped task still
+  holds the folder, a new one is refused with "try again in a moment".
 
 ### Changed
+
+- Index (or Re-index) is in the context menu of every text file of the
+  files panel, plain or compressed, after "Scan for findings".
+- An index or a findings scan started from the files panel or the
+  Findings panel shows its task's own command in the status bar as soon
+  as it starts (`rx index /var/log/app.log --threshold=0`,
+  `rx scan /var/log/app.log --signatures=…`, `--recursive` for a
+  folder); the end of a scan no longer replaces it with an `rx trace`
+  command.
 
 - The viewer speaks wire contract 2 and needs rx-go 0.8.0 or later. A
   backend that reports contract 1 (rx-python, rx-go before 0.8.0) is

@@ -43,8 +43,11 @@ older viewers.
    The log chain routes (`/v1/logs/*`) are such: a chain feature acts only
    while `chainModeOn` (`src/lib/stores/chainMode.ts`) holds, which needs
    `backendHas('log_chains')`. So are the signature and findings routes
-   (`/v1/signatures`, `/v1/findings`, `DELETE /v1/tasks/{id}`): call them
-   only while `backendHas('signatures')` holds.
+   (`/v1/signatures`, `/v1/findings`, `DELETE /v1/tasks/{id}` of a
+   scan): call them only while `backendHas('signatures')` holds. A
+   directory in `POST /v1/index` and the `DELETE` that stops that task
+   come with contract 2, which every backend the viewer accepts speaks,
+   so "Index all files" and its Stop need no feature.
 3. **Never hardcode signature ids, group names or ports.** A user's
    signature files add to and switch off the built-in catalogue. Drive the
    UI from the live `/v1/signatures` answer (`src/lib/stores/signatures.ts`).
@@ -102,6 +105,7 @@ older viewers.
 | `src/lib/utils/treeSort.ts`, `treeRows.ts`, `treeNav.ts`  | The files panel's sort, the rows the tree shows as one list, and the tree's key rules                                                                    |
 | `src/lib/utils/tabOrder.ts`, `recentSwitch.ts`            | The open tabs' strip and recent orders; the recent-tab switcher's state machine                                                                          |
 | `src/lib/stores/signatures.ts`, `utils/groupStyle.ts`     | The signature catalogue and the colours of its groups (see "Signatures and findings")                                                                    |
+| `stores/folderTasks.ts`, `utils/folderTaskText.ts`        | Index and scan every file of a folder from its menu: the question, the task, its progress, Stop, the end                                                 |
 | `src/components/findings/`, `src/lib/stores/findings.ts`  | The Findings panel and each file's findings and scans; the pure rules in `utils/findingRows.ts`, `findingsNav.ts`, `findingsPicker.ts`, `virtualList.ts` |
 | `stores/editorFindings.ts`, `utils/findingsLabel.ts`      | The findings the editor marks and F8 steps through; the tree label of a scanned file and its tooltip                                                     |
 | `src/lib/findingsCopy.ts`, `stores/findingTicks.ts`       | A copy of a group of findings; the ticks of the findings on the timeline (`utils/findingTicks.ts`, `components/layout/FindingTimeline*.svelte`)          |
@@ -280,8 +284,11 @@ role="tab">` that also carries the drag handlers; its close button is a
   change or a link's `fp` is not the chain's.
 - The status bar's equivalent command comes from `stores/commands.ts`,
   which records the backend's `cli_command` of each answer to a user
-  action (search, file window, index). Record a new action's
-  command there; never build a command in the viewer. The one exception
+  action (search, file window, index, scan). An index or findings task
+  (of a file or a folder) records its task's command (`rx index`, `rx
+scan`) from the answer that starts it, else from its first status,
+  else from its result; its end records nothing more. Record a new
+  action's command there; never build a command in the viewer. The one exception
   is a copy of findings: the backend's command of a findings answer
   names the picker's selection, not the group or signature a header
   narrows it to, so `findingsCopyCommand` (`findingsCopy.ts`) writes
@@ -346,7 +353,8 @@ role="tab">` that also carries the drag handlers; its close button is a
   whichever panel is shown. A modal dialog is therefore never drawn
   inside a panel, where a panel switch or Back would hide it while
   `modalOpen` still counts it: a panel that opens one has `App.svelte`
-  draw it. A component shows a panel through `showPanel(id, focus)` or
+  draw it, as the folder dialog of the files panel is
+  (`FolderTaskDialog.svelte`; `Sidebar.test.ts` tests the rule with it). A component shows a panel through `showPanel(id, focus)` or
   `clickPanelButton(id)` (`stores/layout.ts`); only `restoreView` sets
   `sidebarTab` itself, from a link.
   A focus request (`treeFocusRequested`, `searchFocusRequested`,
@@ -445,8 +453,10 @@ caches each file's findings per signature.
 
 - **Gates.** The viewer reads contract major 2 only, so rx-python
   (contract 1) is refused. Every signature and findings call
-  (`api.getSignatures`, `getFindings`, `startFindingsScan`, `cancelTask`)
-  goes through `fetchJson` and only while `backendHas('signatures')`.
+  (`api.getSignatures`, `getFindings`, `startFindingsScan`, `cancelTask`
+  of a scan) goes through `fetchJson` and only while
+  `backendHas('signatures')`; `cancelTask` of a folder's index task
+  needs contract 2 only.
 - **The catalogue** (`stores/signatures.ts`): `loadSignatures` asks
   `GET /v1/signatures` once; `App.svelte` calls it when `/health` lists
   `signatures`, and it does nothing before that, on a backend without the
@@ -494,8 +504,8 @@ caches each file's findings per signature.
   labels the file in the tree (`tree.markFindings`), so the panel and
   the label never show different numbers. A scan is followed there, not in a component,
   so it outlives a tab switch and the file's tab; only `cancelScan`
-  stops it, and its end records its `cli_command` and reads the
-  summaries again. When the summary then lists every requested signature
+  stops it. Its start records the task's `rx scan` command, and its
+  end reads the summaries again. When the summary then lists every requested signature
   missing although the result checked them all, the backend kept nothing
   (rx-go answers a file that grew during the scan without caching it):
   the scan's end is `notKept` and the panel says why, with no second
@@ -653,9 +663,28 @@ caches each file's findings per signature.
   label's (the listing can be newer), "some of the M" otherwise, and
   "opt-in signatures only" for K = 0; hovering asks nothing.
 - **Scan for findings** (`scanForFindings.ts`) is the tree menu's item on
-  a text file (`treeMenuItems(entry, { canScanFindings })`, never on a
-  chain row): open the file, `showPanel('findings', false)`, then
-  `startScan` with `pickedIds` of the picker's choice.
+  a text file (`treeMenuItems(entry, { canScanFindings, hasFolderTask })`,
+  never on a chain row): open the file, `showPanel('findings', false)`,
+  then `startScan` with `pickedIds` of the picker's choice. Index (or
+  Re-index) follows it on every text file, plain or compressed.
+- **Tasks over a folder** (`stores/folderTasks.ts`, words in
+  `utils/folderTaskText.ts`): a folder's menu has "Index all files" and,
+  with `signatures`, "Scan all files for findings"; while a task of the
+  folder is followed, Stop alone. An item asks first
+  (`askFolderTask`, the dialog `components/tree/FolderTaskDialog.svelte`
+  that `App.svelte` draws); its answer runs `startFolderTask`:
+  `POST /v1/index` with `threshold: 0` or `POST /v1/findings` with the
+  picker's ids over the folder, which rx-go runs over every file under
+  it, recursively (contract 2.0, no feature of its own), followed with
+  `watchTask`. A 409 names the folder's running task, which is joined,
+  unless its status is `cancelling` (stopped, worker not yet stopped):
+  then a notification asks to try again. `FolderTaskBadge.svelte`, drawn
+  on folder rows only, shows `files_done`/`files_total` ("scanning
+  12/214", "stopping…"). `stopFolderTask` sends the DELETE; the poll
+  reports the end (`cancelling` is none). The end lists the folder's
+  loaded rows again (`tree.reloadFolder`, which keeps each row open or
+  closed), reads the findings held for its files again, and says how
+  it ended (`folderTaskEndMessage`, from the `FolderTaskResult`).
 - **The old analysis is gone.** `category`, its link key, is in
   `RETIRED_PARAMS` (`utils/urlState.ts`): a link that holds it opens
   without it, and the address bar drops it.

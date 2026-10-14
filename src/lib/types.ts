@@ -158,9 +158,11 @@ export type FolderTaskResult = Schemas['FolderTaskResult'];
  * The statuses a task reports in `TaskStatus.status`, which the contract
  * types as a plain string. `cancelled` ends a findings scan or a task
  * over a folder stopped by `DELETE /v1/tasks/{task_id}`; no other task
- * is cancelled.
+ * is cancelled. A task over a folder may show `cancelling` first, until
+ * its worker stops: not an end, and the backend refuses a new task for
+ * the folder (409) meanwhile.
  */
-export type TaskState = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type TaskState = 'queued' | 'running' | 'cancelling' | 'completed' | 'failed' | 'cancelled';
 
 /**
  * The result of a completed log chain index task (`chain_index`): the

@@ -337,9 +337,16 @@ function noteProgress(path: string, task: TaskStatus): void {
   );
 }
 
+/** Record a scan's command in the command line; false when it has none. */
+function recordScanCommand(command: string | null | undefined): boolean {
+  if (!command) return false;
+  commandLog.record(command, 'findings');
+  return true;
+}
+
 /**
- * Act on how a scan of `path` ended. A completed scan records its
- * command and reads the summaries again, which updates the tree label.
+ * Act on how a scan of `path` ended. A completed scan reads the
+ * summaries again, which updates the tree label.
  * When the summary still lists every signature it checked missing, the
  * cache kept nothing of it (the file grew while it was read), and the
  * panel says so. When it was another request's scan (its result left a
@@ -363,7 +370,6 @@ async function settleScan(
     return;
   }
   const result = end.kind === 'completed' ? scanResult(end.task) : null;
-  if (result) commandLog.record(result.cli_command, 'findings');
   patch(path, () => ({ scan: null }));
   await refreshFindings(path);
   const summary = findingsOf(get(state), path).summary;
@@ -388,14 +394,22 @@ async function runScan(
   patch(path, () => ({ scan: { taskId: '', read: 0, total: 0, joined: false }, scanEnd: null }));
 
   let end: TaskEnd;
+  // The scan task's `rx scan` command shows from the answer that starts
+  // it; the findings answer that ends it names an `rx trace` command,
+  // recorded only by a backend that gave the task none.
+  let isRecorded = false;
   try {
     const task = await api.startFindingsScan(path, [...ids], force);
     const joined = isJoinedScan(task);
+    isRecorded = recordScanCommand(task.cli_command);
     patch(path, () => ({ scan: { taskId: task.task_id, read: 0, total: 0, joined } }));
     end = await watchTask(task.task_id, {
       fetchStatus: (taskId, signal) => api.getTaskStatus(taskId, { signal }),
       signal: controller.signal,
-      onStatus: (status) => noteProgress(path, status),
+      onStatus: (status) => {
+        if (!isRecorded) isRecorded = recordScanCommand(status.cli_command);
+        noteProgress(path, status);
+      },
     });
   } catch (error) {
     // An aborted poll was stopped by `cancelScan`, which shows the end.
@@ -405,6 +419,7 @@ async function runScan(
   } finally {
     if (scans.get(path) === controller) scans.delete(path);
   }
+  if (!isRecorded && end.kind === 'completed') recordScanCommand(scanResult(end.task)?.cli_command);
   await settleScan(path, end, ids, mayScanAgain);
 }
 

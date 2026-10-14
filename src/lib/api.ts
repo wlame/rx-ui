@@ -556,11 +556,17 @@ export const api = {
   },
 
   /**
-   * Start a background indexing task for a file
-   * @param path - File path to index
+   * Start a background indexing task for a file, or for every file under
+   * a folder, one at a time. Answers the task to follow with
+   * `getTaskStatus`, with its `rx index` command; a folder's task reports
+   * `files_done` and `files_total` and its result is a
+   * `FolderTaskResult`. Rejects with an `ApiError` of 409, whose body
+   * names the task (`conflictTaskId`), while a task for the path runs.
+   * @param path - File or folder path to index
    * @param options - Indexing options
    * @param options.force - Force rebuild even if valid index exists
-   * @param options.threshold - Minimum file size in MB to index (default 50)
+   * @param options.threshold - Minimum file size in MB to index (the backend's
+   *   `RX_LARGE_FILE_MB` when left out); a smaller file is refused, or skipped in a folder
    */
   async startIndex(
     path: string,
@@ -586,11 +592,14 @@ export const api = {
   },
 
   /**
-   * Cancel a findings scan that is queued or running: it stops, writes
-   * nothing, and its status becomes `cancelled`. Rejects with an
-   * `ApiError` of 409 when the task already ended (or is not a findings
-   * scan), and of 404 when the backend does not know it.
-   * @param taskId - The scan's task ID
+   * Cancel a findings scan, or an index or findings task over a folder,
+   * that is queued or running: it stops, the file it is on writes
+   * nothing, and its status becomes `cancelled` (a folder's task may
+   * show `cancelling` until its worker stops). Rejects with an
+   * `ApiError` of 409 when the task already ended (or is of another
+   * kind, such as the index of one file), and of 404 when the backend
+   * does not know it.
+   * @param taskId - The task's ID
    */
   async cancelTask(taskId: string): Promise<void> {
     await fetchJson<TaskStatus>(`${API_BASE}/tasks/${encodeURIComponent(taskId)}`, {
@@ -626,9 +635,12 @@ export const api = {
   /**
    * Start a scan of a file with the selected signatures (`force`: those
    * with a current cache entry too), or join the scan of the file that
-   * runs. Answers the task to follow with `getTaskStatus`; its result is
-   * the `getFindings` answer for the selection.
-   * @param path - File path
+   * runs. Answers the task to follow with `getTaskStatus`, with its
+   * `rx scan` command; its result is the `getFindings` answer for the
+   * selection. A folder's path scans every file under it, one at a time:
+   * its task reports `files_done` and `files_total`, and its result is a
+   * `FolderTaskResult`.
+   * @param path - File or folder path
    * @param signatures - The selection, as `FindingsQuery.signatures`; empty, the default set
    * @param force - Scan every selected signature again
    */

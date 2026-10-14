@@ -90,7 +90,8 @@ function completedIndex(task: TaskStatus): IndexTaskResult {
 
 /**
  * How a followed task ended: its last status, completed, failed or
- * cancelled (a findings scan stopped by `DELETE /v1/tasks/{task_id}`), or
+ * cancelled (a findings scan or a task over a folder stopped by
+ * `DELETE /v1/tasks/{task_id}`; `cancelling` before it is no end), or
  * gone: the backend answered 404, having forgotten the task (a restart,
  * its retention, or a table that dropped a finished task). `wasSeen` says
  * whether a status of the task was read before the 404; a task seen

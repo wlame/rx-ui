@@ -11,6 +11,7 @@
   import Sidebar from './components/layout/Sidebar.svelte';
   import MainContent from './components/layout/MainContent.svelte';
   import StatusBar from './components/layout/StatusBar.svelte';
+  import FolderTaskDialog from './components/tree/FolderTaskDialog.svelte';
   import KeyboardShortcuts from './components/common/KeyboardShortcuts.svelte';
   import RecentTabsSwitcher from './components/layout/RecentTabsSwitcher.svelte';
   import Notifications from './components/common/Notifications.svelte';
@@ -57,6 +58,8 @@
   </div>
 
   <StatusBar />
+  <!-- Before the shortcut list, which opens over it. -->
+  <FolderTaskDialog />
   <KeyboardShortcuts />
   <RecentTabsSwitcher />
   <Notifications />

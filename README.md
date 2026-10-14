@@ -106,10 +106,24 @@ way.
   grammar for logs and unknown file types. It is off by default for files
   of 1 MB and more, and can be switched per file. Invisible characters and
   word wrap can be switched per file as well.
-- **Index.** The tree's context menu builds or rebuilds the line index of
-  a compressed file; a plain file gets its index on first use. On a
-  backend that serves signatures, the menu of a text file also scans it
-  for findings.
+- **Index.** The files panel's context menu builds or rebuilds the line
+  index of a text file (Index, or Re-index once indexed); a plain file
+  also gets its index on first use. On a backend that serves signatures,
+  the menu of a text file also scans it for findings.
+- **Index or scan a folder.** A folder's context menu has "Index all
+  files" and, on a backend that serves signatures, "Scan all files for
+  findings" with the Findings panel's picked signatures. Each asks
+  first ("Scan every file under logs/?"), then runs one task over every
+  file under the folder and its subfolders, one file at a time, skipping
+  the files already up to date and those that are not text. The
+  folder's row shows how far it is ("scanning 12/214", "indexing 3/40",
+  "stopping…" after Stop), its menu offers Stop while it runs, and a
+  notification says how it ended ("Scanned 210 files under logs/,
+  skipped 3, failed 1"); the labels of the folder's open rows then
+  show what it did. The status bar's equivalent command shows the
+  task's own command (`rx index /var/log/app --recursive --threshold=0`,
+  `rx scan /var/log/app --recursive --signatures=…`) as soon as it
+  starts, as it does for the index and the scan of one file.
 - **Findings.** On a backend that serves signatures (rx-go 0.8.0 and
   later), the Findings panel lists the places in the open file that the
   backend's signatures found: tracebacks, secrets, SQL statements and
@@ -130,8 +144,10 @@ way.
   [Link parameters](#link-parameters).
 - **The equivalent command.** The status bar shows the `rx` command the
   backend reports for the last answer, with a copy button (the copy
-  icon) and a list of recent commands, each with its own copy button. A
-  copy of findings records the `rx trace` command that lists them (see
+  icon) and a list of recent commands, each with its own copy button. An
+  index or a scan started from the files panel or the Findings panel
+  shows its task's command (`rx index`, `rx scan`) as soon as it starts.
+  A copy of findings records the `rx trace` command that lists them (see
   [Findings](#findings)).
 - **Themes**: system, light and dark for the app (each click on the
   header button changes the look: it switches between system and the
@@ -398,7 +414,9 @@ Signatures, "Masking") gives the whole rule.
   the file's other labels.
 - **Scan for findings** in a text file's context menu in the files panel
   opens the file, shows this panel and scans the file with the picker's
-  choice, as the panel's Scan button does.
+  choice, as the panel's Scan button does. "Scan all files for findings"
+  in a folder's menu scans every file under it with the picker's choice
+  (see [Features](#features), "Index or scan a folder").
 - **Copy**: By group, each group and signature header has a Copy button
   (the copy icon; its tooltip says what it copies, "Copy the findings of
   the group traceback"), and the ⋯ menu's Copy all copies every finding
@@ -616,12 +634,12 @@ than when the entry was made.
 | `GET /v1/time-range`    | A file's first and last time                             |
 | `GET /v1/trace`         | Search                                                   |
 | `GET /v1/index`         | A file's stored index: its line count and kind           |
-| `POST /v1/index`        | Build an index                                           |
-| `GET /v1/tasks/{id}`    | Follow an index task or a findings scan                  |
+| `POST /v1/index`        | Build an index of a file, or of every file of a folder   |
+| `GET /v1/tasks/{id}`    | Follow an index task, a findings scan or a folder task   |
 | `GET /v1/signatures`    | The signature catalogue, once, on a backend that has it  |
 | `GET /v1/findings`      | A file's findings; a copy's text (`text=true`)           |
-| `POST /v1/findings`     | Scan a file for the picked signatures                    |
-| `DELETE /v1/tasks/{id}` | Cancel a findings scan                                   |
+| `POST /v1/findings`     | Scan a file, or every file of a folder, for the picks    |
+| `DELETE /v1/tasks/{id}` | Cancel a findings scan, or stop a folder task            |
 | `GET /v1/logs/*`        | Log chains: list, describe, samples and search           |
 | `POST /v1/logs/index`   | Build the line indexes of a chain's parts                |
 | `GET /version.json`     | The viewer's own version, from its bundle                |

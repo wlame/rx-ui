@@ -1,0 +1,389 @@
+// @vitest-environment jsdom
+import '$lib/testing/matchMediaStub';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { get } from 'svelte/store';
+import { health, notifications, settings, tree } from '$lib/stores';
+import { commandLog, lastCommand } from '$lib/stores/commands';
+import { forgetFindings, refreshFindings } from '$lib/stores/findings';
+import { loadSignatures } from '$lib/stores/signatures';
+import {
+  APP_LOG,
+  FOLDER,
+  FolderTaskBackend,
+  OLD_LOG,
+  SUBFOLDER,
+  folderResult,
+  serveFolderTasks,
+} from '$lib/testing/fakeFolderTasks';
+import {
+  askFolderTask,
+  closeFolderTaskRequest,
+  folderTaskOf,
+  folderTaskRequest,
+  startFolderTask,
+  stopFolderTask,
+} from './folderTasks';
+
+const POLL_INTERVAL = 1000;
+
+let backend: FolderTaskBackend;
+
+/** A backend listing `/logs`, with the catalogue loaded and the root's rows in the tree. */
+async function serve(features?: string[]) {
+  backend = new FolderTaskBackend({ features });
+  serveFolderTasks(backend);
+  await health.check();
+  await loadSignatures();
+  await tree.loadRoots();
+}
+
+/** Let the polls and the stubbed requests settle, one poll interval at a time. */
+async function settle(intervals = 2) {
+  for (let i = 0; i < intervals; i++) await vi.advanceTimersByTimeAsync(POLL_INTERVAL);
+}
+
+/** The notifications on screen, as `[type, message]`. */
+function shown(): [string, string][] {
+  return get(notifications).map((n) => [n.type, n.message]);
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(async () => {
+  for (const task of backend?.tasks.values() ?? []) {
+    if (['queued', 'running', 'cancelling'].includes(task.status)) backend.complete(task.id);
+  }
+  await settle();
+  for (const n of get(notifications)) notifications.dismiss(n.id);
+  closeFolderTaskRequest();
+  forgetFindings([]);
+  commandLog.clear();
+  settings.update((s) => ({ ...s, findingsPicker: null }));
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+describe('startFolderTask', () => {
+  it('starts one index task over the folder, for files of any size, and shows its command at once', async () => {
+    await serve();
+
+    const done = startFolderTask(FOLDER, 'index');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(backend.requestsTo('POST', '/v1/index').map((r) => r.body)).toEqual([
+      { path: FOLDER, force: false, threshold: 0 },
+    ]);
+    expect(get(lastCommand)).toMatchObject({
+      command: `rx index ${FOLDER} --recursive --threshold=0`,
+      action: 'index',
+    });
+    expect(folderTaskOf(FOLDER)).toMatchObject({ kind: 'index', taskId: backend.lastTask().id });
+    backend.complete(backend.lastTask().id);
+    await settle();
+    await done;
+  });
+
+  it("scans the folder with the picker's choice and shows its rx scan command at once", async () => {
+    await serve();
+    settings.update((s) => ({ ...s, findingsPicker: ['sql-statement'] }));
+
+    void startFolderTask(FOLDER, 'findings');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(backend.requestsTo('POST', '/v1/findings').map((r) => r.body)).toEqual([
+      { path: FOLDER, signatures: 'sql-statement', force: false },
+    ]);
+    expect(get(lastCommand)).toMatchObject({
+      command: `rx scan ${FOLDER} --recursive --signatures=sql-statement`,
+      action: 'findings',
+    });
+  });
+
+  it('scans nothing when the picker picks no signature, and says so', async () => {
+    await serve();
+    settings.update((s) => ({ ...s, findingsPicker: [] }));
+
+    await startFolderTask(FOLDER, 'findings');
+
+    expect(backend.requestsTo('POST', '/v1/findings')).toEqual([]);
+    expect(shown()).toEqual([['warning', 'Pick signatures in the Findings panel to scan logs/']]);
+    expect(folderTaskOf(FOLDER)).toBeNull();
+  });
+
+  it('follows the files done and the total of the folder', async () => {
+    await serve();
+    void startFolderTask(FOLDER, 'findings');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(folderTaskOf(FOLDER)).toMatchObject({ filesDone: null, filesTotal: null });
+
+    backend.progress(backend.lastTask().id, 12, 214);
+    await settle(1);
+
+    expect(folderTaskOf(FOLDER)).toMatchObject({
+      kind: 'findings',
+      filesDone: 12,
+      filesTotal: 214,
+      isStopping: false,
+    });
+  });
+
+  it('starts nothing while a task of the folder is followed', async () => {
+    await serve();
+
+    void startFolderTask(FOLDER, 'index');
+    void startFolderTask(FOLDER, 'findings');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(backend.requestsTo('POST', '/v1/index')).toHaveLength(1);
+    expect(backend.requestsTo('POST', '/v1/findings')).toEqual([]);
+  });
+
+  it('follows the index task a 409 names for the folder, and shows its command', async () => {
+    await serve();
+    const running = backend.startElsewhere('index', FOLDER);
+
+    void startFolderTask(FOLDER, 'index');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(folderTaskOf(FOLDER)?.taskId).toBe(running.id);
+    expect(backend.requestsTo('GET', `/v1/tasks/${running.id}`).length).toBeGreaterThan(0);
+    expect(get(lastCommand)?.command).toBe(`rx index ${FOLDER} --recursive --threshold=0`);
+    expect(shown().filter(([type]) => type === 'error')).toEqual([]);
+  });
+
+  it('says why the backend refused to start the task', async () => {
+    await serve();
+    vi.spyOn(backend, 'fetch').mockImplementationOnce(async () => ({
+      ok: false,
+      status: 403,
+      statusText: '403',
+      json: async () => ({ detail: 'hidden entry refused' }),
+      text: async () => JSON.stringify({ detail: 'hidden entry refused' }),
+    }));
+
+    await startFolderTask(FOLDER, 'index');
+
+    expect(shown()).toEqual([['error', expect.stringContaining('hidden entry refused')]]);
+    expect(folderTaskOf(FOLDER)).toBeNull();
+  });
+});
+
+describe('the end of a folder task', () => {
+  it("reads the folder's loaded rows again, keeps open folders open and shows the new labels", async () => {
+    await serve();
+    await tree.expand(SUBFOLDER);
+    const done = startFolderTask(FOLDER, 'findings');
+    await vi.advanceTimersByTimeAsync(0);
+    backend.setLabels(APP_LOG, { findings: { state: 'full', count: 4 } });
+    backend.setLabels(OLD_LOG, { findings: { state: 'partial', count: 1 } });
+    const listedBefore = backend.listingsAsked().length;
+
+    backend.complete(backend.lastTask().id);
+    await settle();
+    await done;
+
+    expect(backend.listingsAsked().slice(listedBefore).sort()).toEqual([FOLDER, SUBFOLDER]);
+    expect(tree.nodeAt(APP_LOG)?.findings).toEqual({ state: 'full', count: 4 });
+    expect(tree.nodeAt(OLD_LOG)?.findings).toEqual({ state: 'partial', count: 1 });
+    expect(tree.nodeAt(SUBFOLDER)?.expanded).toBe(true);
+    expect(folderTaskOf(FOLDER)).toBeNull();
+  });
+
+  it('reads no folder the panel has not loaded', async () => {
+    await serve();
+    const done = startFolderTask(FOLDER, 'index');
+    await vi.advanceTimersByTimeAsync(0);
+    backend.setLabels(APP_LOG, { is_indexed: true });
+    const listedBefore = backend.listingsAsked().length;
+
+    backend.complete(backend.lastTask().id);
+    await settle();
+    await done;
+
+    expect(backend.listingsAsked().slice(listedBefore)).toEqual([FOLDER]);
+    expect(tree.nodeAt(APP_LOG)?.is_indexed).toBe(true);
+    expect(tree.nodeAt(SUBFOLDER)?.expanded).toBe(false);
+  });
+
+  it('says what a completed scan did', async () => {
+    await serve();
+    const done = startFolderTask(FOLDER, 'findings');
+    await vi.advanceTimersByTimeAsync(0);
+    const task = backend.lastTask();
+
+    backend.complete(
+      task.id,
+      folderResult({ files_total: 214, done: 210, skipped: 3, failed: 1, findings: 7 }),
+    );
+    await settle();
+    await done;
+
+    expect(shown()).toEqual([['warning', 'Scanned 210 files under logs/, skipped 3, failed 1']]);
+  });
+
+  it('reads again the findings of a file under the folder that the findings store holds', async () => {
+    await serve();
+    await refreshFindings(APP_LOG);
+    const readsOf = () =>
+      backend.requestsTo('GET', '/v1/findings').filter((r) => r.query.get('path') === APP_LOG)
+        .length;
+    const readsBefore = readsOf();
+    const done = startFolderTask(FOLDER, 'findings');
+    await vi.advanceTimersByTimeAsync(0);
+
+    backend.complete(backend.lastTask().id);
+    await settle();
+    await done;
+
+    expect(readsOf()).toBeGreaterThan(readsBefore);
+  });
+
+  it('says why a failed task failed, and reads the rows again', async () => {
+    await serve();
+    const done = startFolderTask(FOLDER, 'findings');
+    await vi.advanceTimersByTimeAsync(0);
+    const listedBefore = backend.listingsAsked().length;
+
+    backend.fail(backend.lastTask().id, 'disk full');
+    await settle();
+    await done;
+
+    expect(shown()).toEqual([['error', 'Scanning logs/ failed: disk full']]);
+    expect(backend.listingsAsked().slice(listedBefore)).toEqual([FOLDER]);
+    expect(folderTaskOf(FOLDER)).toBeNull();
+  });
+});
+
+describe('stopFolderTask', () => {
+  it('sends one DELETE, shows the folder stopping, and says where it stopped once it ends', async () => {
+    await serve();
+    const done = startFolderTask(FOLDER, 'findings');
+    await vi.advanceTimersByTimeAsync(0);
+    const task = backend.lastTask();
+    backend.progress(task.id, 12, 214);
+    await settle(1);
+
+    await stopFolderTask(FOLDER);
+
+    expect(backend.requestsTo('DELETE', `/v1/tasks/${task.id}`)).toHaveLength(1);
+    expect(folderTaskOf(FOLDER)?.isStopping).toBe(true);
+    const listedBefore = backend.listingsAsked().length;
+
+    await settle();
+    await done;
+
+    expect(folderTaskOf(FOLDER)).toBeNull();
+    expect(shown()).toEqual([['info', 'Stopped scanning logs/ after 12 of 214 files']]);
+    expect(backend.listingsAsked().slice(listedBefore)).toEqual([FOLDER]);
+  });
+
+  // rx-go keeps a stopped folder task `cancelling` until its worker
+  // stops, and it holds the folder until then.
+  it('shows the folder stopping while the backend reports its task cancelling', async () => {
+    await serve();
+    backend.cancelSlowly = true;
+    const done = startFolderTask(FOLDER, 'index');
+    await vi.advanceTimersByTimeAsync(0);
+    const task = backend.lastTask();
+
+    await stopFolderTask(FOLDER);
+    await settle();
+
+    expect(task.status).toBe('cancelling');
+    expect(folderTaskOf(FOLDER)?.isStopping).toBe(true);
+    expect(shown()).toEqual([]);
+
+    backend.finishCancel(task.id);
+    await settle();
+    await done;
+
+    expect(folderTaskOf(FOLDER)).toBeNull();
+    expect(shown()).toEqual([['info', 'Stopped indexing logs/']]);
+  });
+
+  it('shows the folder stopping when its task was stopped elsewhere', async () => {
+    await serve();
+    backend.cancelSlowly = true;
+    void startFolderTask(FOLDER, 'findings');
+    await vi.advanceTimersByTimeAsync(0);
+    const task = backend.lastTask();
+
+    task.status = 'cancelling';
+    await settle(1);
+
+    expect(folderTaskOf(FOLDER)?.isStopping).toBe(true);
+  });
+
+  it('says a folder whose stopped task has not ended is still stopping, and starts nothing', async () => {
+    await serve();
+    backend.cancelSlowly = true;
+    const stopped = backend.startElsewhere('findings', FOLDER);
+    stopped.status = 'cancelling';
+
+    await startFolderTask(FOLDER, 'findings');
+
+    expect(shown()).toEqual([
+      ['info', 'The scan of logs/ is still stopping; try again in a moment'],
+    ]);
+    expect(folderTaskOf(FOLDER)).toBeNull();
+    backend.finishCancel(stopped.id);
+  });
+
+  it('leaves a task that ended meanwhile (409) to its poll, and reports its end', async () => {
+    await serve();
+    const done = startFolderTask(FOLDER, 'index');
+    await vi.advanceTimersByTimeAsync(0);
+    const task = backend.lastTask();
+    backend.cancelConflict = true;
+
+    await stopFolderTask(FOLDER);
+
+    expect(folderTaskOf(FOLDER)?.isStopping).toBe(false);
+    backend.complete(task.id, folderResult({ files_total: 2, done: 2 }));
+    await settle();
+    await done;
+
+    expect(shown()).toEqual([['success', 'Indexed 2 files under logs/']]);
+  });
+
+  it('sends nothing for a folder whose task is not followed', async () => {
+    await serve();
+
+    await stopFolderTask(FOLDER);
+
+    expect(backend.requestsTo('DELETE', '/v1/tasks/x')).toEqual([]);
+    expect(backend.requests.filter((r) => r.method === 'DELETE')).toEqual([]);
+  });
+});
+
+describe('askFolderTask', () => {
+  it('asks to confirm a scan of the folder with the number of signatures picked', async () => {
+    await serve();
+    settings.update((s) => ({ ...s, findingsPicker: ['sql-statement', 'aws-access-key'] }));
+
+    await askFolderTask(FOLDER, 'findings');
+
+    expect(get(folderTaskRequest)).toEqual({ path: FOLDER, kind: 'findings', signatureCount: 2 });
+    expect(backend.requests.filter((r) => r.method === 'POST')).toEqual([]);
+  });
+
+  it('asks to confirm an index of the folder', async () => {
+    await serve();
+
+    await askFolderTask(FOLDER, 'index');
+
+    expect(get(folderTaskRequest)).toEqual({ path: FOLDER, kind: 'index', signatureCount: null });
+  });
+
+  it('asks nothing and says so when the picker picks no signature', async () => {
+    await serve();
+    settings.update((s) => ({ ...s, findingsPicker: [] }));
+
+    await askFolderTask(FOLDER, 'findings');
+
+    expect(get(folderTaskRequest)).toBeNull();
+    expect(shown()).toEqual([['warning', 'Pick signatures in the Findings panel to scan logs/']]);
+  });
+});

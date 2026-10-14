@@ -17,7 +17,8 @@ import type {
  * The tree's context-menu items, and its Index and Re-index actions, from
  * the request to the refreshed tree badge and open file, and Index and
  * Re-index of a log chain's row. "Scan for findings" runs
- * `scanForFindings` (`scanForFindings.ts`).
+ * `scanForFindings` (`scanForFindings.ts`); a folder's items run the
+ * tasks of `stores/folderTasks.ts`.
  *
  * Every task of a file is followed through `taskPolls`, so an action on
  * a file whose task is already followed joins that poll instead of
@@ -25,7 +26,8 @@ import type {
  * `watchTask`, once per chain.
  */
 
-export type TreeMenuAction = 'scanFindings' | 'index' | 'reindex';
+export type TreeMenuAction =
+  'scanFindings' | 'index' | 'reindex' | 'indexFolder' | 'scanFolder' | 'stopFolder';
 
 export interface TreeMenuItem {
   action: TreeMenuAction;
@@ -34,15 +36,24 @@ export interface TreeMenuItem {
 
 const SCAN_ITEM: TreeMenuItem = { action: 'scanFindings', label: 'Scan for findings' };
 
-/** What the backend lets the tree's menu do beyond indexing. */
+/** What the backend lets the tree's menu do beyond indexing, and what runs. */
 export interface TreeMenuFeatures {
   /** The backend scans files for findings (`signatures` in `/health`). */
   canScanFindings: boolean;
+  /** A task over the folder is followed, so its menu offers Stop alone. */
+  hasFolderTask: boolean;
 }
 
-const NO_MENU_FEATURES: TreeMenuFeatures = { canScanFindings: false };
+const NO_MENU_FEATURES: TreeMenuFeatures = { canScanFindings: false, hasFolderTask: false };
 
-/** The index item of a compressed file, keyed by whether it is indexed already. */
+const INDEX_FOLDER_ITEM: TreeMenuItem = { action: 'indexFolder', label: 'Index all files' };
+const SCAN_FOLDER_ITEM: TreeMenuItem = {
+  action: 'scanFolder',
+  label: 'Scan all files for findings',
+};
+const STOP_FOLDER_ITEM: TreeMenuItem = { action: 'stopFolder', label: 'Stop' };
+
+/** The index item of a file, keyed by whether it is indexed already. */
 const INDEX_ITEM: Record<'true' | 'false', TreeMenuItem> = {
   false: { action: 'index', label: 'Index' },
   true: { action: 'reindex', label: 'Re-index' },
@@ -51,19 +62,26 @@ const INDEX_ITEM: Record<'true' | 'false', TreeMenuItem> = {
 /**
  * The context-menu items of a tree entry.
  *
- * Only a text file has lines to scan and index; the backend answers a
- * directory or a binary file with a 400. "Scan for findings" comes first,
- * on a backend that scans. A plain file gets its index on first use, so
- * the explicit index item is offered on compressed files only.
+ * A text file offers "Scan for findings" first, on a backend that scans,
+ * then Index, or Re-index once indexed, plain or compressed alike. A
+ * file known not to be text offers nothing: the backend refuses to index
+ * or scan it (400). A folder offers a task over every file under it:
+ * "Index all files", and "Scan all files for findings" on a backend that
+ * scans; while one of its tasks runs, Stop alone.
  */
 export function treeMenuItems(
-  entry: Pick<TreeEntry, 'type' | 'is_text' | 'is_compressed' | 'is_indexed'>,
+  entry: Pick<TreeEntry, 'type' | 'is_text' | 'is_indexed'>,
   features: TreeMenuFeatures = NO_MENU_FEATURES,
 ): TreeMenuItem[] {
+  if (entry.type === 'directory') return folderMenuItems(features);
   if (entry.type !== 'file' || entry.is_text === false) return [];
   const scan = features.canScanFindings ? [SCAN_ITEM] : [];
-  if (!entry.is_compressed) return scan;
   return [...scan, INDEX_ITEM[entry.is_indexed ? 'true' : 'false']];
+}
+
+function folderMenuItems(features: TreeMenuFeatures): TreeMenuItem[] {
+  if (features.hasFolderTask) return [STOP_FOLDER_ITEM];
+  return features.canScanFindings ? [INDEX_FOLDER_ITEM, SCAN_FOLDER_ITEM] : [INDEX_FOLDER_ITEM];
 }
 
 /**
@@ -111,32 +129,48 @@ interface IndexRequest {
 /** Index requests wait for no dialog: their poll runs until the task ends. */
 const NEVER_ABORTED = new AbortController().signal;
 
-/** Start an index task, or join the one a 409 names, and wait for its result. */
+/** Record an index task's command in the command line; false when it has none. */
+function recordIndexCommand(command: string | null | undefined): boolean {
+  if (!command) return false;
+  commandLog.record(command, 'index');
+  return true;
+}
+
+/**
+ * Start an index task, or join the one a 409 names, and wait for its
+ * result. The task's command goes to the command line as soon as it is
+ * known: from the answer that started the task, else from the first
+ * status of the task joined, else from its result.
+ */
 async function runIndexTask(
   path: string,
   request: IndexRequest,
   signal: AbortSignal,
-  onStatus?: (task: TaskStatus) => void,
 ): Promise<IndexTaskResult> {
   let taskId: string;
+  let command = '';
   try {
-    taskId = (await api.startIndex(path, request)).task_id;
+    const answer = await api.startIndex(path, request);
+    taskId = answer.task_id;
+    command = answer.cli_command;
   } catch (error) {
     const runningTaskId = conflictTaskId(error);
     if (!runningTaskId) throw error;
     taskId = runningTaskId;
   }
-  return taskPolls.join(path, taskId, { signal, onStatus });
+  let isRecorded = recordIndexCommand(command);
+  const onStatus = (task: TaskStatus) => {
+    if (!isRecorded) isRecorded = recordIndexCommand(task.cli_command);
+  };
+  const result = await taskPolls.join(path, taskId, { signal, onStatus });
+  if (!isRecorded) recordIndexCommand(result.cli_command);
+  return result;
 }
 
-/**
- * Show a freshly built index in the tree and in the open file, and its
- * equivalent command in the command line.
- */
+/** Show a freshly built index in the tree and in the open file. */
 function publishIndex(path: string, indexData: IndexResponse): IndexResponse {
   tree.markIndexed(path, indexData.line_count ?? null);
   files.applyIndex(path, indexData);
-  commandLog.record(indexData.cli_command, 'index');
   return indexData;
 }
 

@@ -205,7 +205,45 @@ describe('a finished task', () => {
 });
 
 describe('the equivalent command of an index', () => {
-  it('records the command of the index it built', async () => {
+  it("shows the index task's command as soon as the task starts", async () => {
+    stubBackend({
+      'POST /v1/index': [
+        [200, { task_id: 't1', status: 'queued', cli_command: `rx index ${PATH} --threshold=0` }],
+      ],
+      'GET /v1/tasks/t1': [running('t1'), completed('t1', indexData())],
+    });
+
+    const result = indexFile(PATH, { reindex: false });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(get(commandLog).map((e) => e.command)).toEqual([`rx index ${PATH} --threshold=0`]);
+    expect(get(commandLog)[0].action).toBe('index');
+    await settle();
+    await result;
+  });
+
+  // A command recorded since the start stays the last one: the end does
+  // not record the index task's command again.
+  it('leaves the footer to a later answer when the index ends', async () => {
+    const command = `rx index ${PATH} --threshold=0`;
+    stubBackend({
+      'POST /v1/index': [[200, { task_id: 't1', status: 'queued', cli_command: command }]],
+      'GET /v1/tasks/t1': [running('t1'), completed('t1', indexData({ cli_command: command }))],
+    });
+
+    const result = indexFile(PATH, { reindex: false });
+    await vi.advanceTimersByTimeAsync(0);
+    commandLog.record(`rx samples ${PATH} --lines=1-50`, 'file');
+    await settle();
+    await result;
+
+    expect(get(commandLog).map((e) => e.command)).toEqual([
+      `rx samples ${PATH} --lines=1-50`,
+      command,
+    ]);
+  });
+
+  it('records the command of the index it built when the start named none', async () => {
     stubBackend({
       'POST /v1/index': [started('t1')],
       'GET /v1/tasks/t1': [completed('t1', indexData({ cli_command: `rx index ${PATH}` }))],
@@ -217,48 +255,76 @@ describe('the equivalent command of an index', () => {
 
     expect(get(commandLog)[0]).toMatchObject({ command: `rx index ${PATH}`, action: 'index' });
   });
+
+  it('shows the command of the running task a 409 names', async () => {
+    stubBackend({
+      'POST /v1/index': [[409, { detail: 'Already indexing (task: t9)', task_id: 't9' }]],
+      'GET /v1/tasks/t9': [
+        [200, { task_id: 't9', status: 'running', cli_command: `rx index ${PATH}` }],
+        completed('t9', indexData({ cli_command: `rx index ${PATH}` })),
+      ],
+    });
+
+    const result = indexFile(PATH, { reindex: false });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(get(commandLog)[0]).toMatchObject({ command: `rx index ${PATH}`, action: 'index' });
+    await settle();
+    await result;
+  });
 });
 
 describe('treeMenuItems', () => {
   const file = { type: 'file', is_text: true, is_compressed: false, is_indexed: false } as const;
+  const folder = { ...file, type: 'directory', is_text: null } as const;
+  const scans = { canScanFindings: true, hasFolderTask: false };
+  const labelsOf = (items: { label: string }[]) => items.map((i) => i.label);
 
-  it('offers nothing on a directory', () => {
-    expect(treeMenuItems({ ...file, type: 'directory', is_text: null })).toEqual([]);
-  });
-
+  // rx-go refuses to index or scan a file that is not text (400).
   it('offers nothing on a file that is not text', () => {
     expect(treeMenuItems({ ...file, is_text: false })).toEqual([]);
-  });
-
-  // A plain file gets its line index on first use.
-  it('offers nothing on a plain text file of a backend that does not scan', () => {
-    expect(treeMenuItems(file)).toEqual([]);
+    expect(treeMenuItems({ ...file, is_text: false }, scans)).toEqual([]);
   });
 
   it.each([
-    [false, 'Index'],
-    [true, 'Re-index'],
-  ])('offers an index item on a compressed file indexed=%s', (isIndexed, label) => {
-    const items = treeMenuItems({ ...file, is_compressed: true, is_indexed: isIndexed });
-    expect(items.map((i) => i.label)).toEqual([label]);
-  });
-
-  const scans = { canScanFindings: true };
+    [false, false, 'Index'],
+    [false, true, 'Re-index'],
+    [true, false, 'Index'],
+    [true, true, 'Re-index'],
+  ])(
+    'offers an index item on a text file, compressed=%s indexed=%s: %s',
+    (isCompressed, isIndexed, label) => {
+      const entry = { ...file, is_compressed: isCompressed, is_indexed: isIndexed };
+      expect(labelsOf(treeMenuItems(entry))).toEqual([label]);
+    },
+  );
 
   it('offers Scan for findings first on a text file of a backend that scans', () => {
-    expect(treeMenuItems(file, scans).map((i) => i.label)).toEqual(['Scan for findings']);
+    expect(labelsOf(treeMenuItems(file, scans))).toEqual(['Scan for findings', 'Index']);
     expect(treeMenuItems({ ...file, is_text: null }, scans).map((i) => i.action)).toEqual([
       'scanFindings',
-    ]);
-    expect(treeMenuItems({ ...file, is_compressed: true }, scans).map((i) => i.label)).toEqual([
-      'Scan for findings',
-      'Index',
+      'index',
     ]);
   });
 
-  it('offers no scan on a directory or a file that is not text', () => {
-    expect(treeMenuItems({ ...file, type: 'directory', is_text: null }, scans)).toEqual([]);
-    expect(treeMenuItems({ ...file, is_text: false }, scans)).toEqual([]);
+  it('offers to index and scan every file of a folder', () => {
+    expect(labelsOf(treeMenuItems(folder, scans))).toEqual([
+      'Index all files',
+      'Scan all files for findings',
+    ]);
+    expect(treeMenuItems(folder, scans).map((i) => i.action)).toEqual([
+      'indexFolder',
+      'scanFolder',
+    ]);
+  });
+
+  it('offers no folder scan on a backend that does not scan', () => {
+    expect(labelsOf(treeMenuItems(folder))).toEqual(['Index all files']);
+  });
+
+  it('offers only Stop on a folder whose task runs', () => {
+    const items = treeMenuItems(folder, { ...scans, hasFolderTask: true });
+    expect(items).toEqual([{ action: 'stopFolder', label: 'Stop' }]);
   });
 });
 

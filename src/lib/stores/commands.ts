@@ -10,8 +10,9 @@ import { derived, writable } from 'svelte/store';
  * backend's command of a findings answer names the picker's selection,
  * not the group or signature a header narrows it to. Only answers to a
  * user's action are recorded (a search, a file opened, a jump, a copy of
- * selected lines or of findings, an index, a findings scan), not the
- * pages loaded while scrolling.
+ * selected lines or of findings, an index, a findings scan, a task over
+ * a folder, each from the answer that starts it), not the pages loaded
+ * while scrolling.
  */
 
 /** What the user did that the command answers. */

@@ -36,6 +36,26 @@ function entryToNode(entry: TreeEntry, level: number): TreeNode {
 }
 
 /**
+ * `entries`, a folder's listing, as its rows at `level`: an entry the
+ * folder already showed keeps what its row held (open or closed, its own
+ * rows and its chains) and takes the listing's fields; a new entry is a
+ * closed row, and a row the listing leaves out goes.
+ */
+function mergeListing(rows: readonly TreeNode[], entries: TreeEntry[], level: number): TreeNode[] {
+  const shown = new Map(rows.map((row) => [row.path, row]));
+  return entries.map((entry) => {
+    const row = shown.get(entry.path);
+    return row && row.type === entry.type ? { ...row, ...entry } : entryToNode(entry, level);
+  });
+}
+
+/** The folder `node` and every folder under it whose rows are loaded; none when its own are not. */
+function loadedFolders(node: TreeNode): TreeNode[] {
+  if (node.type !== 'directory' || node.children.length === 0) return [];
+  return [node, ...node.children.flatMap(loadedFolders)];
+}
+
+/**
  * Whether the folder at `folder` holds `path`, at any depth: `path` starts
  * with the folder's path and a slash. A folder does not hold itself.
  */
@@ -197,6 +217,47 @@ function createTreeStore() {
         error: e instanceof Error ? e.message : 'Failed to load directory',
       }));
     }
+  }
+
+  // The listings read again after a task changed a folder's files have
+  // slots of their own, so a reload and the load of a click never cancel
+  // each other; whichever answers last is shown.
+  const reloads = new LatestRequestMap();
+
+  /**
+   * List the loaded folder `folder` again and show its rows' new fields,
+   * and its chains when they are listed. A listing that fails leaves the
+   * rows as they were and shows no error: nothing the user asked failed.
+   */
+  async function reloadListing(folder: TreeNode): Promise<void> {
+    try {
+      const listing = await reloads.run(folder.path, (signal) =>
+        api.getTree(folder.path, { signal }),
+      );
+      if (listing === SUPERSEDED) return;
+      update((s) => ({
+        ...s,
+        roots: updateNode(s.roots, folder.path, (n) => ({
+          ...n,
+          children: mergeListing(n.children, listing.entries ?? [], n.level + 1),
+        })),
+      }));
+      if (folder.chains !== undefined) await refreshChains(folder.path);
+    } catch (e) {
+      if (!isAbortError(e)) console.warn('A folder could not be listed again:', folder.path, e);
+    }
+  }
+
+  /**
+   * List again the folder at `path` and every folder under it whose rows
+   * are loaded, all at once, after a task over it changed what its files
+   * hold (their `idx` and findings labels). Each row keeps whether it is
+   * open and its own rows; a folder never opened is listed when it is.
+   */
+  async function reloadFolder(path: string): Promise<void> {
+    const node = findNode(get({ subscribe }).roots, path);
+    if (!node) return;
+    await Promise.all(loadedFolders(node).map(reloadListing));
   }
 
   /** The directories whose chains are being listed. */
@@ -419,6 +480,7 @@ function createTreeStore() {
     loadRoots,
     ensureRoots,
     loadDirectory,
+    reloadFolder,
     expand,
     collapse,
     toggleExpanded,

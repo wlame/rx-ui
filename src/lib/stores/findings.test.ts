@@ -243,10 +243,30 @@ describe('a scan', () => {
     expect(state.scan).toBeNull();
     expect(state.scanEnd).toBeNull();
     expect(state.summary?.checked).toEqual(['python-traceback', 'sql-statement']);
+    // The footer shows the scan's own command from its start; the
+    // findings answer that ends it records none.
+    expect(get(commandLog)).toEqual([
+      expect.objectContaining({
+        command: `rx scan ${APP_LOG} --signatures=python-traceback,sql-statement`,
+        action: 'findings',
+      }),
+    ]);
+  });
+
+  it('shows its rx scan command in the footer as soon as it starts', async () => {
+    const backend = await serve();
+    backend.addFile(APP_LOG, []);
+
+    const done = startScan(APP_LOG, ['sql-statement'], false);
+    await vi.advanceTimersByTimeAsync(0);
+
     expect(get(commandLog)[0]).toMatchObject({
-      command: `rx trace --signatures=python-traceback,sql-statement ${APP_LOG}`,
+      command: `rx scan ${APP_LOG} --signatures=sql-statement`,
       action: 'findings',
     });
+    backend.complete(backend.lastTask()?.id ?? '');
+    await settle();
+    await done;
   });
 
   it('posts a rescan with force', async () => {

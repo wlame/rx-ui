@@ -2,9 +2,16 @@
   import type { TreeNode as TreeNodeType } from '$lib/types';
   import { backendHas, health, tree, notifications } from '$lib/stores';
   import { chainModeOn } from '$lib/stores/chainMode';
-  import { indexFile, treeMenuItems, type TreeMenuAction } from '$lib/indexTasks';
+  import {
+    indexFile,
+    treeMenuItems,
+    type TreeMenuAction,
+    type TreeMenuItem,
+  } from '$lib/indexTasks';
   import { openTreeRow } from '$lib/fileOpening';
   import { scanForFindings } from '$lib/scanForFindings';
+  import { askFolderTask, folderTaskOf, stopFolderTask } from '$lib/stores/folderTasks';
+  import type { FolderTaskKind } from '$lib/utils/folderTaskText';
   import { treeTabStop } from '$lib/stores/treeFocus';
   import { isChainRow, rowKey, shownChildren } from '$lib/utils/chainTree';
   import { formatCount, formatSize } from '$lib/utils/format';
@@ -15,6 +22,7 @@
   import Spinner from '../common/Spinner.svelte';
   import FileBadges from '../common/FileBadges.svelte';
   import ChainTreeNode from './ChainTreeNode.svelte';
+  import FolderTaskBadge from './FolderTaskBadge.svelte';
   import TreeContextMenu from './TreeContextMenu.svelte';
   import { TREE_ROW_FOCUS_CLASS } from './treeRowStyle';
   import ValueCell from './ValueCell.svelte';
@@ -73,10 +81,17 @@
     else openTreeRow(node.path);
   }
 
-  $: menuItems = treeMenuItems(node, { canScanFindings: backendHas('signatures', $health) });
+  let menuItems: TreeMenuItem[] = [];
 
-  /** A row with no action of its own keeps the browser's own menu. */
+  /**
+   * The row's menu, as the backend and the folder's task are when it
+   * opens; a row with no action of its own keeps the browser's own menu.
+   */
   function handleContextMenu(event: MouseEvent) {
+    menuItems = treeMenuItems(node, {
+      canScanFindings: backendHas('signatures', $health),
+      hasFolderTask: folderTaskOf(node.path) !== null,
+    });
     if (menuItems.length === 0) return;
     event.preventDefault();
     contextMenuX = event.clientX;
@@ -105,11 +120,25 @@
     void scanForFindings(node.path);
   }
 
+  /** A folder's item asks first: the app draws the question over every panel. */
+  function handleFolderTask(kind: FolderTaskKind) {
+    closeContextMenu();
+    void askFolderTask(node.path, kind);
+  }
+
+  function handleStopFolderTask() {
+    closeContextMenu();
+    void stopFolderTask(node.path);
+  }
+
   /** What each context-menu item does. */
   const MENU_HANDLERS: Record<TreeMenuAction, () => void> = {
     scanFindings: handleScanFindings,
     index: () => handleIndex(false),
     reindex: () => handleIndex(true),
+    indexFolder: () => handleFolderTask('index'),
+    scanFolder: () => handleFolderTask('findings'),
+    stopFolder: handleStopFolderTask,
   };
 </script>
 
@@ -165,6 +194,11 @@
     >
       {node.name}
     </span>
+
+    <!-- The progress of a task over every file of a folder -->
+    {#if node.type === 'directory'}
+      <FolderTaskBadge path={node.path} />
+    {/if}
 
     <!-- Labels of a file -->
     {#if showLabels && node.type === 'file'}
