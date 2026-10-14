@@ -446,6 +446,8 @@ role="tab">` that also carries the drag handlers; its close button is a
   first row in view, and `hasRowMoved` (`utils/treeRows.ts`) counts a
   row as moved only when its place among the rows shown before and
   after changed, so a row added above the focused one scrolls nothing
+  into view, unless the focused row was in view and the change pushed
+  it out (`isRowInView` in `keepCurrentRow`): then it is scrolled back
   into view. A listing read again goes through `reloads`, never
   `loadDirectory`, whose failure sets the tree's error.
 - `stores/searchDraft.ts` holds the search panel's form (patterns,

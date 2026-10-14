@@ -84,6 +84,15 @@
     row.scrollIntoView({ block: 'nearest' });
   }
 
+  /** Whether the row `id` is drawn wholly inside the tree's view. */
+  function isRowInView(id: string): boolean {
+    const row = rowElement(id);
+    if (!row || !treeElement) return false;
+    const view = treeElement.getBoundingClientRect();
+    const box = row.getBoundingClientRect();
+    return box.top >= view.top && box.bottom <= view.bottom;
+  }
+
   /** How many rows a panel height holds, for PageDown and PageUp; 1 before any is drawn. */
   function pageSize(): number {
     const rowHeight = treeElement?.querySelector<HTMLElement>('[data-row-id]')?.offsetHeight ?? 0;
@@ -188,10 +197,12 @@
    * After a change of the rows, keep the current row and the focus on it.
    * A row still shown keeps the focus it had, also when a new order moved
    * it (rows added or removed around it do not move it: `hasRowMoved`).
-   * When the current row is no longer shown, the row that takes its
-   * place becomes current (`fallbackFocus`): the chain row that shows it
-   * as a part, else the nearest folder above it, else the first row; the
-   * focus follows when the row had it. While the roots load or the tree
+   * A focused row that a new order moves, or that was in view and the
+   * change pushes out of it, is scrolled into view; one the user scrolled
+   * away from is left there. When the current row is no longer shown,
+   * the row that takes its place becomes current (`fallbackFocus`): the
+   * chain row that shows it as a part, else the nearest folder above it,
+   * else the first row; the focus follows when the row had it. While the roots load or the tree
    * shows its error, no row is drawn, and while a folder above the row
    * loads its rows, the row may come back: the current row waits for them.
    */
@@ -202,8 +213,15 @@
     // Read before the update draws the rows: a row that moves loses the focus.
     const hadFocus = isFocusOnRows();
     if (rows.some((row) => row.id === current)) {
+      if (!hadFocus) return;
       const hasMoved = hasRowMoved(previous, rows, current);
-      if (hadFocus) void tick().then(() => keepFocusOn(current, hasMoved));
+      const wasInView = isRowInView(current);
+      // After the rows in view are held in place (`holdRowsInView`), whose
+      // tick callback runs first.
+      void tick().then(() => {
+        const isPushedOut = wasInView && !isRowInView(current);
+        keepFocusOn(current, hasMoved || isPushedOut);
+      });
       return;
     }
     if (isLoadingAbove(rows, current)) return;

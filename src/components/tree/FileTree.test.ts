@@ -496,6 +496,46 @@ describe('the files panel read again by its refresh', () => {
     expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
   });
 
+  /** The rows `scrollIntoView` was called on. */
+  function scrolledIntoView(): unknown[] {
+    return vi.mocked(Element.prototype.scrollIntoView).mock.contexts;
+  }
+
+  // The focused row is the last row in view (top 80 of a 100 px view).
+  it.each([
+    ['at the top of the list, with a row coming above it', 0, 'f2.log', 'e.log'],
+    ['scrolled, with a row coming between the first row in view and it', 60, 'f5.log', 'f1a.log'],
+  ])(
+    'scrolls the focused row back into view when a refresh pushes it out of view, %s',
+    async (_name, scrollTop, focusedName, addedName) => {
+      const { target } = await mountTree(scrollTop);
+      const focused = rowAt(target, `${ROOT}/${focusedName}`);
+      focused?.focus();
+      await settle();
+      expect(focused?.getBoundingClientRect().top).toBe(80);
+
+      backend.add(`${ROOT}/${addedName}`, 'file', { is_text: true, size: 10 });
+      await tree.refreshOpenFolders();
+      await settle();
+
+      expect(document.activeElement).toBe(focused);
+      expect(scrolledIntoView()).toEqual([focused]);
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+    },
+  );
+
+  it('scrolls nothing into view when the focused row stays in view', async () => {
+    const { target } = await mountTree(0);
+    rowAt(target, `${ROOT}/f1.log`)?.focus();
+    await settle();
+
+    backend.add(`${ROOT}/e.log`, 'file', { is_text: true, size: 10 });
+    await tree.refreshOpenFolders();
+    await settle();
+
+    expect(scrolledIntoView()).toEqual([]);
+  });
+
   it('shows a row that comes above the first row when the view is at the top', async () => {
     const { target, treeElement } = await mountTree(0);
 
