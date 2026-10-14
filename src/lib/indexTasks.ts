@@ -36,15 +36,22 @@ export interface TreeMenuItem {
 
 const SCAN_ITEM: TreeMenuItem = { action: 'scanFindings', label: 'Scan for findings' };
 
+/**
+ * Where a folder's task is: none followed, `starting` while the request
+ * that starts it is on its way (no task to stop yet), `running` once the
+ * backend named it.
+ */
+export type FolderTaskStage = 'none' | 'starting' | 'running';
+
 /** What the backend lets the tree's menu do beyond indexing, and what runs. */
 export interface TreeMenuFeatures {
   /** The backend scans files for findings (`signatures` in `/health`). */
   canScanFindings: boolean;
-  /** A task over the folder is followed, so its menu offers Stop alone. */
-  hasFolderTask: boolean;
+  /** Where the folder's task is; a folder offers its tasks only at `none`. */
+  folderTask: FolderTaskStage;
 }
 
-const NO_MENU_FEATURES: TreeMenuFeatures = { canScanFindings: false, hasFolderTask: false };
+const NO_MENU_FEATURES: TreeMenuFeatures = { canScanFindings: false, folderTask: 'none' };
 
 const INDEX_FOLDER_ITEM: TreeMenuItem = { action: 'indexFolder', label: 'Index all files' };
 const SCAN_FOLDER_ITEM: TreeMenuItem = {
@@ -67,7 +74,8 @@ const INDEX_ITEM: Record<'true' | 'false', TreeMenuItem> = {
  * file known not to be text offers nothing: the backend refuses to index
  * or scan it (400). A folder offers a task over every file under it:
  * "Index all files", and "Scan all files for findings" on a backend that
- * scans; while one of its tasks runs, Stop alone.
+ * scans; while one of its tasks runs, Stop alone, and nothing while the
+ * request that starts it is on its way.
  */
 export function treeMenuItems(
   entry: Pick<TreeEntry, 'type' | 'is_text' | 'is_indexed'>,
@@ -79,9 +87,15 @@ export function treeMenuItems(
   return [...scan, INDEX_ITEM[entry.is_indexed ? 'true' : 'false']];
 }
 
+/** A folder's items at each stage of its task. */
+const FOLDER_ITEMS: Record<FolderTaskStage, (canScanFindings: boolean) => TreeMenuItem[]> = {
+  none: (canScan) => (canScan ? [INDEX_FOLDER_ITEM, SCAN_FOLDER_ITEM] : [INDEX_FOLDER_ITEM]),
+  starting: () => [],
+  running: () => [STOP_FOLDER_ITEM],
+};
+
 function folderMenuItems(features: TreeMenuFeatures): TreeMenuItem[] {
-  if (features.hasFolderTask) return [STOP_FOLDER_ITEM];
-  return features.canScanFindings ? [INDEX_FOLDER_ITEM, SCAN_FOLDER_ITEM] : [INDEX_FOLDER_ITEM];
+  return FOLDER_ITEMS[features.folderTask](features.canScanFindings);
 }
 
 /**

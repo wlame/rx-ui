@@ -6,7 +6,7 @@ import { get } from 'svelte/store';
 import { files, health, notifications, settings, tree } from '$lib/stores';
 import { commandLog } from '$lib/stores/commands';
 import { forgetFindings } from '$lib/stores/findings';
-import { closeFolderTaskRequest } from '$lib/stores/folderTasks';
+import { closeFolderTaskRequest, startFolderTask } from '$lib/stores/folderTasks';
 import { modalOpen, sidebarTab } from '$lib/stores/layout';
 import { loadSignatures } from '$lib/stores/signatures';
 import {
@@ -201,6 +201,16 @@ describe('a folder task from the menu', () => {
     ]);
     expect(folderLabel()).toBe('indexing 3/40');
     expect(footer()).toBe(`rx index ${FOLDER} --recursive --threshold=0`);
+  });
+
+  it('offers no Stop while the request that starts the task is on its way', async () => {
+    await mount();
+
+    void startFolderTask(FOLDER, 'index');
+
+    expect(labelsOf(await openMenu(FOLDER))).toEqual([]);
+    await settle(0);
+    expect(labelsOf(await openMenu(FOLDER))).toEqual(['Stop']);
   });
 
   it("stops the task from the folder's menu with one DELETE", async () => {

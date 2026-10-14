@@ -277,7 +277,7 @@ describe('the equivalent command of an index', () => {
 describe('treeMenuItems', () => {
   const file = { type: 'file', is_text: true, is_compressed: false, is_indexed: false } as const;
   const folder = { ...file, type: 'directory', is_text: null } as const;
-  const scans = { canScanFindings: true, hasFolderTask: false };
+  const scans = { canScanFindings: true, folderTask: 'none' } as const;
   const labelsOf = (items: { label: string }[]) => items.map((i) => i.label);
 
   // rx-go refuses to index or scan a file that is not text (400).
@@ -323,8 +323,13 @@ describe('treeMenuItems', () => {
   });
 
   it('offers only Stop on a folder whose task runs', () => {
-    const items = treeMenuItems(folder, { ...scans, hasFolderTask: true });
+    const items = treeMenuItems(folder, { ...scans, folderTask: 'running' });
     expect(items).toEqual([{ action: 'stopFolder', label: 'Stop' }]);
+  });
+
+  // Until the backend names the task there is nothing to stop yet.
+  it('offers nothing on a folder whose task is being started', () => {
+    expect(treeMenuItems(folder, { ...scans, folderTask: 'starting' })).toEqual([]);
   });
 });
 

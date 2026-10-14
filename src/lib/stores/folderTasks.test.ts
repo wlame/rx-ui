@@ -20,6 +20,7 @@ import {
   closeFolderTaskRequest,
   folderTaskOf,
   folderTaskRequest,
+  folderTaskStage,
   startFolderTask,
   stopFolderTask,
 } from './folderTasks';
@@ -131,6 +132,20 @@ describe('startFolderTask', () => {
 
     expect(backend.requestsTo('POST', '/v1/findings')).toEqual([]);
     expect(folderTaskOf(FOLDER)).toBeNull();
+  });
+
+  it('is starting until the backend names the task, then running, then none', async () => {
+    await serve();
+
+    const done = startFolderTask(FOLDER, 'index');
+
+    expect(folderTaskStage(FOLDER)).toBe('starting');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(folderTaskStage(FOLDER)).toBe('running');
+    backend.complete(backend.lastTask().id);
+    await settle();
+    await done;
+    expect(folderTaskStage(FOLDER)).toBe('none');
   });
 
   it('follows the files done and the total of the folder', async () => {

@@ -666,14 +666,15 @@ caches each file's findings per signature.
   label's (the listing can be newer), "some of the M" otherwise, and
   "opt-in signatures only" for K = 0; hovering asks nothing.
 - **Scan for findings** (`scanForFindings.ts`) is the tree menu's item on
-  a text file (`treeMenuItems(entry, { canScanFindings, hasFolderTask })`,
+  a text file (`treeMenuItems(entry, { canScanFindings, folderTask })`,
   never on a chain row): open the file, `showPanel('findings', false)`,
   then `startScan` with `pickedIds` of the picker's choice. Index (or
   Re-index) follows it on every text file, plain or compressed.
 - **Tasks over a folder** (`stores/folderTasks.ts`, words in
   `utils/folderTaskText.ts`): a folder's menu has "Index all files" and,
   with `signatures`, "Scan all files for findings"; while a task of the
-  folder is followed, Stop alone. An item asks first
+  folder runs, Stop alone (`folderTaskStage`), and nothing while the
+  request that starts it is on its way. An item asks first
   (`askFolderTask`, the dialog `components/tree/FolderTaskDialog.svelte`
   that `App.svelte` draws); its answer runs `startFolderTask`:
   `POST /v1/index` with `threshold: 0` or `POST /v1/findings` with the

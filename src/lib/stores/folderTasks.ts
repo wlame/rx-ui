@@ -1,6 +1,6 @@
 import { get, writable, type Readable } from 'svelte/store';
 import { api, ApiError } from '../api';
-import { conflictTaskId } from '../indexTasks';
+import { conflictTaskId, type FolderTaskStage } from '../indexTasks';
 import type { FolderTaskResult, IndexTaskResponse, TaskState, TaskStatus } from '../types';
 import { pickedIds, scanSelection } from '../utils/findingsPicker';
 import {
@@ -57,6 +57,13 @@ export const folderTasks: Readable<ReadonlyMap<string, FolderTask>> = {
 /** The task followed for the folder at `path`, or null. */
 export function folderTaskOf(path: string): FolderTask | null {
   return get(state).get(path) ?? null;
+}
+
+/** Where the task of the folder at `path` is: none, starting (no id yet) or running. */
+export function folderTaskStage(path: string): FolderTaskStage {
+  const task = folderTaskOf(path);
+  if (task === null) return 'none';
+  return task.taskId === '' ? 'starting' : 'running';
 }
 
 /** A task over a folder that waits for the user's answer. */

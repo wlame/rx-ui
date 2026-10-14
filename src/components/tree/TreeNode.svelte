@@ -10,7 +10,7 @@
   } from '$lib/indexTasks';
   import { openTreeRow } from '$lib/fileOpening';
   import { scanForFindings } from '$lib/scanForFindings';
-  import { askFolderTask, folderTaskOf, stopFolderTask } from '$lib/stores/folderTasks';
+  import { askFolderTask, folderTaskStage, stopFolderTask } from '$lib/stores/folderTasks';
   import type { FolderTaskKind } from '$lib/utils/folderTaskText';
   import { treeTabStop } from '$lib/stores/treeFocus';
   import { isChainRow, rowKey, shownChildren } from '$lib/utils/chainTree';
@@ -90,7 +90,7 @@
   function handleContextMenu(event: MouseEvent) {
     menuItems = treeMenuItems(node, {
       canScanFindings: backendHas('signatures', $health),
-      hasFolderTask: folderTaskOf(node.path) !== null,
+      folderTask: folderTaskStage(node.path),
     });
     if (menuItems.length === 0) return;
     event.preventDefault();
