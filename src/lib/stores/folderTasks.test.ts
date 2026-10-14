@@ -352,6 +352,41 @@ describe('stopFolderTask', () => {
     backend.finishCancel(stopped.id);
   });
 
+  // The folder is free once the stopped task has ended, which may happen
+  // between the 409 and the read of its status.
+  it('starts once more when the stopped task a 409 names has ended by its status read', async () => {
+    await serve();
+    const stopped = backend.startElsewhere('index', FOLDER);
+    stopped.status = 'cancelling';
+    backend.endStoppedOnRead = true;
+
+    const done = startFolderTask(FOLDER, 'index');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(backend.requestsTo('POST', '/v1/index')).toHaveLength(2);
+    const task = backend.lastTask();
+    expect(task.id).not.toBe(stopped.id);
+    expect(folderTaskOf(FOLDER)?.taskId).toBe(task.id);
+    backend.complete(task.id, folderResult({ files_total: 1, done: 1 }));
+    await settle();
+    await done;
+
+    expect(shown()).toEqual([['success', 'Indexed 1 file under logs/']]);
+  });
+
+  it('says to try again when a 409 still names a task no status read knows, after one more start', async () => {
+    await serve();
+    backend.conflictWith = 'forgotten-1';
+
+    await startFolderTask(FOLDER, 'index');
+
+    expect(backend.requestsTo('POST', '/v1/index')).toHaveLength(2);
+    expect(shown()).toEqual([
+      ['info', 'The index task of logs/ is still stopping; try again in a moment'],
+    ]);
+    expect(folderTaskOf(FOLDER)).toBeNull();
+  });
+
   it('leaves a task that ended meanwhile (409) to its poll, and reports its end', async () => {
     await serve();
     const done = startFolderTask(FOLDER, 'index');

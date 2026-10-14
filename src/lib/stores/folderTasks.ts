@@ -152,23 +152,68 @@ export function closeFolderTaskRequest(): void {
 type StartAnswer = { kind: 'started'; taskId: string; command: string } | { kind: 'stopping' };
 
 /**
- * Start the task, or join the one a 409 names for the folder, unless
- * that one was stopped and has not ended: then nothing can start yet.
+ * What a start does about the task a 409 names, by the status read next:
+ * join one that runs, wait for one that stops, and send the request
+ * again for one that ended meanwhile, or that the backend no longer
+ * knows (404), since the folder is free then.
+ */
+type ConflictAction = 'join' | 'wait' | 'retry';
+
+const CONFLICT_ACTIONS: ReadonlyMap<string, ConflictAction> = new Map<TaskState, ConflictAction>([
+  ['cancelling', 'wait'],
+  ['completed', 'retry'],
+  ['failed', 'retry'],
+  ['cancelled', 'retry'],
+]);
+
+/** Start requests sent again after a 409 that named a task which had ended. */
+const ENDED_CONFLICT_RETRIES = 1;
+
+/** A task's status, or null when the backend no longer knows it (404). */
+async function statusOrNull(taskId: string): Promise<TaskStatus | null> {
+  try {
+    return await api.getTaskStatus(taskId);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === HTTP_NOT_FOUND) return null;
+    throw error;
+  }
+}
+
+/** Send the start request; a 409 gives the id of the task it names. */
+async function requestStart(
+  path: string,
+  kind: FolderTaskKind,
+  ids: readonly string[],
+): Promise<{ taskId: string; command: string } | { conflictWith: string }> {
+  try {
+    const answer = await STARTS[kind](path, ids);
+    return { taskId: answer.task_id, command: answer.cli_command };
+  } catch (error) {
+    const runningTaskId = conflictTaskId(error);
+    if (!runningTaskId) throw error;
+    return { conflictWith: runningTaskId };
+  }
+}
+
+/**
+ * Start the task, or join the one a 409 names for the folder. A stopped
+ * task that has not ended holds the folder: nothing can start yet. A
+ * named task that has ended is no obstacle: the request goes once more.
  */
 async function startOrJoin(
   path: string,
   kind: FolderTaskKind,
   ids: readonly string[],
 ): Promise<StartAnswer> {
-  try {
-    const answer = await STARTS[kind](path, ids);
-    return { kind: 'started', taskId: answer.task_id, command: answer.cli_command };
-  } catch (error) {
-    const runningTaskId = conflictTaskId(error);
-    if (!runningTaskId) throw error;
-    const running = await api.getTaskStatus(runningTaskId);
-    if (running.status === CANCELLING) return { kind: 'stopping' };
-    return { kind: 'started', taskId: runningTaskId, command: running.cli_command };
+  for (let attempt = 0; ; attempt++) {
+    const answer = await requestStart(path, kind, ids);
+    if (!('conflictWith' in answer)) return { kind: 'started', ...answer };
+    const named = await statusOrNull(answer.conflictWith);
+    const action = named === null ? 'retry' : (CONFLICT_ACTIONS.get(named.status) ?? 'join');
+    if (action === 'join' && named !== null) {
+      return { kind: 'started', taskId: answer.conflictWith, command: named.cli_command };
+    }
+    if (action === 'wait' || attempt >= ENDED_CONFLICT_RETRIES) return { kind: 'stopping' };
   }
 }
 

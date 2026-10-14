@@ -117,6 +117,10 @@ export class FolderTaskBackend {
   cancelConflict = false;
   /** A DELETE leaves the task `cancelling`, as a folder task whose worker has not stopped yet. */
   cancelSlowly = false;
+  /** A `cancelling` task's worker stops as its status is read: the read says `cancelled`. */
+  endStoppedOnRead = false;
+  /** Every start request is a 409 naming this id, which no status read knows (404). */
+  conflictWith: string | null = null;
 
   constructor(private readonly options: FolderTaskBackendOptions = {}) {}
 
@@ -204,6 +208,12 @@ export class FolderTaskBackend {
 
   private startTask(kind: TaskKind, body: Record<string, unknown> | undefined): Answer {
     const path = String(body?.path ?? '');
+    if (this.conflictWith !== null) {
+      return answer(409, {
+        detail: `busy (task: ${this.conflictWith})`,
+        task_id: this.conflictWith,
+      });
+    }
     const isFolder = path in LISTINGS;
     const running = this.runningTask(kind, path);
     const stopping = [...this.tasks.values()].find(
@@ -322,6 +332,7 @@ export class FolderTaskBackend {
         return this.startTask('findings', body);
       case 'GET /v1/tasks/{id}': {
         const task = this.tasks.get(taskId);
+        if (task?.status === 'cancelling' && this.endStoppedOnRead) task.status = 'cancelled';
         return task ? answer(200, this.taskStatus(task)) : answer(404, { detail: 'not found' });
       }
       case 'DELETE /v1/tasks/{id}':
