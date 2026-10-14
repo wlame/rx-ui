@@ -1,5 +1,8 @@
+// @vitest-environment jsdom
+import '$lib/testing/matchMediaStub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { writable } from 'svelte/store';
+import { contractGate } from '../contractGate';
 import { TreeDirBackend, serveTreeDir } from '../testing/fakeTreeDir';
 import type { HealthResponse } from '../types';
 import { health, type HealthState } from './health';
@@ -108,6 +111,25 @@ describe('the files list refresh timer', () => {
     expect(roundsAt).toEqual([60_000]);
     await vi.advanceTimersByTimeAsync(5_000);
     expect(roundsAt).toEqual([60_000, 65_000]);
+  });
+
+  it('runs a due round at once when the tab is shown again, though its timer did not run while hidden', async () => {
+    const { page, roundsAt } = start(5);
+    page.setHidden(true);
+    vi.setSystemTime(Date.now() + 11_000);
+
+    page.setHidden(false);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(roundsAt).toEqual([11_000]);
+  });
+
+  it('leaves no timer while the tab is hidden', async () => {
+    const { page } = start(5);
+
+    page.setHidden(true);
+
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('waits out the period when the tab is shown again before it passed', async () => {
@@ -243,6 +265,50 @@ describe('refreshSecondsOf', () => {
 });
 
 describe('startTreeRefresh', () => {
+  /** Show or hide the page as a browser does: its state first, then the event. */
+  function setPageHidden(hidden: boolean) {
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => (hidden ? 'hidden' : 'visible'),
+    });
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }
+
+  afterEach(() => {
+    health.stopPolling();
+    contractGate.reset();
+    Reflect.deleteProperty(document, 'visibilityState');
+    Reflect.deleteProperty(document, 'hidden');
+  });
+
+  // A browser may run no timer of a hidden page (Chromium freezes it):
+  // the clock moves on and the timer waits.
+  it.each([
+    ['its timers run', (ms: number) => vi.advanceTimersByTimeAsync(ms)],
+    ['its timers wait', async (ms: number) => vi.setSystemTime(Date.now() + ms)],
+  ])(
+    'reads the open folders at once when the tab is shown again after more than N hidden, and %s',
+    async (_name, passHidden) => {
+      const backend = new TreeDirBackend(['/logs'], { treeRefreshSeconds: 5 });
+      backend.add('/logs/a.log', 'file');
+      serveTreeDir(backend);
+      health.startPolling();
+      await vi.advanceTimersByTimeAsync(0);
+      await tree.loadRoots();
+      stops.push(startTreeRefresh());
+      const asked = backend.listingsAsked().length;
+
+      setPageHidden(true);
+      await passHidden(11_000);
+      expect(backend.listingsAsked().length).toBe(asked);
+
+      setPageHidden(false);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(backend.listingsAsked().slice(asked)).toEqual(['/logs']);
+    },
+  );
+
   it('reads every open folder again each tree_refresh_seconds of /health, one request each', async () => {
     const backend = new TreeDirBackend(['/logs'], { treeRefreshSeconds: 5 });
     backend.add('/logs/app', 'directory');

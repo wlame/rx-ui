@@ -7,8 +7,10 @@
  * its stop; each round is `tree.refreshOpenFolders`.
  *
  * One round at a time: the next is timed once the last has ended. While
- * the tab is hidden no round starts; a round that fell due meanwhile
- * runs when the tab is shown again. After a failed round the wait
+ * the tab is hidden no round starts and no timer is kept; when it is
+ * shown again, a round that fell due meanwhile runs at once (by the
+ * clock: a browser may run no timer of a hidden page), and one not yet
+ * due waits out what is left of its wait. After a failed round the wait
  * doubles, up to `MAX_FAILED_WAIT_MS` (or the interval, when that is
  * longer); a round that succeeds brings it back to the interval. 0 turns
  * the refresh off.
@@ -73,8 +75,9 @@ export function startRefreshTimer({
   let waitMs = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let isRoundRunning = false;
-  // A round fell due while the page was hidden.
-  let isDue = false;
+  // When the next round is due, by the clock (`Date.now()`); null while a
+  // round runs, and while the refresh is off or stopped.
+  let dueAt: number | null = null;
   let isStopped = false;
 
   function clearTimer() {
@@ -83,20 +86,29 @@ export function startRefreshTimer({
     timer = null;
   }
 
-  function scheduleNext() {
+  /** Time the round due at `dueAt`: a timer while the page is visible, none while it is hidden. */
+  function armTimer() {
     clearTimer();
-    if (isStopped || isRoundRunning || intervalMs === 0) return;
-    timer = setTimeout(onTimer, waitMs);
+    if (dueAt === null || page.isHidden()) return;
+    timer = setTimeout(onTimer, Math.max(0, dueAt - Date.now()));
+  }
+
+  /** The next round is due `waitMs` from now; none while a round runs or the refresh is off. */
+  function scheduleNext() {
+    const isIdle = !isStopped && !isRoundRunning && intervalMs > 0;
+    dueAt = isIdle ? Date.now() + waitMs : null;
+    armTimer();
   }
 
   function onTimer() {
     timer = null;
-    if (page.isHidden()) isDue = true;
-    else void runRound();
+    // A page hidden without a `visibilitychange` keeps the round due.
+    if (!page.isHidden()) void runRound();
   }
 
   async function runRound() {
-    isDue = false;
+    clearTimer();
+    dueAt = null;
     isRoundRunning = true;
     let hasFailed = false;
     try {
@@ -110,8 +122,11 @@ export function startRefreshTimer({
     scheduleNext();
   }
 
+  /** Hidden: drop the timer. Shown: run the round now when it is due, else wait what is left. */
   function onVisibilityChange() {
-    if (isDue && !isRoundRunning && !page.isHidden()) void runRound();
+    if (page.isHidden()) clearTimer();
+    else if (dueAt !== null && Date.now() >= dueAt) void runRound();
+    else armTimer();
   }
 
   const stopListening = page.onChange(onVisibilityChange);
@@ -120,12 +135,12 @@ export function startRefreshTimer({
     if (nextMs === intervalMs) return;
     intervalMs = nextMs;
     waitMs = nextMs;
-    isDue = false;
     scheduleNext();
   });
 
   return () => {
     isStopped = true;
+    dueAt = null;
     clearTimer();
     unsubscribe();
     stopListening();
