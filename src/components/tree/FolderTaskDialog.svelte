@@ -6,7 +6,9 @@
    * the task in the store (`askFolderTask`), so no panel switch, Back or
    * Forward hides a dialog that counts as open. The focus starts on the
    * button that starts the task (Index or Scan); Cancel, Esc and a click
-   * beside the dialog close it and start nothing.
+   * beside the dialog close it and start nothing. However it closes, the
+   * focus goes back to the control that had it when it opened: the
+   * folder's row, which takes it as its menu item asks.
    */
   import { modal } from '$lib/actions/modal';
   import { takeFocus } from '$lib/actions/takeFocus';

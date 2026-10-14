@@ -78,6 +78,15 @@ function dialog(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]');
 }
 
+function escape(): KeyboardEvent {
+  return new KeyboardEvent('keydown', {
+    key: 'Escape',
+    code: 'Escape',
+    bubbles: true,
+    cancelable: true,
+  });
+}
+
 function dialogButton(label: string): HTMLButtonElement {
   const button = [...(dialog()?.querySelectorAll('button') ?? [])].find(
     (b) => b.textContent?.trim() === label,
@@ -164,6 +173,22 @@ describe('a folder task from the menu', () => {
 
     expect(dialog()).toBeNull();
     expect(backend.requests.filter((r) => r.method === 'POST')).toEqual([]);
+  });
+
+  it.each([
+    ['Esc', () => dialogButton('Index').dispatchEvent(escape())],
+    ['Cancel', () => dialogButton('Cancel').click()],
+    ['Index', () => dialogButton('Index').click()],
+  ])('gives the focus back to the folder row after %s closes the dialog', async (_how, close) => {
+    await mount();
+    await choose(FOLDER, 'Index all files');
+    expect(document.activeElement).toBe(dialogButton('Index'));
+
+    close();
+    await settle(0);
+
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(rowOf(FOLDER));
   });
 
   it("scans on Scan, shows the folder's progress and puts the task's command in the footer", async () => {

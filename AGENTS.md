@@ -676,7 +676,9 @@ caches each file's findings per signature.
   folder runs, Stop alone (`folderTaskStage`), and nothing while the
   request that starts it is on its way. An item asks first
   (`askFolderTask`, the dialog `components/tree/FolderTaskDialog.svelte`
-  that `App.svelte` draws); its answer runs `startFolderTask`:
+  that `App.svelte` draws; the row takes the focus first, so the dialog
+  gives it back to the row when it closes); its answer runs
+  `startFolderTask`:
   `POST /v1/index` with `threshold: 0` or `POST /v1/findings` with the
   picker's ids over the folder, which rx-go runs over every file under
   it, recursively (contract 2.0, no feature of its own), followed with

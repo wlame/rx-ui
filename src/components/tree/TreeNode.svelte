@@ -120,9 +120,16 @@
     void scanForFindings(node.path);
   }
 
-  /** A folder's item asks first: the app draws the question over every panel. */
+  let rowElement: HTMLElement;
+
+  /**
+   * A folder's item asks first: the app draws the question over every
+   * panel. The row takes the focus before, so the dialog gives it back
+   * to the row when it closes, not to the menu item that is gone.
+   */
   function handleFolderTask(kind: FolderTaskKind) {
     closeContextMenu();
+    rowElement.focus();
     void askFolderTask(node.path, kind);
   }
 
@@ -146,6 +153,7 @@
   <!-- The tree's key handler (FileTree.svelte) answers the keys of every row. -->
   <!-- svelte-ignore a11y-click-events-have-key-events -->
   <div
+    bind:this={rowElement}
     role="treeitem"
     tabindex={node.path === $treeTabStop ? 0 : -1}
     data-row-id={node.path}
