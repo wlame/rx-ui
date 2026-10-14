@@ -291,7 +291,8 @@ role="tab">` that also carries the drag handlers; its close button is a
   new action's command there; never build a command in the viewer. The
   one exception is a copy of findings: the backend's command of a
   findings answer names the picker's selection, not the group or
-  signature a header narrows it to, so `findingsCopyCommand` (`findingsCopy.ts`) writes
+  signature a header narrows it to, so `findingsCopyCommand`
+  (`findingsCopy.ts`) writes
   `rx trace --signatures=group:<g> -B <N> <path>` (a signature's id, or
   the picked signatures for Copy all), quoting each word as rx quotes
   its own commands. A group's command names the whole group, not the
