@@ -24,9 +24,9 @@ chip and gives the refusal of a file that is not text as before.
   tooltip repeats that text, then gives the reason and the first damaged
   entry ("first damaged entry: 12"), one per line. It shows once the
   file's index is known, and not for a journal without damage or for any
-  other file. On a narrow pane the chip gives way: its text is cut with
-  an ellipsis, whole in the tooltip, so the header no longer covers its
-  line range ("lines 1 — 6 / 6") under the toolbar buttons.
+  other file. On a narrow pane the chip's text is cut with an ellipsis,
+  so the header keeps its line range ("lines 1 — 6 / 6") in view; the
+  tooltip holds the whole text.
 - The log chain reason `entries_overlap`, which an invalid chain of
   rotated journals shows with the backend's message, like the other
   reasons: neighboring parts hold entries in common, as when a copy of a
