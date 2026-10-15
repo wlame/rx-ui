@@ -37,15 +37,23 @@ describe('journalDamageChip', () => {
     },
   );
 
-  it('puts the reason and the first damaged entry in the tooltip', () => {
+  it('starts the tooltip with the chip text, then the reason and the first damaged entry', () => {
     const journal = journalInfo({
       left_out: 2,
+      not_reached: 5,
       first_damaged_entry: 41,
       damage_reason: 'a data object at offset 4096 is outside the file',
     });
 
-    expect(journalDamageChip(journal)?.title).toBe(
-      'a data object at offset 4096 is outside the file\nfirst damaged entry: 41',
+    const chip = journalDamageChip(journal);
+
+    expect(chip?.text).toBe('2 damaged entries left out · 5 entries not reached');
+    expect(chip?.title).toBe(
+      [
+        '2 damaged entries left out · 5 entries not reached',
+        'a data object at offset 4096 is outside the file',
+        'first damaged entry: 41',
+      ].join('\n'),
     );
   });
 
@@ -58,8 +66,12 @@ describe('journalDamageChip', () => {
     });
     const neither = journalInfo({ left_out: 2, first_damaged_entry: null, damage_reason: null });
 
-    expect(journalDamageChip(onlyEntry)?.title).toBe('first damaged entry: 41');
-    expect(journalDamageChip(onlyReason)?.title).toBe('a data object is damaged');
-    expect(journalDamageChip(neither)?.title).toBe('Entries of this journal are damaged');
+    expect(journalDamageChip(onlyEntry)?.title).toBe(
+      '2 damaged entries left out\nfirst damaged entry: 41',
+    );
+    expect(journalDamageChip(onlyReason)?.title).toBe(
+      '2 damaged entries left out\na data object is damaged',
+    );
+    expect(journalDamageChip(neither)?.title).toBe('2 damaged entries left out');
   });
 });

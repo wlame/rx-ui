@@ -7,7 +7,7 @@
 import type { JournalInfo } from '../types';
 import { formatCount } from './format';
 
-/** The chip's text and its tooltip. */
+/** The chip's text and its tooltip, which starts with that text. */
 export interface JournalDamageChip {
   text: string;
   title: string;
@@ -30,18 +30,20 @@ const DAMAGE_CLAUSES: readonly {
   },
 ];
 
-/** What the tooltip says when the index names neither a reason nor a first entry. */
-const GENERIC_TITLE = 'Entries of this journal are damaged';
-
-/** The tooltip's lines: the reason the index gives, then the first damaged entry. */
-function damageTitle(journal: JournalSection): string {
+/**
+ * The tooltip's lines: the chip's own text, which a narrow pane cuts, then
+ * the reason the index gives and the first damaged entry. A line the index
+ * does not give is left out, so the text alone is a whole tooltip.
+ */
+function damageTitle(text: string, journal: JournalSection): string {
   const lines = [
+    text,
     journal.damage_reason,
     journal.first_damaged_entry === null
       ? null
       : `first damaged entry: ${journal.first_damaged_entry}`,
   ].filter((line): line is string => line !== null && line !== '');
-  return lines.length > 0 ? lines.join('\n') : GENERIC_TITLE;
+  return lines.join('\n');
 }
 
 /**
@@ -57,5 +59,6 @@ export function journalDamageChip(journal: JournalInfo | undefined): JournalDama
     clause.words(clause.count(journal)),
   );
   if (said.length === 0) return null;
-  return { text: said.join(' · '), title: damageTitle(journal) };
+  const text = said.join(' · ');
+  return { text, title: damageTitle(text, journal) };
 }

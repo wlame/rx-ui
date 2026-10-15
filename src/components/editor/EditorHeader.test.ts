@@ -147,7 +147,7 @@ describe('EditorHeader journal damage chip', () => {
 
   const JOURNAL = '/var/log/journal/system.journal';
 
-  it('warns of the damaged entries left out, with the reason and the first one in its tooltip', async () => {
+  it('warns of the damaged entries left out, with its text, the reason and the first one in its tooltip', async () => {
     const journal = journalInfo({
       left_out: 3,
       first_damaged_entry: 12,
@@ -159,7 +159,7 @@ describe('EditorHeader journal damage chip', () => {
     expect(chip?.textContent?.trim()).toBe('3 damaged entries left out');
     expect(chip?.className).toContain('badge-warning');
     expect(chip?.title).toBe(
-      'a data object at offset 4096 is outside the file\nfirst damaged entry: 12',
+      '3 damaged entries left out\na data object at offset 4096 is outside the file\nfirst damaged entry: 12',
     );
   });
 
@@ -176,7 +176,7 @@ describe('EditorHeader journal damage chip', () => {
     expect(chip?.textContent?.trim()).toBe('1 damaged entry left out · 40 entries not reached');
   });
 
-  it('gives way to the line readout on a narrow pane, with its tooltip left whole', async () => {
+  it('gives way to the line readout on a narrow pane, with its whole text in the tooltip', async () => {
     const journal = journalInfo({
       left_out: 7,
       not_reached: 3,
@@ -194,7 +194,11 @@ describe('EditorHeader journal damage chip', () => {
     expect(text?.classList.contains('truncate')).toBe(true);
     expect(text?.textContent?.trim()).toBe('7 damaged entries left out · 3 entries not reached');
     expect(chip?.title).toBe(
-      'the entry object at offset 3737200 runs beyond the end of the file\nfirst damaged entry: 6',
+      [
+        '7 damaged entries left out · 3 entries not reached',
+        'the entry object at offset 3737200 runs beyond the end of the file',
+        'first damaged entry: 6',
+      ].join('\n'),
     );
   });
 

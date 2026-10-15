@@ -2,13 +2,13 @@
   /**
    * The editor header's warning for a systemd journal whose text leaves
    * entries out: how many damaged entries were left out and how many were
-   * not reached, with the reason and the first damaged entry in its
-   * tooltip. Nothing shows for a journal without damage, a file that is
-   * not a journal, or a backend that knows no journals.
+   * not reached. Its tooltip repeats that text, then gives the reason and
+   * the first damaged entry. Nothing shows for a journal without damage, a
+   * file that is not a journal, or a backend that knows no journals.
    *
    * The chip is the one part of the header that shrinks. On a narrow pane
    * its text is cut with an ellipsis, so the header's line readout stays
-   * in view; the tooltip keeps the reason whole.
+   * in view; the tooltip holds the whole text.
    */
   import type { JournalInfo } from '$lib/types';
   import { journalDamageChip } from '$lib/utils/journalDamage';
