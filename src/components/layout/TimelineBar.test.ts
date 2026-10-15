@@ -59,6 +59,7 @@ function openFile(path: string, overrides: Partial<OpenFile> = {}): OpenFile {
     anchorLine: 1,
     indexBuild: null,
     fileType: null,
+    journal: null,
     pendingIndex: null,
     backgroundIndexBuild: null,
     timeRange: null,

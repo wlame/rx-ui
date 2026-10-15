@@ -14,6 +14,7 @@ import { tree } from './tree';
 import { chainKey } from '../utils/tabKey';
 import { FakeChain } from '../testing/fakeChain';
 import { TreeDirBackend, serveTreeDir } from '../testing/fakeTreeDir';
+import { journalInfo, type JournalSection } from '../testing/journalInfo';
 import type { TreeEntry } from '../types';
 import { chainMode } from './chainMode';
 
@@ -284,15 +285,18 @@ describe('the page size of a file', () => {
     lineCount: number;
     format: string | null;
     fileType?: 'text' | 'compressed' | 'seekable_zstd';
+    /** The `journal` section the index answer holds; left out of the answer when undefined. */
+    journal?: JournalSection | null;
   }) {
-    const { lineCount, format, fileType } = options;
+    const { lineCount, format, fileType, journal } = options;
     const serveLines = serveFileOf(lineCount).getMockImplementation()!;
     const asked: string[] = [];
     const spy = vi.fn(async (url: string) => {
       const params = new URL(url, 'http://localhost').searchParams;
       if (url.includes('/v1/index')) {
         if (!fileType) return jsonAnswer(404, { detail: 'no index' });
-        return jsonAnswer(200, { file_type: fileType, line_count: lineCount });
+        const section = journal === undefined ? {} : { journal };
+        return jsonAnswer(200, { file_type: fileType, line_count: lineCount, ...section });
       }
       asked.push(params.get('lines') ?? '');
       const answer = await serveLines(url);
@@ -315,6 +319,7 @@ describe('the page size of a file', () => {
     { name: 'big.log.gz', format: 'gzip' },
     { name: 'big.log.bz2', format: 'bz2' },
     { name: 'big.log.xz', format: 'xz' },
+    { name: 'system.journal', format: 'journal' },
   ])('asks lines=1-5000 and pages of 5,000 for $name', async ({ name, format }) => {
     const path = `/logs/${name}`;
     const asked = serveKind({ lineCount: 100_000, format });
@@ -381,6 +386,55 @@ describe('the page size of a file', () => {
     await pageAfter(path, 1);
 
     expect(asked).toEqual(['1-1000', '1001-6000']);
+  });
+
+  it('pages by 5,000 a journal opened from a link once its first answer names journal', async () => {
+    const path = '/logs/linked.journal';
+    const asked = serveKind({ lineCount: 100_000, format: 'journal' });
+
+    await files.openFile(path, { isIndexed: false });
+    await pageAfter(path, 1);
+
+    expect(asked).toEqual(['1-1000', '1001-6000']);
+  });
+
+  describe('the damage of a journal', () => {
+    const path = '/logs/system.journal';
+
+    it('is taken from the line index of the open file', async () => {
+      const journal = journalInfo({
+        left_out: 2,
+        first_damaged_entry: 9,
+        damage_reason: 'a data object is outside the file',
+      });
+      serveKind({ lineCount: 500, format: 'journal', fileType: 'compressed', journal });
+
+      await files.openFile(path, { isIndexed: true, compressionFormat: 'journal' });
+      await settle();
+
+      expect(openedFile(path).journal).toEqual(journal);
+    });
+
+    it('is unknown until the index is read', async () => {
+      serveKind({ lineCount: 500, format: 'journal' });
+
+      await files.openFile(path, { isIndexed: false, compressionFormat: 'journal' });
+
+      expect(openedFile(path).journal).toBeNull();
+    });
+
+    it.each([
+      { kind: 'a file that is not a journal', journal: null },
+      // A backend of contract 2.0 leaves the section out of the answer.
+      { kind: 'a backend that knows no journals', journal: undefined },
+    ])('is none for $kind', async ({ journal }) => {
+      serveKind({ lineCount: 500, format: null, fileType: 'text', journal });
+
+      await files.openFile('/logs/app.log', { isIndexed: true });
+      await settle();
+
+      expect(openedFile('/logs/app.log').journal).toBeNull();
+    });
   });
 });
 
@@ -635,60 +689,6 @@ describe('the order the tabs were used in', () => {
   });
 });
 
-/** rx-go refuses a samples request with more than 100 context lines on a side (422). */
-describe('the context of a jump', () => {
-  beforeEach(() => setLocation(''));
-
-  afterEach(() => {
-    for (const file of get(files).openFiles) files.closeFile(file.path);
-    vi.unstubAllGlobals();
-  });
-
-  it('asks for at most 100 context lines around a line, a link target and the end', async () => {
-    const fetchSpy = serveFileOf(10_000);
-    await files.openFile('/logs/a.log', { scrollToLine: 4_000, isIndexed: false });
-    await files.jumpToLine('/logs/a.log', 9_000);
-    await files.jumpToEnd('/logs/a.log');
-
-    const contexts = fetchSpy.mock.calls
-      .map(([url]) => new URL(url, 'http://localhost').searchParams.get('context'))
-      .filter((context) => context !== null)
-      .map(Number);
-    expect(contexts).toHaveLength(3);
-    expect(Math.max(...contexts)).toBeLessThanOrEqual(100);
-    expect(openedFile('/logs/a.log').anchorLine).toBe(10_000);
-  });
-});
-
-/** Opening, jumping and the end of the file are actions; paging while scrolling is not. */
-describe('the equivalent command of a file window', () => {
-  beforeEach(() => setLocation(''));
-
-  afterEach(() => {
-    for (const file of get(files).openFiles) files.closeFile(file.path);
-    commandLog.clear();
-    vi.unstubAllGlobals();
-  });
-
-  const commands = () => get(commandLog).map((entry) => entry.command);
-
-  it('records the command of each window the user asked for', async () => {
-    serveFileOf(10_000, { withCommand: true });
-    await files.openFile('/logs/a.log', { isIndexed: false });
-    await files.jumpToLine('/logs/a.log', 5_000);
-    await files.jumpToEnd('/logs/a.log');
-
-    expect(commands()).toEqual([
-      'rx samples /logs/a.log --lines=-1',
-      'rx samples /logs/a.log --lines=5000',
-      'rx samples /logs/a.log --lines=1-1000',
-    ]);
-    expect(get(commandLog)[0].action).toBe('file');
-  });
-
-  it('records nothing for the pages loaded while scrolling', async () => {
-    serveFileOf(10_000, { withCommand: true });
-    await files.openFile('/logs/a.log', { isIndexed: false });
 describe('the notice of a file the backend refuses as binary', () => {
   const folder = '/logs';
   const path = `${folder}/data.bin`;
@@ -754,6 +754,60 @@ describe('the notice of a file the backend refuses as binary', () => {
   });
 });
 
+/** rx-go refuses a samples request with more than 100 context lines on a side (422). */
+describe('the context of a jump', () => {
+  beforeEach(() => setLocation(''));
+
+  afterEach(() => {
+    for (const file of get(files).openFiles) files.closeFile(file.path);
+    vi.unstubAllGlobals();
+  });
+
+  it('asks for at most 100 context lines around a line, a link target and the end', async () => {
+    const fetchSpy = serveFileOf(10_000);
+    await files.openFile('/logs/a.log', { scrollToLine: 4_000, isIndexed: false });
+    await files.jumpToLine('/logs/a.log', 9_000);
+    await files.jumpToEnd('/logs/a.log');
+
+    const contexts = fetchSpy.mock.calls
+      .map(([url]) => new URL(url, 'http://localhost').searchParams.get('context'))
+      .filter((context) => context !== null)
+      .map(Number);
+    expect(contexts).toHaveLength(3);
+    expect(Math.max(...contexts)).toBeLessThanOrEqual(100);
+    expect(openedFile('/logs/a.log').anchorLine).toBe(10_000);
+  });
+});
+
+/** Opening, jumping and the end of the file are actions; paging while scrolling is not. */
+describe('the equivalent command of a file window', () => {
+  beforeEach(() => setLocation(''));
+
+  afterEach(() => {
+    for (const file of get(files).openFiles) files.closeFile(file.path);
+    commandLog.clear();
+    vi.unstubAllGlobals();
+  });
+
+  const commands = () => get(commandLog).map((entry) => entry.command);
+
+  it('records the command of each window the user asked for', async () => {
+    serveFileOf(10_000, { withCommand: true });
+    await files.openFile('/logs/a.log', { isIndexed: false });
+    await files.jumpToLine('/logs/a.log', 5_000);
+    await files.jumpToEnd('/logs/a.log');
+
+    expect(commands()).toEqual([
+      'rx samples /logs/a.log --lines=-1',
+      'rx samples /logs/a.log --lines=5000',
+      'rx samples /logs/a.log --lines=1-1000',
+    ]);
+    expect(get(commandLog)[0].action).toBe('file');
+  });
+
+  it('records nothing for the pages loaded while scrolling', async () => {
+    serveFileOf(10_000, { withCommand: true });
+    await files.openFile('/logs/a.log', { isIndexed: false });
     await files.loadMore('/logs/a.log', 'after');
 
     expect(commands()).toEqual(['rx samples /logs/a.log --lines=1-1000']);

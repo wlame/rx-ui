@@ -78,6 +78,7 @@ function openFile(overrides: Partial<OpenFile> = {}): OpenFile {
     anchorLine: 1,
     indexBuild: null,
     fileType: null,
+    journal: null,
     pendingIndex: null,
     backgroundIndexBuild: null,
     timeRange: rangeIn('UTC', 0),

@@ -13,6 +13,7 @@ import {
   finding,
   serveFindings,
 } from '$lib/testing/fakeFindings';
+import { journalInfo } from '$lib/testing/journalInfo';
 import type { OpenFile } from '$lib/types';
 import EditorHeader from './EditorHeader.svelte';
 
@@ -50,6 +51,7 @@ function openFile(path: string, overrides: Partial<OpenFile> = {}): OpenFile {
     timeRange: null,
     isReadingTimeRange: false,
     timeJump: null,
+    journal: null,
     ...overrides,
   };
 }
@@ -133,5 +135,76 @@ describe('EditorHeader findings label', () => {
     );
 
     expect(label()).toBeNull();
+  });
+});
+
+describe('EditorHeader journal damage chip', () => {
+  /** The damage chip of a header showing `file`, or null when it draws none. */
+  async function chipOf(file: OpenFile) {
+    await mount(file);
+    return document.querySelector<HTMLElement>('[data-journal-damage]');
+  }
+
+  const JOURNAL = '/var/log/journal/system.journal';
+
+  it('warns of the damaged entries left out, with the reason and the first one in its tooltip', async () => {
+    const journal = journalInfo({
+      left_out: 3,
+      first_damaged_entry: 12,
+      damage_reason: 'a data object at offset 4096 is outside the file',
+    });
+
+    const chip = await chipOf(openFile(JOURNAL, { journal }));
+
+    expect(chip?.textContent?.trim()).toBe('3 damaged entries left out');
+    expect(chip?.className).toContain('badge-warning');
+    expect(chip?.title).toBe(
+      'a data object at offset 4096 is outside the file\nfirst damaged entry: 12',
+    );
+  });
+
+  it('adds the entries not reached when the entry list breaks off', async () => {
+    const journal = journalInfo({
+      left_out: 1,
+      not_reached: 40,
+      first_damaged_entry: 60,
+      damage_reason: 'the entry list goes back',
+    });
+
+    const chip = await chipOf(openFile(JOURNAL, { journal }));
+
+    expect(chip?.textContent?.trim()).toBe('1 damaged entry left out · 40 entries not reached');
+  });
+
+  it('stands beside the badges of the file', async () => {
+    const journal = journalInfo({ left_out: 1, first_damaged_entry: 2, damage_reason: 'damaged' });
+
+    const chip = await chipOf(
+      openFile(JOURNAL, { journal, isCompressed: true, compressionFormat: 'journal' }),
+    );
+
+    const badges = document.querySelector('.badge-info')?.parentElement;
+    expect(badges?.parentElement).toBe(chip?.parentElement);
+  });
+
+  it.each([
+    { kind: 'a journal with no damage', journal: journalInfo() },
+    { kind: 'a file that is not a journal', journal: null },
+  ])('draws no chip for $kind', async ({ journal }) => {
+    expect(await chipOf(openFile(JOURNAL, { journal }))).toBeNull();
+  });
+
+  it("draws no chip in a log chain's tab", async () => {
+    const description = chainDescription({
+      state: 'pending',
+      parts: [chainPart('system.journal', { is_active: true })],
+    });
+    const lines = [{ lineNumber: 1, content: 'LINE 1', part: 'system.journal', localLine: 1 }];
+
+    const chip = await chipOf(
+      openFile(`chain:${JOURNAL}`, { lines, chain: chainTabOf(description) }),
+    );
+
+    expect(chip).toBeNull();
   });
 });

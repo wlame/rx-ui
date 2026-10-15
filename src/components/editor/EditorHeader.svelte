@@ -20,6 +20,7 @@
   import { findingsLabelOf } from '$lib/utils/findingsLabel';
   import ChainSummary from './ChainSummary.svelte';
   import EditorToolbar from './EditorToolbar.svelte';
+  import JournalDamageChip from './JournalDamageChip.svelte';
   import LineRangeNav from './LineRangeNav.svelte';
   import SelectionChip from './SelectionChip.svelte';
 
@@ -78,6 +79,7 @@
         findings={findingsLabel}
         path={file.path}
       />
+      <JournalDamageChip journal={file.journal} />
       {#if file.lines.length > 0}
         <LineRangeNav
           bind:this={lineRangeNav}

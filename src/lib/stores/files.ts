@@ -427,9 +427,9 @@ function createFilesStore() {
   }
 
   /**
-   * Take a file's line count and kind from its index. A file that is
-   * not open is left alone. The file waits for no index any more: a build
-   * it followed in the background is no longer followed.
+   * Take a file's line count, kind and journal damage from its index. A
+   * file that is not open is left alone. The file waits for no index any
+   * more: a build it followed in the background is no longer followed.
    */
   function applyIndex(path: string, indexData: IndexResponse) {
     indexFollows.stop(path);
@@ -442,6 +442,8 @@ function createFilesStore() {
           totalLines: indexData.line_count ?? f.totalLines,
           isIndexed: true,
           fileType: indexData.file_type ?? f.fileType,
+          // A backend of contract 2.0 leaves the section out: no journal.
+          journal: indexData.journal ?? null,
           pendingIndex: null,
           backgroundIndexBuild: null,
         };
@@ -495,6 +497,7 @@ function createFilesStore() {
       isCompressed: compressionFormat !== null,
       compressionFormat,
       fileType: null,
+      journal: null,
       scrollToLine,
       reachedStart: false,
       reachedEnd: false,

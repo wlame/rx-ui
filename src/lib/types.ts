@@ -453,6 +453,12 @@ export interface OpenFile {
    * zstd stream.
    */
   fileType: IndexResponse['file_type'] | null;
+  /**
+   * What the file's line index records of a systemd journal (the damage
+   * the header shows a chip for), or null while no index is known, for a
+   * file that is not a journal and for a backend of contract 2.0.
+   */
+  journal: JournalInfo;
   /** The line the URL names for this file; the rule is in `utils/anchorLine.ts`. */
   anchorLine: number;
   /**

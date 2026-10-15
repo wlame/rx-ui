@@ -270,6 +270,7 @@ function newChainTab(
     isCompressed: false,
     compressionFormat: null,
     fileType: null,
+    journal: null,
     reachedStart: false,
     reachedEnd: false,
     syntaxHighlighting,
