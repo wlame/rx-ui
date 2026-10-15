@@ -176,6 +176,28 @@ describe('EditorHeader journal damage chip', () => {
     expect(chip?.textContent?.trim()).toBe('1 damaged entry left out · 40 entries not reached');
   });
 
+  it('gives way to the line readout on a narrow pane, with its tooltip left whole', async () => {
+    const journal = journalInfo({
+      left_out: 7,
+      not_reached: 3,
+      first_damaged_entry: 6,
+      damage_reason: 'the entry object at offset 3737200 runs beyond the end of the file',
+    });
+
+    const chip = await chipOf(openFile(JOURNAL, { journal }));
+
+    // jsdom does no layout, so the test reads the classes that let the chip
+    // shrink: a chip with a `min-w-0` box, whose text is cut by `truncate`.
+    const text = chip?.querySelector('span');
+    expect(chip?.classList.contains('min-w-0')).toBe(true);
+    expect(chip?.classList.contains('flex-shrink-0')).toBe(false);
+    expect(text?.classList.contains('truncate')).toBe(true);
+    expect(text?.textContent?.trim()).toBe('7 damaged entries left out · 3 entries not reached');
+    expect(chip?.title).toBe(
+      'the entry object at offset 3737200 runs beyond the end of the file\nfirst damaged entry: 6',
+    );
+  });
+
   it('stands beside the badges of the file', async () => {
     const journal = journalInfo({ left_out: 1, first_damaged_entry: 2, damage_reason: 'damaged' });
 

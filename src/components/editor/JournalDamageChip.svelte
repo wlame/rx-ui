@@ -5,6 +5,10 @@
    * not reached, with the reason and the first damaged entry in its
    * tooltip. Nothing shows for a journal without damage, a file that is
    * not a journal, or a backend that knows no journals.
+   *
+   * The chip is the one part of the header that shrinks. On a narrow pane
+   * its text is cut with an ellipsis, so the header's line readout stays
+   * in view; the tooltip keeps the reason whole.
    */
   import type { JournalInfo } from '$lib/types';
   import { journalDamageChip } from '$lib/utils/journalDamage';
@@ -18,9 +22,10 @@
 {#if chip}
   <span
     data-journal-damage
-    class="badge badge-warning text-[10px] py-0 tabular-nums flex-shrink-0"
+    class="badge badge-warning text-[10px] py-0 tabular-nums min-w-0"
     title={chip.title}
   >
-    {chip.text}
+    <!-- The badge is a flex box, which draws no ellipsis on its own text. -->
+    <span class="truncate">{chip.text}</span>
   </span>
 {/if}

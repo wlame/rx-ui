@@ -23,7 +23,9 @@ chip and gives the refusal of a file that is not text as before.
   and, when the entry list breaks off, "40 entries not reached". Its
   tooltip gives the reason and the first damaged entry ("first damaged
   entry: 12"). It shows once the file's index is known, and not for a
-  journal without damage or for any other file.
+  journal without damage or for any other file. On a narrow pane the chip
+  gives way: its text is cut with an ellipsis, so the header no longer
+  covers its line range ("lines 1 — 6 / 6") under the toolbar buttons.
 - The log chain reason `entries_overlap`, which an invalid chain of
   rotated journals shows with the backend's message, like the other
   reasons: neighboring parts hold entries in common, as when a copy of a
