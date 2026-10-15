@@ -105,3 +105,30 @@ describe('FileBadges subscriptions', () => {
     vi.restoreAllMocks();
   });
 });
+
+/** The compression badge FileBadges draws for a file stored in `format`. */
+function compressionBadge(format: string) {
+  const target = document.createElement('div');
+  document.body.appendChild(target);
+  badges = new FileBadges({
+    target,
+    props: { isCompressed: true, compressionFormat: format },
+  });
+  return target.querySelector<HTMLElement>('.badge-info');
+}
+
+describe('FileBadges compression badge', () => {
+  it('names a systemd journal in the badge and its tooltip', () => {
+    const badge = compressionBadge('journal');
+
+    expect(badge?.textContent?.trim()).toBe('journal');
+    expect(badge?.title).toBe('systemd journal');
+  });
+
+  it.each(['gzip', 'bz2', 'xz', 'zstd'])('keeps "Compressed file: %s" for a %s file', (format) => {
+    const badge = compressionBadge(format);
+
+    expect(badge?.textContent?.trim()).toBe(format);
+    expect(badge?.title).toBe(`Compressed file: ${format}`);
+  });
+});

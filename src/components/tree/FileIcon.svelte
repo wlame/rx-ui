@@ -19,6 +19,9 @@
     css: 'text-blue-400 dark:text-blue-300',
     md: 'text-gray-600 dark:text-gray-400',
     txt: 'text-gray-500 dark:text-gray-400',
+    // systemd journals; journald renames a journal it found corrupt or unclean to .journal~
+    journal: 'text-cyan-600 dark:text-cyan-400',
+    'journal~': 'text-cyan-600 dark:text-cyan-400',
     // Compressed
     gz: 'text-red-500 dark:text-red-400',
     zst: 'text-red-600 dark:text-red-400',
