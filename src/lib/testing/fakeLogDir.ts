@@ -196,6 +196,7 @@ export function treeEntry(
     is_compressed: null,
     is_indexed: null,
     is_text: null,
+    not_text_reason: null,
     line_count: null,
     findings: null,
     modified_at: null,

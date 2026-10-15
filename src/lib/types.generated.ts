@@ -347,7 +347,7 @@ export interface components {
             states: components["schemas"]["StateRuleInfo"][];
         } | null;
         ChainEntry: {
-            /** @description The distinct compression formats of the parts, sorted: gzip, bz2, xz, zstd (seekable zstd included). A plain part adds none. */
+            /** @description The distinct compression formats of the parts, sorted: gzip, bz2, xz, zstd (seekable zstd included), and journal for a systemd journal. A plain part adds none. */
             compression_formats: string[];
             /** @description Whether the active file (the one named like the chain) exists and is a part. */
             has_active: boolean;
@@ -424,7 +424,7 @@ export interface components {
             submatches_truncated: boolean;
         };
         ChainPart: {
-            /** @description How the part is compressed, by its bytes: gzip, bz2, xz or zstd (seekable zstd included); null for a plain file. */
+            /** @description How the part is compressed, by its bytes: gzip, bz2, xz or zstd (seekable zstd included), or journal for a systemd journal; null for a plain file. */
             compression_format: string | null;
             /** @description For the slash format, whether the day comes before the month, as GET /v1/time-range gives it; null for every other format, and when not known. */
             day_first: boolean | null;
@@ -446,7 +446,7 @@ export interface components {
             is_active: boolean;
             /** @description Whether a current line index of the part is stored. */
             is_indexed: boolean;
-            /** @description The number or date in the part's name as the name writes it (3, 20260401-1775001601, 2026-10-01.3); null for the active file. */
+            /** @description The number or date in the part's name as the name writes it (3, 20260401-1775001601, 2026-10-01.3; for a journal archive its head time in hex, 00065db7fbffd8e8); null for the active file. */
             key: string | null;
             /**
              * Format: int64
@@ -508,10 +508,10 @@ export interface components {
         };
         ChainReason: {
             /**
-             * @description The check that failed. no_timestamps: a part has lines and no timestamp rx recognizes. overlap: a part's highest timestamp is after the next part's first by more than RX_CHAIN_OVERLAP_SECONDS. active_not_last: the active file starts before a frozen part. unreadable: a part cannot be read. too_many_parts: the chain has more than 10,000 parts.
+             * @description The check that failed. no_timestamps: a part has lines and no timestamp rx recognizes. overlap: a part's highest timestamp is after the next part's first by more than RX_CHAIN_OVERLAP_SECONDS (not checked in a journal chain). active_not_last: the active file starts before a frozen part. unreadable: a part cannot be read, or a part of a journal chain cannot be read as a journal. too_many_parts: the chain has more than 10,000 parts. entries_overlap: two neighboring parts of a journal chain that one counter numbers hold entries in common: the earlier one's last sequence number is not below the later one's first, as when a copy of a part is left beside it.
              * @enum {string}
              */
-            code: "no_timestamps" | "overlap" | "active_not_last" | "unreadable" | "too_many_parts";
+            code: "no_timestamps" | "overlap" | "active_not_last" | "unreadable" | "too_many_parts" | "entries_overlap";
             /** @description The reason in words. */
             message: string;
             /**
@@ -519,7 +519,7 @@ export interface components {
              * @description For overlap, how far in ms the first part's highest timestamp is after the second's first timestamp; null for the other codes.
              */
             overlap_ms: number | null;
-            /** @description The names of the parts the check names, in the chain's order: the part for no_timestamps and unreadable, the two neighbors for overlap, the active file and the parts after it for active_not_last; empty for too_many_parts. */
+            /** @description The names of the parts the check names, in the chain's order: the part for no_timestamps and unreadable, the two neighbors for overlap and entries_overlap, the active file and the parts after it for active_not_last; empty for too_many_parts. */
             parts: string[];
         };
         ChainRef: {
@@ -579,7 +579,7 @@ export interface components {
             missing_count: number;
             /** @description The chain's name: the name of its active file. */
             name: string;
-            /** @description The chain's parts in its order: by first timestamp once the chain is ready (an empty part keeps its place among the others), by the number or date in their names before (as GET /v1/logs/chains lists them). One file in several encodings is one part, the encoding rx reads. Empty for a chain of more than 10,000 parts, which is invalid with the reason too_many_parts. */
+            /** @description The chain's parts in its order: by first timestamp once the chain is ready (an empty part keeps its place among the others), by the number or date in their names before (as GET /v1/logs/chains lists them). A journal chain (rotated systemd journals) has its parts in the order of their headers in every state: by the sequence number of their first entry within one counter, the counters by the time of their first part's first entry. One file in several encodings is one part, the encoding rx reads. Empty for a chain of more than 10,000 parts, which is invalid with the reason too_many_parts. */
             parts: components["schemas"]["ChainPart"][];
             /** @description The chain's handle: its directory joined with its name, which is the active file's path whether that file exists or not. */
             path: string;
@@ -1024,6 +1024,8 @@ export interface components {
              * @description Number of line_index entries.
              */
             index_entries: number;
+            /** @description What the build found reading a systemd journal: the entries its text shows, those left out as damaged and those not reached, and some facts of its header. Null for a file that is not a journal. */
+            journal: components["schemas"]["JournalInfo"];
             /** Format: int64 */
             line_count: number | null;
             /** @description LF, CRLF, CR or mixed; null for a seekable zstd file. */
@@ -1066,6 +1068,8 @@ export interface components {
             index_entries: number;
             /** @description Where the index is stored in the cache. */
             index_path: string;
+            /** @description What the build found reading a systemd journal: the entries its text shows, those left out as damaged and those not reached, and some facts of its header. Null for a file that is not a journal. */
+            journal: components["schemas"]["JournalInfo"];
             /** Format: int64 */
             line_count: number | null;
             /** @description LF, CRLF, CR or mixed; null for a seekable zstd file. */
@@ -1086,6 +1090,59 @@ export interface components {
             /** @description The timestamps of the file's lines; null when no timestamp format is recognized. */
             time_summary: components["schemas"]["TimeSummary"];
         };
+        JournalInfo: {
+            /** @description Whether the journal is in compact mode. */
+            compact: boolean;
+            /** @description Why that entry was left out or not reached; null when none is. */
+            damage_reason: string | null;
+            /**
+             * Format: int64
+             * @description The entries the journal's header counts.
+             */
+            entries: number;
+            /**
+             * Format: int64
+             * @description The 1-based number, in the order of the entry list, of the first entry left out or not reached; null when none is.
+             */
+            first_damaged_entry: number | null;
+            /**
+             * Format: int64
+             * @description The sequence number of the first entry, as the header gives it.
+             */
+            head_seqnum: number;
+            /**
+             * Format: int64
+             * @description The damaged entries left out of the text: an entry any object of which cannot be read.
+             */
+            left_out: number;
+            /**
+             * Format: int64
+             * @description The entries after the place where the journal's entry list breaks off, which no read can reach.
+             */
+            not_reached: number;
+            /** @description The id of the counter that numbered the entries, as 32 lowercase hex digits; the journals of one journald share it. */
+            seqnum_id: string;
+            /**
+             * Format: int64
+             * @description The entries in the text, each one line, or more for a message of several lines.
+             */
+            shown: number;
+            /**
+             * @description The header's state: online while a writer has the journal open (or had it when it stopped without closing it), offline when closed, archived when rotated away.
+             * @enum {string}
+             */
+            state: "online" | "offline" | "archived";
+            /**
+             * Format: int64
+             * @description The sequence number of the last entry, as the header gives it.
+             */
+            tail_seqnum: number;
+            /**
+             * Format: int64
+             * @description The entries with no MESSAGE field, which journalctl does not show either.
+             */
+            without_message: number;
+        } | null;
         /** @description A line-index checkpoint: the 1-based line number and the byte offset where that line starts in the file's text. An entry of a seekable-zstd index has a third element, the 0-based index of the frame holding the line. */
         LineIndexEntry: [
             number,
@@ -1385,12 +1442,12 @@ export interface components {
         TaskStatusResponse: {
             /**
              * Format: int64
-             * @description Bytes of the file a findings task has read so far, as stored on disk; for a findings task over a directory, of the file it reads now (0 between files). Null for a task of another operation (an index task over a directory too), and for a findings task over one file that has not started reading.
+             * @description How far into the file a findings task has read so far: the highest byte of the file as stored on disk it has read, not the sum of its reads; for a findings task over a directory, of the file it reads now (0 between files). Null for a task of another operation (an index task over a directory too), and for a findings task over one file that has not started reading.
              */
             bytes_read: number | null;
             /**
              * Format: int64
-             * @description The size of the file a findings task reads, as stored on disk; for a findings task over a directory, of the file it reads now (0 between files). Null when bytes_read is.
+             * @description How far into the file a findings task reads to reach the end of its text: the end of the last object of a systemd journal (a live journal is preallocated, and the zeros after its objects are never read), and the size of the file as stored on disk for every other format; for a findings task over a directory, of the file it reads now (0 between files). Null when bytes_read is.
              */
             bytes_total: number | null;
             /** @description The rx command that does what the task does: rx index for an index task started by POST /v1/index, rx scan for a findings task, with --recursive for a directory, --hidden when the server serves hidden entries (rx serve --hidden, RX_HIDDEN), --force when the request forced, and --mask-secrets when the server masks secrets. Empty for other tasks: compress, chain_index, and the index builds GET /v1/samples and the log chains start. */
@@ -1564,6 +1621,8 @@ export interface components {
             /** Format: date-time */
             modified_at: string | null;
             name: string;
+            /** @description Why the file is not text, in the words every command refuses it with, starting with 'not a text file': a NUL byte in the first 8 KiB of its text, UTF-16 text, or a systemd journal whose header rx cannot read. Null for a text file, a directory, and a file the listing could not open. */
+            not_text_reason: string | null;
             path: string;
             /** Format: int64 */
             size: number | null;

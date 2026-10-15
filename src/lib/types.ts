@@ -104,6 +104,15 @@ export type TraceResponse = Schemas['TraceResponse'];
  */
 export type IndexResponse = Schemas['IndexResponse'];
 
+/**
+ * What an index records of a systemd journal (`journal` of the index
+ * answers): the entries the text shows, those left out as damaged and
+ * those not reached, the first damaged entry with its reason, and some
+ * facts of the journal's header. Null for a file that is not a journal;
+ * a backend of contract 2.0 leaves the field out.
+ */
+export type JournalInfo = Schemas['JournalInfo'];
+
 /** The result of a completed index task: the index, where it is stored and `success`. */
 export type IndexTaskResult = Schemas['IndexTaskResult'];
 

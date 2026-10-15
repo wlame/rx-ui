@@ -27,6 +27,7 @@ function indexResult(fields: Partial<IndexTaskResult> = {}): IndexTaskResult {
     decompressed_size_bytes: null,
     compression_ratio: null,
     time_summary: null,
+    journal: null,
     cli_command: `rx index ${PATH}`,
     success: true,
     ...fields,

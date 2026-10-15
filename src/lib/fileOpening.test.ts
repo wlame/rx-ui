@@ -28,6 +28,7 @@ function treeFile(path: string, fields: Partial<TreeNode> = {}): TreeNode {
     is_compressed: false,
     is_indexed: false,
     is_text: true,
+    not_text_reason: null,
     line_count: null,
     findings: null,
     modified_at: null,

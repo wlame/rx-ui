@@ -24,6 +24,7 @@ import type {
   IndexResponse,
   IndexTaskResponse,
   IndexTaskResult,
+  JournalInfo,
   LineIndexEntry,
   LineLengthStats,
   LoadErrorInfo,
@@ -81,6 +82,7 @@ describe('wire types', () => {
   it('type the index answers with their named schemas', () => {
     expectTypeOf<IndexResponse>().toEqualTypeOf<Schemas['IndexResponse']>();
     expectTypeOf<IndexTaskResult>().toEqualTypeOf<Schemas['IndexTaskResult']>();
+    expectTypeOf<JournalInfo>().toEqualTypeOf<Schemas['JournalInfo']>();
     expectTypeOf<CompressTaskResult>().toEqualTypeOf<Schemas['CompressTaskResult']>();
     expectTypeOf<LineIndexEntry>().toEqualTypeOf<Schemas['LineIndexEntry']>();
     expectTypeOf<LineLengthStats>().toEqualTypeOf<Schemas['LineLengthStats']>();
