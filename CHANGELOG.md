@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Systemd journal files, for a backend of wire contract 2.1 (rx-go reads
+journals from that release). A backend of contract 2.0 shows no journal
+chip and gives the refusal of a file that is not text as before.
+
+### Added
+
+- Journal files. A `.journal` or `.journal~` file has its own icon colour
+  in the files panel, and its label reads `journal` with the tooltip
+  "systemd journal" (the other compression labels keep "Compressed file:
+  gzip" and the like). A journal pages like a gzip file, 5,000 lines to a
+  request, in a file's tab and in a log chain of rotated journals.
+- A warning chip in the editor header, beside the file's labels, for a
+  journal whose line index records damage: "3 damaged entries left out"
+  and, when the entry list breaks off, "40 entries not reached". Its
+  tooltip gives the reason and the first damaged entry ("first damaged
+  entry: 12"). It shows once the file's index is known, and not for a
+  journal without damage or for any other file.
+- The log chain reason `entries_overlap`, which an invalid chain of
+  rotated journals shows with the backend's message, like the other
+  reasons: neighboring parts hold entries in common, as when a copy of a
+  part is left beside it.
+
+### Changed
+
+- The notice for a file the viewer does not open because it is not text
+  gives the reason the backend lists for the file, such as "Cannot open
+  system.journal: not a text file: a systemd journal rx cannot read:
+  ...", instead of "Cannot open binary file". A backend of contract 2.0
+  lists no reason, and the old notice stays.
+
 ## [0.8.0] - 2026-10-12
 
 The Findings panel replaces the index analysis: the viewer lists what
