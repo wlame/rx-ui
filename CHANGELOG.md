@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-12
+
 The Findings panel replaces the index analysis: the viewer lists what
 rx-go's signatures find in a file, marks it in the editor and on the
 timeline, steps through it with F8 and copies it by group. Lines can be
