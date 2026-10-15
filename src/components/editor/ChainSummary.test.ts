@@ -132,4 +132,23 @@ describe('ChainSummary', () => {
     ];
     expect(mount(chainTab({ state: 'invalid', reasons }))).toContain('invalid: overlap');
   });
+
+  // Rotated journals that hold entries in common: a copy of a part beside it.
+  it('names the entries_overlap reason of a journal chain, with the backend message in its tooltip', () => {
+    const message =
+      'system@a.journal and system@b.journal hold entries in common: the first ends at sequence number 90, the second starts at 80';
+    const reasons = [
+      {
+        code: 'entries_overlap' as const,
+        parts: ['system@a.journal', 'system@b.journal'],
+        message,
+        overlap_ms: null,
+      },
+    ];
+
+    const text = mount(chainTab({ state: 'invalid', reasons }));
+
+    expect(text).toContain('invalid: entries_overlap');
+    expect(document.querySelector(`[title="${message}"]`)).not.toBeNull();
+  });
 });

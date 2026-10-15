@@ -463,3 +463,22 @@ describe('chainBadges', () => {
     expect(texts(entry, { state: 'pending', reasons: [] })).toEqual(['chain · 2']);
   });
 });
+
+describe('chainBadges of a journal chain', () => {
+  it('puts the message of an entries_overlap reason in the tooltip of the invalid mark', () => {
+    const message = 'system@a.journal and system@b.journal hold entries in common';
+    const badges = chainBadges(chain('system.journal', ['system@a.journal', 'system@b.journal']), {
+      state: 'invalid',
+      reasons: [
+        {
+          code: 'entries_overlap',
+          message,
+          overlap_ms: null,
+          parts: ['system@a.journal', 'system@b.journal'],
+        },
+      ],
+    });
+
+    expect(badges.at(-1)).toEqual({ text: 'invalid', tone: 'danger', title: message });
+  });
+});
