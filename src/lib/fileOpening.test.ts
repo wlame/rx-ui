@@ -98,6 +98,40 @@ describe('openTreeFile', () => {
     ]);
   });
 
+  // The tree entry says why the file is not text, in the backend's words.
+  it.each([
+    {
+      kind: 'a binary file',
+      name: 'core.bin',
+      reason: 'not a text file: a NUL byte in its first 8 KiB',
+    },
+    {
+      kind: 'a journal rx cannot read',
+      name: 'system.journal',
+      reason: 'not a text file: a systemd journal rx cannot read: the header is cut short',
+    },
+  ])('says why $kind is not opened, in the words of its tree entry', async ({ name, reason }) => {
+    const fetchSpy = serveSamples();
+
+    await openTreeFile(treeFile(`/logs/${name}`, { is_text: false, not_text_reason: reason }));
+
+    expect(get(files).openFiles).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(get(notifications).map((n) => [n.type, n.message])).toEqual([
+      ['error', `Cannot open ${name}: ${reason}`],
+    ]);
+  });
+
+  // A backend of contract 2.0 lists no not_text_reason at all.
+  it('keeps the old notice for a file whose tree entry gives no reason', async () => {
+    serveSamples();
+    const entry = { ...treeFile('/logs/core.bin', { is_text: false }), not_text_reason: undefined };
+
+    await openTreeFile(entry);
+
+    expect(get(notifications).map((n) => n.message)).toEqual(['Cannot open binary file: core.bin']);
+  });
+
   it('opens a text file with what the tree knows about it', async () => {
     serveSamples();
 

@@ -10,6 +10,7 @@ import type { FilterState } from '../utils/urlState';
 import { readSamplesAnswer, readTimeAnswer, type SampleWindow } from '../utils/sampleWindow';
 import { defaultSyntaxHighlighting } from '../utils/highlighting';
 import { formatInFileLayout } from '../utils/timeFormat';
+import { notTextNotice } from '../utils/notTextNotice';
 import { addPage, linesPerPage, maxHeldLines } from '../utils/slidingWindow';
 import { taskPolls } from '../utils/taskPolling';
 import { chainKey, isChainKey, type TabKey } from '../utils/tabKey';
@@ -539,14 +540,16 @@ function createFilesStore() {
 
   /**
    * Report a window load that failed. A backend that refuses a binary
-   * file with an error naming it (rx-python's 400) gets a notification
-   * and the tab closes; anything else shows in the file's tab.
+   * file with an error naming it (rx-python's 400) gets a notification,
+   * which gives the reason the file's tree entry lists, and the tab
+   * closes; anything else shows in the file's tab.
    */
   function showLoadError(path: string, e: unknown) {
     const errorMessage = e instanceof Error ? e.message : 'Failed to load file';
 
     if (errorMessage.includes('binary') || errorMessage.includes('Binary')) {
-      notifications.error(`Cannot open binary file: ${path.split('/').pop()}`, 5000);
+      const name = path.split('/').pop() ?? path;
+      notifications.error(notTextNotice(name, tree.nodeAt(path)?.not_text_reason), 5000);
       update((s) => ({
         ...s,
         openFiles: s.openFiles.filter((f) => f.path !== path),

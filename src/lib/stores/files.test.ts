@@ -13,6 +13,8 @@ import { timeCursor } from './timeCursor';
 import { tree } from './tree';
 import { chainKey } from '../utils/tabKey';
 import { FakeChain } from '../testing/fakeChain';
+import { TreeDirBackend, serveTreeDir } from '../testing/fakeTreeDir';
+import type { TreeEntry } from '../types';
 import { chainMode } from './chainMode';
 
 /** The store reads no URL; a stub keeps any stray write off the real one. */
@@ -687,6 +689,71 @@ describe('the equivalent command of a file window', () => {
   it('records nothing for the pages loaded while scrolling', async () => {
     serveFileOf(10_000, { withCommand: true });
     await files.openFile('/logs/a.log', { isIndexed: false });
+describe('the notice of a file the backend refuses as binary', () => {
+  const folder = '/logs';
+  const path = `${folder}/data.bin`;
+
+  /** A backend that lists `fields` for data.bin and refuses its samples with a 400. */
+  async function serveRefusal(fields: Partial<TreeEntry>) {
+    const backend = new TreeDirBackend([folder]);
+    backend.add(path, 'file', { is_text: false, ...fields });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (!url.startsWith('/v1/samples')) return backend.fetch(url);
+        return jsonAnswer(400, { detail: 'Cannot read a binary file' });
+      }),
+    );
+    await tree.loadRoots();
+    await tree.expand(folder);
+  }
+
+  beforeEach(() => setLocation(''));
+
+  afterEach(async () => {
+    for (const file of get(files).openFiles) files.closeFile(file.path);
+    for (const shown of get(notifications)) notifications.dismiss(shown.id);
+    // The tree store is shared: leave it with no folder for the next test.
+    serveTreeDir(new TreeDirBackend([]));
+    await tree.loadRoots();
+    vi.unstubAllGlobals();
+  });
+
+  it("says the reason of the file's tree entry", async () => {
+    const reason = 'not a text file: a NUL byte in its first 8 KiB';
+    await serveRefusal({ not_text_reason: reason });
+
+    await files.openFile(path, { isIndexed: false });
+
+    expect(get(files).openFiles).toEqual([]);
+    expect(get(notifications).map((n) => [n.type, n.message])).toEqual([
+      ['error', `Cannot open data.bin: ${reason}`],
+    ]);
+  });
+
+  it.each([
+    { kind: 'gives no reason', fields: { not_text_reason: null } },
+    // A backend of contract 2.0 lists no not_text_reason at all.
+    { kind: 'lists no such field', fields: { not_text_reason: undefined } },
+  ])('keeps the old text for a tree entry that $kind', async ({ fields }) => {
+    await serveRefusal(fields);
+
+    await files.openFile(path, { isIndexed: false });
+
+    expect(get(notifications).map((n) => n.message)).toEqual(['Cannot open binary file: data.bin']);
+  });
+
+  it('keeps the old text for a file the tree does not list', async () => {
+    await serveRefusal({});
+
+    await files.openFile(`${folder}/other.bin`, { isIndexed: false });
+
+    expect(get(notifications).map((n) => n.message)).toEqual([
+      'Cannot open binary file: other.bin',
+    ]);
+  });
+});
+
     await files.loadMore('/logs/a.log', 'after');
 
     expect(commands()).toEqual(['rx samples /logs/a.log --lines=1-1000']);

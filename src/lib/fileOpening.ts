@@ -11,6 +11,7 @@ import type { ChainPosition } from './stores/chainTabs';
 import { trace } from './stores/trace';
 import { tree } from './stores/tree';
 import type { FileMatch, SearchResponse, TreeEntry } from './types';
+import { notTextNotice } from './utils/notTextNotice';
 import { chainHandleOf, chainKey } from './utils/tabKey';
 
 /** How long the refusal of a binary file stays on screen. */
@@ -18,17 +19,21 @@ const BINARY_NOTICE_MS = 5000;
 
 /**
  * Open a file the tree lists. A file the backend marks as not text is
- * refused with a notification: rx-go answers a binary file's bytes as
- * if they were lines, so opening it would only show noise.
+ * refused with a notification that gives the backend's reason when the
+ * entry has one: rx-go answers a binary file's bytes as if they were
+ * lines, so opening it would only show noise.
  */
 export async function openTreeFile(
   entry: Pick<
     TreeEntry,
     'path' | 'name' | 'is_text' | 'size' | 'is_indexed' | 'line_count' | 'compression_format'
-  >,
+  > & {
+    /** Absent from the entries of a backend of contract 2.0. */
+    not_text_reason?: TreeEntry['not_text_reason'];
+  },
 ): Promise<void> {
   if (entry.is_text === false) {
-    notifications.error(`Cannot open binary file: ${entry.name}`, BINARY_NOTICE_MS);
+    notifications.error(notTextNotice(entry.name, entry.not_text_reason), BINARY_NOTICE_MS);
     return;
   }
   await files.openFile(entry.path, {
