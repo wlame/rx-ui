@@ -209,6 +209,7 @@ describe('chainPageSize', () => {
     part('a.4.gz', { compression_format: 'gzip' }),
     part('a.3.bz2', { compression_format: 'bz2' }),
     part('a.2.zst', { compression_format: 'zstd' }),
+    part('a.0.journal', { compression_format: 'journal' }),
     part('a.1'),
     part('a', { is_active: true }),
   ];
@@ -221,6 +222,9 @@ describe('chainPageSize', () => {
     [['a.1'], LINES_PER_PAGE],
     [['a.1', 'a'], LINES_PER_PAGE],
     [['a.2.zst', 'a.1'], STREAM_LINES_PER_PAGE],
+    // A journal is read from its start, as a gzip file is.
+    [['a.0.journal'], STREAM_LINES_PER_PAGE],
+    [['a.0.journal', 'a.1'], STREAM_LINES_PER_PAGE],
   ])('pages %o by %i lines', (names, size) => {
     expect(chainPageSize(parts, names)).toBe(size);
   });

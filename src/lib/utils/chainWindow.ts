@@ -160,11 +160,11 @@ export function readChainTimeAnswer(
 }
 
 /** The compression formats whose parts are read as streams: from their start, or a checkpoint. */
-const STREAM_FORMATS: ReadonlySet<string> = new Set(['gzip', 'bz2', 'xz', 'zstd']);
+const STREAM_FORMATS: ReadonlySet<string> = new Set(['gzip', 'bz2', 'xz', 'zstd', 'journal']);
 
 /**
  * How many lines one page of a chain loads when it touches the parts
- * `names`: 5,000 when one of them is a gzip, bzip2, xz or zstd part,
+ * `names`: 5,000 when one of them is a gzip, bzip2, xz, zstd or journal part,
  * 1,000 otherwise. A part's description does not say whether its zstd is
  * seekable, so a zstd part pages as a stream; a seekable one only gets
  * larger pages. One pass over the names and one over the parts.

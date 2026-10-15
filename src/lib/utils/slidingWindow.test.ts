@@ -55,6 +55,8 @@ describe('linesPerPage', () => {
     { format: 'gzip', fileType: null },
     { format: 'bz2', fileType: null },
     { format: 'xz', fileType: null },
+    { format: 'journal', fileType: null },
+    { format: 'journal', fileType: 'compressed' as const },
     { format: 'gzip', fileType: 'compressed' as const },
     { format: 'zstd', fileType: 'compressed' as const },
   ])('loads 5,000 lines a page for a $format stream (index: $fileType)', ({ format, fileType }) => {

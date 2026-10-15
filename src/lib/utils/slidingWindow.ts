@@ -11,8 +11,12 @@ export const LINES_PER_PAGE = 1000;
  */
 export const STREAM_LINES_PER_PAGE = 5000;
 
-/** The compression formats, as the backend names them, that are always a stream. */
-const STREAM_FORMATS: ReadonlySet<string> = new Set(['gzip', 'bz2', 'xz']);
+/**
+ * The compression formats, as the backend names them, that are always a
+ * stream. A systemd journal is one: its text is read from the start, as
+ * gzip's is.
+ */
+const STREAM_FORMATS: ReadonlySet<string> = new Set(['gzip', 'bz2', 'xz', 'journal']);
 
 /**
  * The page size the index's `file_type` gives. It is the only answer
@@ -31,8 +35,8 @@ export type PagedFile = Pick<OpenFile, 'isCompressed' | 'compressionFormat' | 'f
 
 /**
  * How many lines one paging request loads from `file`: 5,000 from a
- * gzip, bzip2 or xz file and from a zstd file its index calls a stream,
- * 1,000 from any other. A zstd file whose index is not known yet pages
+ * gzip, bzip2 or xz file, from a systemd journal and from a zstd file its
+ * index calls a stream, 1,000 from any other. A zstd file whose index is not known yet pages
  * as a seekable one; its pages within the start of the file are cheap
  * either way, and the index that makes a later page cheap tells which
  * it is.
