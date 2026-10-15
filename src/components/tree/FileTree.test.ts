@@ -464,7 +464,17 @@ describe('the files panel read again by its refresh', () => {
     );
   }
 
-  afterEach(() => vi.restoreAllMocks());
+  /** What jsdom has as `scrollIntoView`, if anything, for `afterEach` to put back. */
+  const jsdomScrollIntoView = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView');
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (jsdomScrollIntoView) {
+      Object.defineProperty(Element.prototype, 'scrollIntoView', jsdomScrollIntoView);
+    } else {
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+    }
+  });
 
   it('keeps the open folders, the selection, the focused row and the scroll position', async () => {
     const { target, treeElement } = await mountTree(60);
@@ -571,5 +581,12 @@ describe('the files panel read again by its refresh', () => {
     expect(rowAt(target, X_LOG)).toBeNull();
     expect(get(treeFocus)).toBe(ROOT);
     expect(document.activeElement).toBe(rowAt(target, ROOT));
+  });
+});
+
+describe('the tests of the files panel read again', () => {
+  // They give jsdom a scrollIntoView mock; the tests after them see none.
+  it('leave Element.prototype.scrollIntoView as jsdom has it', () => {
+    expect(vi.isMockFunction(Element.prototype.scrollIntoView)).toBe(false);
   });
 });
