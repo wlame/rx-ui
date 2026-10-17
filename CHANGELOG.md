@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-17
+
 Systemd journal files, for a backend of wire contract 2.1 (rx-go reads
 journals from that release). A backend of contract 2.0 shows no journal
 chip and gives the refusal of a file that is not text as before.
