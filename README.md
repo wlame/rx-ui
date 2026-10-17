@@ -801,4 +801,4 @@ MIT
 
 - [rx-go](https://github.com/wlame/rx-go), with the API documentation
 - [rx-python](https://github.com/wlame/rx-python)
-- [Issues](https://github.com/wlame/rx-viewer/issues)
+- [Issues](https://github.com/wlame/rx-ui/issues)

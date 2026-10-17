@@ -7,7 +7,7 @@
 
   const sidebarShortcut = shortcutLabel(shortcutById('toggleSidebar'));
 
-  const GITHUB_REPO = 'https://github.com/wlame/rx-viewer';
+  const GITHUB_REPO = 'https://github.com/wlame/rx-ui';
 
   /** Switch to the other look; see nextThemeSetting. */
   function toggleTheme() {

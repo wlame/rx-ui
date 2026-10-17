@@ -34,6 +34,9 @@ chip and gives the refusal of a file that is not text as before.
 
 ### Changed
 
+- The version badge in the header links to the release on the GitHub
+  repository `wlame/rx-ui`, and the README links its issues there (the
+  repository was `wlame/rx-viewer`).
 - The notice for a file the viewer does not open because it is not text
   gives the reason the backend lists for the file, such as "Cannot open
   system.journal: not a text file: a systemd journal rx cannot read:
