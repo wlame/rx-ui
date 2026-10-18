@@ -12,6 +12,10 @@
  * `COPY_BUDGET_BYTES`, until the list ends, the backend cuts the text
  * or the budget is spent. `utils/copyFormat.ts` lays the text out, as
  * for a copy of selected lines, and a notification says what was copied.
+ * The command log records the backend's `cli_command` of the first
+ * answer, with its `cli_command_note`: the backend narrows the picker's
+ * selection by the header's group or signature, as ids, so the command
+ * lists the findings of the copy.
  */
 import { get } from 'svelte/store';
 import { api, type FindingsQuery } from './api';
@@ -37,40 +41,6 @@ function targetQuery(target: FindingsCopyTarget): FindingsQuery {
   if (target.kind === 'group') return { group: [target.group] };
   if (target.kind === 'signature') return { signature: [target.id] };
   return {};
-}
-
-/**
- * The value of `rx trace --signatures=` that names the target: a group
- * as `group:<name>`, a signature by its id, and for Copy all the
- * picker's selection (`default` for the default set).
- */
-function signaturesWord(target: FindingsCopyTarget, selection: readonly string[]): string {
-  if (target.kind === 'group') return `group:${target.group}`;
-  if (target.kind === 'signature') return target.id;
-  return selection.length === 0 ? 'default' : selection.join(',');
-}
-
-/** Characters a POSIX shell reads as part of a word, as rx writes its own commands. */
-const SHELL_SAFE = /^[A-Za-z0-9_@%+=:,./-]+$/;
-
-/** `word` as one shell word: as it is when every character is safe, else in single quotes. */
-function shellWord(word: string): string {
-  if (SHELL_SAFE.test(word)) return word;
-  return `'${word.replaceAll("'", `'"'"'`)}'`;
-}
-
-/**
- * The `rx trace` command that lists the findings of a copy, with
- * `linesBefore` lines before each (`-B`, left out for none), for the
- * command log. Built here: the backend's `cli_command` of a findings
- * answer names the picker's selection, not the group or signature a
- * header narrows it to.
- */
-export function findingsCopyCommand(path: string, signatures: string, linesBefore: number): string {
-  const words = ['rx', 'trace', `--signatures=${shellWord(signatures)}`];
-  if (linesBefore > 0) words.push('-B', String(linesBefore));
-  words.push(shellWord(path));
-  return words.join(' ');
 }
 
 /** The findings of a copy that came with their text, and the first answer's summary. */
@@ -169,7 +139,7 @@ function capText(cap: CopyCap | null): string {
  * Copy the findings of `target` in the file `path` to the clipboard,
  * with the panel's filters and the lines before each that the menu
  * chose, and say what was copied, or why nothing was. Records the
- * equivalent `rx trace` command.
+ * backend's equivalent command, with its note.
  */
 export async function copyFindings(path: string, target: FindingsCopyTarget): Promise<void> {
   const filters = panelFilters();
@@ -196,8 +166,7 @@ export async function copyFindings(path: string, target: FindingsCopyTarget): Pr
     notifications.info('No findings to copy', 2500);
     return;
   }
-  const word = signaturesWord(target, filters.signatures ?? []);
-  commandLog.record(findingsCopyCommand(path, word, linesBefore), 'findings');
+  commandLog.record(first.cli_command, 'findings', [], first.cli_command_note);
 
   const cap = capOf(targetIds(target, first.checked, get(signatures)), first);
   const name = fileName(path);

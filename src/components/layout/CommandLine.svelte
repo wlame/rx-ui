@@ -5,7 +5,10 @@
    * the panel of recent commands. Every command is the backend's `cli_command`. An
    * answer given piece by piece (a log chain's lines from several parts)
    * has the commands of its pieces under it, in the panel; a button says
-   * how many and opens it.
+   * how many and opens it. A command that lists more than its answer
+   * (the backend's `cli_command_note`) has a Note button, whose tooltip
+   * is the note and which opens the panel, where the note is given in
+   * full.
    */
   import { tooltip } from '$lib/actions/tooltip';
   import { notifications } from '$lib/stores';
@@ -44,6 +47,18 @@
     >
       <Icon name="copy" size={12} />
     </button>
+    {#if $lastCommand.note}
+      <button
+        type="button"
+        class="shrink-0 hover:text-gh-accent-fg dark:hover:text-gh-accent-dark-fg"
+        title={$lastCommand.note}
+        aria-expanded={isHistoryShown}
+        aria-controls="command-history"
+        on:click={() => (isHistoryShown = true)}
+      >
+        Note
+      </button>
+    {/if}
     {#if $lastCommand.details && $lastCommand.details.length > 0}
       <button
         type="button"

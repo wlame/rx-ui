@@ -5,14 +5,13 @@ import { derived, writable } from 'svelte/store';
  * first: the equivalent command line of what they did in the viewer.
  *
  * Every command comes from the backend's `cli_command`, and an answer
- * without one adds nothing, with one exception: a copy of findings
- * records the `rx trace` command `findingsCopy.ts` writes, since the
- * backend's command of a findings answer names the picker's selection,
- * not the group or signature a header narrows it to. Only answers to a
- * user's action are recorded (a search, a file opened, a jump, a copy of
- * selected lines or of findings, an index, a findings scan, a task over
- * a folder, each from the answer that starts it), not the pages loaded
- * while scrolling.
+ * without one adds nothing. When the backend adds a `cli_command_note`
+ * (the command lists more than the answer does, because a filter of the
+ * answer has no command-line flag), the entry keeps it as `note`. Only
+ * answers to a user's action are recorded (a search, a file opened, a
+ * jump, a copy of selected lines or of findings, an index, a findings
+ * scan, a task over a folder, each from the answer that starts it), not
+ * the pages loaded while scrolling.
  */
 
 /** What the user did that the command answers. */
@@ -27,6 +26,11 @@ export interface CommandEntry {
    * from. Absent for an answer of one command.
    */
   details?: readonly string[];
+  /**
+   * The backend's `cli_command_note`: why the command lists more findings
+   * than the answer does. Absent when the command gives exactly the answer.
+   */
+  note?: string;
   /** When the answer arrived, in milliseconds since the epoch. */
   at: number;
 }
@@ -38,18 +42,27 @@ function createCommandLog() {
   const { subscribe, set, update } = writable<CommandEntry[]>([]);
 
   /**
-   * Add the command of an answer, with the commands of its pieces; a
-   * repeated command moves to the top.
+   * Add the command of an answer, with the commands of its pieces and the
+   * backend's note on it; a repeated command moves to the top, with the
+   * note of its latest answer.
    */
   function record(
     command: string | null | undefined,
     action: CommandAction,
     details: readonly string[] = [],
+    note: string | null | undefined = null,
   ) {
     if (!command || command.trim() === '') return;
+    const hasNote = note !== null && note !== undefined && note.trim() !== '';
     update((entries) =>
       [
-        { command, action, ...(details.length > 0 ? { details } : {}), at: Date.now() },
+        {
+          command,
+          action,
+          ...(details.length > 0 ? { details } : {}),
+          ...(hasNote ? { note } : {}),
+          at: Date.now(),
+        },
         ...entries.filter((entry) => entry.command !== command),
       ].slice(0, RECENT_COMMANDS_LIMIT),
     );

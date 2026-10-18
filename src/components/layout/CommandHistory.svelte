@@ -5,7 +5,8 @@
    * command that gives it, with a copy button (the copy icon); under it,
    * the commands that give the same answer piece by piece (the
    * `rx samples PART` of each part of a log chain's lines), each with its
-   * own. Escape closes it.
+   * own, and the backend's note when the command lists more than its
+   * answer. Escape closes it.
    */
   import { createEventDispatcher } from 'svelte';
   import { tooltip } from '$lib/actions/tooltip';
@@ -99,6 +100,9 @@
               </li>
             {/each}
           </ul>
+        {/if}
+        {#if entry.note}
+          <p class="pl-[9.75rem]">{entry.note}</p>
         {/if}
       </li>
     {/each}

@@ -3,12 +3,7 @@ import '$lib/testing/matchMediaStub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import { COPY_BUDGET_BYTES } from './selectionCopy';
-import {
-  FINDINGS_COPY_PAGE_SIZE,
-  copyFindings,
-  findingsCopyCommand,
-  type FindingsCopyTarget,
-} from './findingsCopy';
+import { FINDINGS_COPY_PAGE_SIZE, copyFindings, type FindingsCopyTarget } from './findingsCopy';
 import { health, settings } from './stores';
 import { commandLog } from './stores/commands';
 import { copyLinesBefore, findingsFilter } from './stores/findings';
@@ -308,49 +303,72 @@ describe('copyFindings text', () => {
 });
 
 describe('the command log of a copy of findings', () => {
-  it('records the rx trace command of a group header', async () => {
+  // The command is the backend's: rx-go names the signatures a header
+  // narrows the picker's selection to, in catalogue order, so a group
+  // header's command lists the group's signatures and no others.
+  it("records the backend's command for a group header", async () => {
     const backend = backendWithFindings();
     await serve(backend);
 
     await copyFindings(APP_LOG, GROUP);
 
     expect(get(commandLog)[0]).toMatchObject({
-      command: 'rx trace --signatures=group:traceback -B 1 /logs/app.log',
+      command: 'rx trace /logs/app.log --before=1 --signatures=python-traceback,java-exception',
       action: 'findings',
     });
+    expect(get(commandLog)[0]).not.toHaveProperty('note');
   });
 
-  it("records a signature header's id and Copy all's picked signatures", async () => {
+  it("records a signature header's id and Copy all's selection as the backend gives them", async () => {
     const backend = backendWithFindings();
     await serve(backend);
     copyLinesBefore.set(2);
 
     await copyFindings(APP_LOG, SIGNATURE);
     expect(get(commandLog)[0].command).toBe(
-      'rx trace --signatures=python-traceback -B 2 /logs/app.log',
+      'rx trace /logs/app.log --before=2 --signatures=python-traceback',
     );
 
     await copyFindings(APP_LOG, ALL);
-    expect(get(commandLog)[0].command).toBe('rx trace --signatures=default -B 2 /logs/app.log');
-  });
-});
-
-describe('findingsCopyCommand', () => {
-  it('leaves -B out with no line before', () => {
-    expect(findingsCopyCommand('/logs/app.log', 'group:traceback', 0)).toBe(
-      'rx trace --signatures=group:traceback /logs/app.log',
+    expect(get(commandLog)[0].command).toBe(
+      'rx trace /logs/app.log --before=2 --signatures=default',
     );
   });
 
-  it('quotes a path and a selection a shell would split', () => {
-    expect(findingsCopyCommand("/logs/my app's.log", 'group:my group', 1)).toBe(
-      `rx trace --signatures='group:my group' -B 1 '/logs/my app'"'"'s.log'`,
-    );
+  it('leaves --before out when no line before each finding is copied', async () => {
+    const backend = backendWithFindings();
+    await serve(backend);
+    copyLinesBefore.set(0);
+
+    await copyFindings(APP_LOG, ALL);
+
+    expect(get(commandLog)[0].command).toBe('rx trace /logs/app.log --signatures=default');
   });
 
-  it('writes the picked signatures as one comma-separated list', () => {
-    expect(findingsCopyCommand('/logs/app.log', 'python-traceback,sql-statement', 1)).toBe(
-      'rx trace --signatures=python-traceback,sql-statement -B 1 /logs/app.log',
-    );
+  // The filter text has no command-line flag: the backend says so in
+  // cli_command_note, and the log keeps the note with the command.
+  it("keeps the backend's note with the command when the filter text narrows the copy", async () => {
+    const backend = backendWithFindings();
+    await serve(backend);
+    findingsFilter.set('sql');
+
+    await copyFindings(APP_LOG, ALL);
+
+    expect(get(commandLog)[0]).toMatchObject({
+      command: 'rx trace /logs/app.log --before=1 --signatures=default',
+      note: 'q has no command-line flag: the command lists more findings than this answer',
+    });
+  });
+
+  // Nothing is built in the viewer: an answer without a command records none.
+  it('records nothing when the backend gives no command, and still copies', async () => {
+    const backend = backendWithFindings();
+    backend.omitsCommand = true;
+    await serve(backend);
+
+    await copyFindings(APP_LOG, GROUP);
+
+    expect(get(commandLog)).toEqual([]);
+    expect(copyText).toHaveBeenCalledTimes(1);
   });
 });

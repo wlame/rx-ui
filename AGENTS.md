@@ -289,17 +289,16 @@ role="tab">` that also carries the drag handlers; its close button is a
   (of a file or a folder) records its task's command, `rx index` or
   `rx scan`, from the answer that starts it, else from its first
   status, else from its result; its end records nothing more. Record a
-  new action's command there; never build a command in the viewer. The
-  one exception is a copy of findings: the backend's command of a
-  findings answer names the picker's selection, not the group or
-  signature a header narrows it to, so `findingsCopyCommand`
-  (`findingsCopy.ts`) writes
-  `rx trace --signatures=group:<g> -B <N> <path>` (a signature's id, or
-  the picked signatures for Copy all), quoting each word as rx quotes
-  its own commands. A group's command names the whole group, not the
-  picked signatures in it, and `rx trace` has no flag for the filter
-  text, so with a picker that narrows the group or with a filter text
-  the command lists more findings than the copy holds.
+  new action's command there; never build a command in the viewer, a
+  copy of findings included. The backend's command of a findings answer
+  (rx-go 0.9.1) names the signatures a header's group or signature
+  narrows the picker's selection to, as ids in catalogue order, with
+  `--before=N` for the lines before each finding, so a copy records the
+  first answer's command as it is. `rx trace` has no flag for the filter
+  text: the answer's `cli_command_note` then says the command lists more
+  findings than the answer holds, the entry keeps it (`note`), and the
+  status bar's Note button (its tooltip is the note) and the recent
+  commands show it.
 - Every keyboard shortcut and mouse gesture is a row of one table,
   `src/lib/utils/shortcuts.ts`. The key handlers ask it whether a key is
   theirs and the help dialog (Cmd/Ctrl+/) lists it, so add a shortcut

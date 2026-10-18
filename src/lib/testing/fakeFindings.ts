@@ -28,6 +28,7 @@ export function signatureInfo(id: string, fields: Partial<SignatureInfo> = {}): 
     source: { builtin: true },
     overrides: false,
     disabled_by: null,
+    replaced_by: null,
     examples: { match: [], no_match: [] },
     regex: null,
     block: null,
@@ -102,6 +103,7 @@ export function findingsAnswer(fields: Partial<FindingsResponse> = {}): Findings
     findings: [],
     ticks: null,
     cli_command: '',
+    cli_command_note: null,
     ...fields,
   };
 }
@@ -240,6 +242,8 @@ export class FindingsBackend {
   private taskCount = 0;
   /** Answer the next DELETE with a 409, as for a task that ended meanwhile. */
   cancelConflict = false;
+  /** Answer `GET /v1/findings` with no command, as a backend that has none would. */
+  omitsCommand = false;
   /** Whether `GET /v1/findings` answers wait for `release`. */
   private isHoldingFindings = false;
   private waiting: (() => void)[] = [];
@@ -403,8 +407,65 @@ export class FindingsBackend {
             )
           : page,
       ticks: width > 0 ? this.ticksOf(file, filtered, width, query.get('file_tz')) : null,
-      cli_command: `rx trace --signatures=${selection.join(',')} ${path}`,
+      ...this.commandOf(path, query, selection),
     });
+  }
+
+  /**
+   * The `cli_command` and `cli_command_note` of a findings answer as rx-go
+   * 0.9.1 gives them: `rx trace PATH [--before=N] --signatures=SEL`, with
+   * SEL the request's selection as sent or, when a `signature` or `group`
+   * filter narrows it, the ids of the selected signatures those filters
+   * keep, in catalogue order. The note names a filter `rx trace` has no
+   * flag for (q, lines, after_line, before_line) and a filter that keeps
+   * none of the selection. The paths of the tests need no shell quoting.
+   */
+  private commandOf(
+    path: string,
+    query: URLSearchParams,
+    selection: readonly string[],
+  ): Pick<FindingsResponse, 'cli_command' | 'cli_command_note'> {
+    if (this.omitsCommand) return { cli_command: '', cli_command_note: null };
+    const only = query.getAll('signature');
+    const groups = query.getAll('group');
+    const groupOf = (id: string) => TEST_SIGNATURES.find((s) => s.id === id)?.group ?? '';
+    const notes: string[] = [];
+    let selectionText = query.get('signatures') || 'default';
+    if (only.length > 0 || groups.length > 0) {
+      const kept = TEST_SIGNATURES.map((s) => s.id).filter(
+        (id) =>
+          selection.includes(id) &&
+          (only.length === 0 || only.includes(id)) &&
+          (groups.length === 0 || groups.includes(groupOf(id))),
+      );
+      if (kept.length > 0) {
+        selectionText = kept.join(',');
+      } else {
+        const words = [...only.map((id) => `signature=${id}`), ...groups.map((g) => `group=${g}`)];
+        notes.push(
+          `${words.join(', ')} keeps no signature of the selection: the command lists the whole selection`,
+        );
+      }
+    }
+    const flagless: string[] = [];
+    if (query.get('q')) flagless.push('q');
+    if (query.get('lines')) flagless.push('lines');
+    if (Number(query.get('after_line') ?? 0) > 0) flagless.push('after_line');
+    if (Number(query.get('before_line') ?? 0) > 0) flagless.push('before_line');
+    if (flagless.length > 0) {
+      const verb = flagless.length > 1 ? 'have' : 'has';
+      notes.push(
+        `${flagless.join(', ')} ${verb} no command-line flag: the command lists more findings than this answer`,
+      );
+    }
+    const before = Number(query.get('before') ?? 0);
+    const words = ['rx', 'trace', path];
+    if (query.get('text') === 'true' && before > 0) words.push(`--before=${before}`);
+    words.push(`--signatures=${selectionText}`);
+    return {
+      cli_command: words.join(' '),
+      cli_command_note: notes.length > 0 ? notes.join('; ') : null,
+    };
   }
 
   /**

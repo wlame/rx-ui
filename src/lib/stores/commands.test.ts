@@ -7,6 +7,8 @@ import { commandLog, lastCommand, RECENT_COMMANDS_LIMIT } from './commands';
  * so a user learns the command line from the UI. It shows only what the
  * backend sent: an answer without a command adds nothing.
  */
+const NOTE = 'q has no command-line flag: the command lists more findings than this answer';
+
 describe('commandLog', () => {
   afterEach(() => commandLog.clear());
 
@@ -36,6 +38,31 @@ describe('commandLog', () => {
       'rx trace /logs --regexp=a',
       'rx trace /logs --regexp=b',
     ]);
+  });
+
+  // The backend's cli_command_note says when a command lists more than
+  // its answer: the entry keeps it beside the command.
+  it('keeps the note of an answer with its command', () => {
+    commandLog.record('rx trace /a.log --signatures=default', 'findings', [], NOTE);
+
+    expect(get(lastCommand)).toMatchObject({
+      command: 'rx trace /a.log --signatures=default',
+      note: NOTE,
+    });
+  });
+
+  it.each([null, undefined, '', '   '])('keeps no note for a note of %o', (note) => {
+    commandLog.record('rx trace /a.log --signatures=default', 'findings', [], note);
+
+    expect(get(lastCommand)).not.toHaveProperty('note');
+  });
+
+  it('gives a repeated command the note of its latest answer', () => {
+    commandLog.record('rx trace /a.log --signatures=default', 'findings', [], NOTE);
+    commandLog.record('rx trace /a.log --signatures=default', 'findings');
+
+    expect(get(commandLog)).toHaveLength(1);
+    expect(get(lastCommand)).not.toHaveProperty('note');
   });
 
   it(`keeps the ${RECENT_COMMANDS_LIMIT} newest commands`, () => {

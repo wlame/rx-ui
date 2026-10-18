@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { CommandEntry } from '$lib/stores/commands';
 import { hoverTooltipText } from '$lib/testing/tooltipText';
 import CommandHistory from './CommandHistory.svelte';
 
@@ -120,5 +121,33 @@ describe('CommandHistory copy buttons', () => {
       expect(copy.querySelector('svg')?.dataset.icon).toBe('copy');
       expect(hoverTooltipText(copy)).toBe(tooltipLabel);
     }
+  });
+});
+
+describe('CommandHistory notes', () => {
+  const NOTE = 'q has no command-line flag: the command lists more findings than this answer';
+
+  /** Mount the panel with `entries`; the text it shows. */
+  function shownWith(entries: CommandEntry[]): string {
+    const target = document.createElement('div');
+    document.body.appendChild(target);
+    panel = new CommandHistory({ target, props: { entries } });
+    return target.textContent ?? '';
+  }
+
+  it('gives the note of an entry under its command', () => {
+    const text = shownWith([
+      { action: 'findings', command: 'rx trace /a.log --signatures=default', note: NOTE, at: 0 },
+      { action: 'search', command: 'rx trace error /logs', at: 0 },
+    ]);
+
+    expect(text).toContain(NOTE);
+    expect(text.split(NOTE)).toHaveLength(2);
+  });
+
+  it('gives no note for entries without one', () => {
+    const text = shownWith([{ action: 'search', command: 'rx trace error /logs', at: 0 }]);
+
+    expect(text).not.toContain('no command-line flag');
   });
 });

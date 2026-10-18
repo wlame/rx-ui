@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The command a copy of findings records is the backend's: the
+  `cli_command` of the first answer, as rx-go 0.9.1 gives it. For a group
+  header it lists the signatures of the group that the picker selects,
+  by id (`rx trace app.log --before=1 --signatures=python-traceback,java-exception`);
+  the viewer used to write the group's name (`--signatures=group:traceback -B 1 app.log`),
+  so a picker that left out some of the group's signatures made the
+  command list more findings than the copy held. A signature header and
+  Copy all record the backend's command the same way, and the viewer
+  builds no command of its own any more.
+- With a filter text the command lists more findings than the copy
+  holds, since `rx trace` has no flag for it. The backend says so in
+  `cli_command_note`, and the recent commands keep the note: a Note
+  button in the status bar, whose tooltip is the note, opens them, and an
+  entry gives its note under the command.
+- This needs rx-go 0.9.1: a 0.9.0 backend gives a findings command that
+  names the picker's selection, not the header's group or signature, and
+  no note. The wire types follow 0.9.1's OpenAPI document
+  (`cli_command_note`, and `replaced_by` on a signature, which the viewer
+  does not use yet).
+
 ## [0.9.0] - 2026-10-17
 
 Systemd journal files, for a backend of wire contract 2.1 (rx-go reads

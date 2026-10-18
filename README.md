@@ -447,14 +447,16 @@ Signatures, "Masking") gives the whole rule.
   10,000 by default) copies those it stores, and the last line says
   "(of 48,210 found, 10,000 stored)". A notification says what was
   copied: "Copied 120 findings (1.2 MB)". The recent commands record
-  an `rx trace` command for the copied findings, which the viewer
-  writes itself: `rx trace --signatures=group:traceback -B 1 app.log`
-  for a group, `--signatures=python-traceback` for a signature, and the
-  picked signatures for Copy all (`--signatures=default` for the default
-  set); `-B` is left out with no line before. A group's command names
-  the whole group, and the filter text has no `rx` flag, so with a
-  picker that leaves out some of the group's signatures, or with a
-  filter, the command lists more findings than the copy holds. The
+  the `rx trace` command for the copied findings as the backend gives
+  it: `rx trace app.log --before=1 --signatures=python-traceback,java-exception`
+  for a group header (the signatures of the group that the picker
+  selects), `--signatures=python-traceback` for a signature header, and
+  `--signatures=default` for Copy all with the default set (the
+  picker's signatures otherwise); `--before` is left out with no line
+  before. The filter text has no `rx` flag, so with a filter the command
+  lists more findings than the copy holds; the backend's note says so,
+  and a Note button in the status bar, whose tooltip is the note, opens
+  the recent commands, which give it in full. The
   headers' Copy buttons and eyes are not Tab stops, so the list stays
   one; when a screen reader focuses one, Enter or Space presses it and
   the header stays as it was. Copy all is in the ⋯ menu, which the

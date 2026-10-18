@@ -11,6 +11,7 @@ import CommandLine from './CommandLine.svelte';
 vi.mock('$lib/utils/clipboard', () => ({ copyText: vi.fn(async () => true) }));
 
 const COMMAND = 'rx trace error /logs/app.log';
+const NOTE = 'q has no command-line flag: the command lists more findings than this answer';
 
 let line: CommandLine | null = null;
 
@@ -34,6 +35,15 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+/** The button of the status bar named `label`, or null. */
+function buttonNamed(target: HTMLElement, label: string): HTMLButtonElement | null {
+  return (
+    [...target.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent?.trim() === label,
+    ) ?? null
+  );
+}
+
 describe('CommandLine', () => {
   it('draws the Copy of the equivalent command as the copy icon, named by its label and its tooltip', async () => {
     const target = mount();
@@ -49,5 +59,34 @@ describe('CommandLine', () => {
 
     button.click();
     expect(vi.mocked(copyText)).toHaveBeenCalledWith(COMMAND);
+  });
+
+  // A command that lists more than its answer says so: the note is on a
+  // Note button, whose tooltip is the note, and in the recent commands.
+  it('names the note of the last answer on a Note button', async () => {
+    commandLog.record('rx trace /logs/app.log --signatures=default', 'findings', [], NOTE);
+    const target = mount();
+    await tick();
+
+    expect(buttonNamed(target, 'Note')?.title).toBe(NOTE);
+  });
+
+  it('has no Note button for an answer without a note', async () => {
+    const target = mount();
+    await tick();
+
+    expect(buttonNamed(target, 'Note')).toBeNull();
+  });
+
+  it('opens the recent commands, which give the note in full, from the Note button', async () => {
+    commandLog.record('rx trace /logs/app.log --signatures=default', 'findings', [], NOTE);
+    const target = mount();
+    await tick();
+    expect(target.textContent).not.toContain(NOTE);
+
+    buttonNamed(target, 'Note')?.click();
+    await tick();
+
+    expect(target.textContent).toContain(NOTE);
   });
 });

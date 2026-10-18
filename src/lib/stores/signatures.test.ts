@@ -23,6 +23,7 @@ function signature(id: string, fields: Partial<SignatureInfo> = {}): SignatureIn
     source: { builtin: true },
     overrides: false,
     disabled_by: null,
+    replaced_by: null,
     examples: { match: [], no_match: [] },
     regex: null,
     block: null,

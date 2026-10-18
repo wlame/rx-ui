@@ -839,8 +839,10 @@ export interface components {
         FindingsResponse: {
             /** @description The signatures of the selection the cache answers, in catalogue order. */
             checked: string[];
-            /** @description The rx command that gives the same findings. */
+            /** @description The rx command that lists the findings of this answer: rx trace PATH --signatures=SELECTION, where SELECTION is the request's selection narrowed by its signature and group filters (as ids when a filter narrows it), with --before=N when text is set and before is above 0, and --mask-secrets on a server that masks. */
             cli_command: string;
+            /** @description Why cli_command lists more findings than this answer, when it does: a filter the command line has no flag for (q, lines, after_line, before_line), or signature and group filters that keep no signature of the selection, in which case the command names the whole selection. null when the command gives exactly this answer's findings. */
+            cli_command_note: string | null;
             /** @description The findings counts of every checked signature, by id. */
             counts: {
                 [key: string]: components["schemas"]["FindingCount"];
@@ -1361,6 +1363,8 @@ export interface components {
             redact: boolean;
             /** @description The definition of a regex signature; null for another kind. */
             regex: components["schemas"]["RegexDefinition"];
+            /** @description For a built-in whose id a refused user definition took: the file and line of that definition. Neither runs; a selection that names the id is refused with the load errors. Null otherwise. */
+            replaced_by: components["schemas"]["DisabledBy"];
             /** @description The definition of a run signature; null for another kind. */
             run: components["schemas"]["RunDefinition"];
             /** @description Where the signature was defined: {"builtin": true}, or the user file and the line. */
@@ -1400,7 +1404,7 @@ export interface components {
             levels: string[];
             /** @description Where the user signature files were looked for: RX_SIGNATURES_PATH, or the configuration directory. */
             search_path: string[];
-            /** @description Every loaded signature, group by group in group order, then in load order; the built-ins a user file disabled are listed too, with disabled_by set. */
+            /** @description Every loaded signature, group by group in group order, then in load order; the built-ins a user file disabled are listed too, with disabled_by set, and the built-ins a refused user definition replaced, with replaced_by set. */
             signatures: components["schemas"]["SignatureInfo"][];
         };
         SkippedFile: {
@@ -1431,7 +1435,7 @@ export interface components {
             task_id: string;
         };
         TaskResponse: {
-            /** @description The rx command that does what the task does: rx index for a task of POST /v1/index, rx scan for a task of POST /v1/findings, with --recursive for a directory (rx index DIR --recursive, rx scan DIR --recursive --signatures=SEL), --hidden when the server serves hidden entries, --force when the request forced, and --mask-secrets when the server masks secrets. Empty for a compress task. A request that joined a running task gets that task's command. */
+            /** @description The rx command that does what the task does: rx index for a task of POST /v1/index, rx scan for a task of POST /v1/findings, with --recursive for a directory (rx index DIR --recursive, rx scan DIR --recursive --signatures=SEL), --hidden when the server serves hidden entries, --force when the request forced, and --mask-secrets when the server masks secrets; rx compress for a task of POST /v1/compress; rx logs index for a task of POST /v1/logs/index. A request that joined a running task gets that task's command. */
             cli_command: string;
             message: string;
             path: string;
@@ -2435,7 +2439,7 @@ export interface operations {
             query: {
                 /** @description The chain's handle: its directory joined with its name, as GET /v1/logs/chains gives it in path. */
                 path: string;
-                /** @description Comma-separated 1-based line numbers or ranges: the chain's global numbers, or with part the part's own numbers. -N counts back from the end (of the chain, or of the part). */
+                /** @description Comma-separated 1-based line numbers or ranges: the chain's global numbers, or with part the part's own numbers. -N counts back from the end (of the chain, or of the part); a range may too (-100--1). */
                 lines?: string;
                 /** @description The bare name of a part, as GET /v1/logs/chain lists it: lines then number that part as GET /v1/samples numbers it on its own. Only with lines. Before the chain is ready, this is the only way to read it: the part is read alone. */
                 part?: string;
@@ -2711,7 +2715,7 @@ export interface operations {
                 path: string;
                 /** @description Comma-separated byte offsets or ranges */
                 offsets?: string;
-                /** @description Comma-separated 1-based line numbers or ranges */
+                /** @description Comma-separated 1-based line numbers or ranges. A negative value counts back from the end: -1 is the last line, -100--1 the last hundred */
                 lines?: string;
                 /** @description A time or time range (T, T1..T2, ..T2, T1..); repeat the parameter for several, at most 1000. Each answers the first line whose own timestamp is at or after the time, with context, or a range's lines without context. A value is never split at commas. */
                 timestamps?: string[] | null;
